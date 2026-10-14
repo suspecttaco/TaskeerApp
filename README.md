@@ -32,6 +32,7 @@ La puerta de verificación son los tests JVM en `app/src/test/java/**` (JUnit 4)
 - Jetpack Compose + Material 3
 - Navigation Compose 2.10.2
 - DataStore Preferences 1.2.1
+- Room 2.8.5 con KSP 2.2.10-2.0.2 (esquema exportado en `app/schemas/`)
 - Desugaring de `java.time` (compatibilidad con minSdk 24)
 
 ## Funcionalidades actuales (verificadas)
@@ -40,7 +41,9 @@ La puerta de verificación son los tests JVM en `app/src/test/java/**` (JUnit 4)
 - **Contenedor de dependencias manual**: `di/AppContainer` creado por `TaskeerApplication`.
 - **Navegación**: entre 4 secciones principales (`Inicio`, `Mi día`, `Workspaces`, `Configuración`), con restauración/recorte de estado según política de navegación.
 - **Tema**: claro/oscuro/automático (`LIGHT`/`DARK`/`AUTO`). Origen de color a elección del usuario: **paleta de marca** o **Material You** (color dinámico). En API < 31 no se ofrece la opción dinámica; por defecto se usa Material You si el dispositivo lo soporta, si no se usa la paleta de marca. Las preferencias del tema se persisten con DataStore.
-- **Datos locales**: preferencias de tema/origen de color almacenadas localmente (DataStore). No hay entidades Room ni datos de negocio aún.
+- **Datos locales**: preferencias de tema/origen de color almacenadas localmente (DataStore). La base Room está configurada (ver más abajo) pero aún no persiste datos de negocio ni está conectada a la UI.
+- **Capa de datos local (Room)**: `AppDatabase` (`taskeer.db`, versión 1) con migraciones explícitas no destructivas y esquema exportado en `app/schemas/`. `BoardDao` sigue las convenciones del proyecto: observación reactiva con `Flow`, lecturas puntuales y escrituras `suspend`, y borrado lógico (soft delete) sin borrado físico de filas. La base aún no está cableada a la UI: todavía no hay CRUD ni datos de negocio visibles.
+- **Metadatos de sincronización**: `SyncableEntity` fija las columnas comunes de toda entidad local (id UUID de cliente, `updatedAt` en epoch ms UTC, marca `pending` y `deletedAt`) y `domain/model/SyncMetadata.kt` modela esos metadatos con sus transiciones (creación, cambio local y borrado local). `data/local/` convierte entre entidad y metadatos; los tipos de Room no salen de esa capa.
 - **Dominio**: `DomainError` (tipado por código) + `DomainResult`, conversión UTC↔zona local con `java.time` (Instant en dominio, conversión solo en presentación).
 
 ## Estructura del proyecto
@@ -49,9 +52,10 @@ La puerta de verificación son los tests JVM en `app/src/test/java/**` (JUnit 4)
 app/src/main/java/com/simposio/taskeer/
   TaskeerApplication.kt
   MainActivity.kt
+  data/local/            # AppDatabase, DAO y entidades Room + mapeo de metadatos
   data/repository/        # Contratos e implementación de preferencias (DataStore)
   di/                    # Contenedor manual + fábricas
-  domain/model/          # ThemeMode, DomainError, DomainResult
+  domain/model/          # ThemeMode, DomainError, DomainResult, SyncMetadata
   domain/theme/          # ThemeResolution, ColorOrigin
   domain/date/           # TimeZoneProvider, DateTimeConverter (UTC en dominio)
   ui/app/                # TaskeerApp, AppViewModel
@@ -66,4 +70,4 @@ app/src/main/java/com/simposio/taskeer/
 
 ## Tests
 
-Suite JVM: `app/src/test/java/**` con 37 tests (0 fallos), incluyendo guardianes de arquitectura que verifican las capas y el aislamiento de la UI. `ExampleUnitTest` no cuenta como cobertura.
+Suite JVM: `app/src/test/java/**` con 65 tests (0 fallos), incluyendo guardianes de arquitectura que verifican las capas y el aislamiento de la UI. `ExampleUnitTest` no cuenta como cobertura.
