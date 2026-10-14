@@ -6,8 +6,15 @@
     <string name="nav_settings">Configuración</string>
     <string name="screen_home">Inicio</string>
     <string name="screen_my_day">Mi día</string>
-    <string name="screen_workspaces">Workspaces</string>
     <string name="screen_settings">Configuración</string>
+    <string name="boards_title">Tableros</string>
+    <string name="board_name_label">Nombre del tablero</string>
+    <string name="board_create">Crear</string>
+    <string name="board_rename">Renombrar</string>
+    <string name="board_delete">Borrar</string>
+    <string name="board_save">Guardar</string>
+    <string name="board_cancel">Cancelar</string>
+    <string name="boards_empty">No hay tableros todavía</string>
     <string name="theme_action">Tema</string>
     <string name="theme_mode_light">Claro</string>
     <string name="theme_mode_dark">Oscuro</string>
