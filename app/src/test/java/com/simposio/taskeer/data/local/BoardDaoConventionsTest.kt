@@ -41,6 +41,14 @@ class BoardDaoConventionsTest {
         assertTrue("la lectura observable debe filtrar deletedAt IS NULL", boardDaoSource().contains("deletedAt IS NULL"))
     }
 
+    @Test
+    fun observeActive_ordenaDeFormaEstable() {
+        assertTrue(
+            "la lectura observable debe ordenar por createdAt e id",
+            boardDaoSource().contains("ORDER BY createdAt ASC, id ASC"),
+        )
+    }
+
     private fun boardDaoSource(): String = File(resolveLocalRoot(), "BoardDao.kt").readText()
 
     private fun method(name: String): Method =

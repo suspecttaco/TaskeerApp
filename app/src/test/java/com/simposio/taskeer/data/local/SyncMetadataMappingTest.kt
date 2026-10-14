@@ -17,7 +17,14 @@ class SyncMetadataMappingTest {
         updatedAt: Long = instant.toEpochMilli(),
         pending: Boolean = true,
         deletedAt: Long? = null,
-    ) = BoardEntity(id = id, name = "tablero", updatedAt = updatedAt, pending = pending, deletedAt = deletedAt)
+    ) = BoardEntity(
+        id = id,
+        name = "tablero",
+        createdAt = instant.toEpochMilli(),
+        updatedAt = updatedAt,
+        pending = pending,
+        deletedAt = deletedAt,
+    )
 
     @Test
     fun entidadADominio_preservaIdYUpdatedAt() {

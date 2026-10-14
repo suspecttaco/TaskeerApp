@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface BoardDao {
-    @Query("SELECT * FROM boards WHERE deletedAt IS NULL")
+    @Query("SELECT * FROM boards WHERE deletedAt IS NULL ORDER BY createdAt ASC, id ASC")
     fun observeActive(): Flow<List<BoardEntity>>
 
     @Query("SELECT * FROM boards WHERE id = :id")
