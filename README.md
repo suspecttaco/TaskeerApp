@@ -5,20 +5,14 @@ Aplicación nativa Android (Kotlin + Jetpack Compose) para gestionar tareas kanb
 ## Requisitos
 
 - JDK 25 (Android Studio JBR o compatible)
-- Android SDK (resuelto vía `local.properties`)
+- Android SDK configurado en el entorno local
 - Android Studio / Gradle
 
 ## Cómo compilar y ejecutar tests
 
 ```bash
-./init.sh            # Comprueba entorno (JDK/SDK) y ejecuta tests JVM
-./init.sh --full     # Además: lintDebug y assembleDebug
-```
-
-También puedes usar Gradle directamente:
-
-```bash
-./gradlew :app:testDebugUnitTest
+./gradlew :app:testDebugUnitTest              # tests JVM
+./gradlew :app:lintDebug :app:assembleDebug   # lint + build de depuración
 ```
 
 La puerta de verificación son los tests JVM en `app/src/test/java/**` (JUnit 4). Los tests instrumentados (`app/src/androidTest/**`) requieren emulador y no forman parte de la puerta de verificación.
@@ -41,10 +35,11 @@ La puerta de verificación son los tests JVM en `app/src/test/java/**` (JUnit 4)
 - **Contenedor de dependencias manual**: `di/AppContainer` creado por `TaskeerApplication`.
 - **Navegación**: entre 4 secciones principales (`Inicio`, `Mi día`, `Workspaces`, `Configuración`), con restauración/recorte de estado según política de navegación.
 - **Tema**: claro/oscuro/automático (`LIGHT`/`DARK`/`AUTO`). Origen de color a elección del usuario: **paleta de marca** o **Material You** (color dinámico). En API < 31 no se ofrece la opción dinámica; por defecto se usa Material You si el dispositivo lo soporta, si no se usa la paleta de marca. Las preferencias del tema se persisten con DataStore.
-- **Datos locales**: preferencias de tema/origen de color almacenadas localmente (DataStore). La base Room está configurada (ver más abajo) pero aún no persiste datos de negocio ni está conectada a la UI.
-- **Capa de datos local (Room)**: `AppDatabase` (`taskeer.db`, versión 1) con migraciones explícitas no destructivas y esquema exportado en `app/schemas/`. `BoardDao` sigue las convenciones del proyecto: observación reactiva con `Flow`, lecturas puntuales y escrituras `suspend`, y borrado lógico (soft delete) sin borrado físico de filas. La base aún no está cableada a la UI: todavía no hay CRUD ni datos de negocio visibles.
+- **Tableros (CRUD local)**: la sección `Workspaces` muestra la lista de tableros y permite **crear**, **renombrar** y **borrar**. El nombre se recorta y no puede quedar vacío (se rechaza con un error de validación visible); la lista se ordena por fecha de creación y se actualiza de forma reactiva. El borrado es lógico (soft delete): la fila permanece en la base de datos pero el tablero deja de listarse. Toda la funcionalidad es local, sin red.
+- **Datos locales**: preferencias de tema/origen de color con DataStore y tableros persistidos en Room.
+- **Capa de datos local (Room)**: `AppDatabase` (`taskeer.db`, versión 2) con migraciones explícitas no destructivas (la migración de esquema añade la fecha de creación) y esquema exportado en `app/schemas/`. `BoardDao` sigue las convenciones del proyecto: observación reactiva con `Flow`, lecturas puntuales y escrituras `suspend`, exclusión de filas borradas en las consultas y borrado lógico (soft delete) sin borrado físico. La base está cableada a la UI mediante `BoardRepository`, que define operaciones con tipos de dominio (`Flow<List<Board>>` y `suspend`).
 - **Metadatos de sincronización**: `SyncableEntity` fija las columnas comunes de toda entidad local (id UUID de cliente, `updatedAt` en epoch ms UTC, marca `pending` y `deletedAt`) y `domain/model/SyncMetadata.kt` modela esos metadatos con sus transiciones (creación, cambio local y borrado local). `data/local/` convierte entre entidad y metadatos; los tipos de Room no salen de esa capa.
-- **Dominio**: `DomainError` (tipado por código) + `DomainResult`, conversión UTC↔zona local con `java.time` (Instant en dominio, conversión solo en presentación).
+- **Dominio**: `DomainError` (tipado por código) + `DomainResult`, conversión UTC↔zona local con `java.time` (Instant en dominio, conversión solo en presentación). El modelo `Board` y sus reglas (crear, renombrar, borrado lógico, validación del nombre) son Kotlin puro.
 
 ## Estructura del proyecto
 
@@ -53,15 +48,16 @@ app/src/main/java/com/simposio/taskeer/
   TaskeerApplication.kt
   MainActivity.kt
   data/local/            # AppDatabase, DAO y entidades Room + mapeo de metadatos
-  data/repository/        # Contratos e implementación de preferencias (DataStore)
+  data/repository/        # Contratos e implementación de preferencias (DataStore) y tableros (Room)
   di/                    # Contenedor manual + fábricas
-  domain/model/          # ThemeMode, DomainError, DomainResult, SyncMetadata
+  domain/board/          # Reglas del tablero (crear, renombrar, borrado lógico)
+  domain/model/          # Board, ThemeMode, DomainError, DomainResult, SyncMetadata
   domain/theme/          # ThemeResolution, ColorOrigin
   domain/date/           # TimeZoneProvider, DateTimeConverter (UTC en dominio)
   ui/app/                # TaskeerApp, AppViewModel
+  ui/boards/             # Pantalla de tableros (lista + crear/renombrar/borrar)
   ui/home/               # Pantalla Inicio (placeholder)
   ui/myday/              # Pantalla Mi día (placeholder)
-  ui/workspaces/         # Pantalla Workspaces (placeholder)
   ui/settings/           # Pantalla Configuración (placeholder)
   ui/navigation/         # AppDestination, NavigationPolicy, AppNavHost
   ui/shell/              # AppShell
@@ -70,4 +66,4 @@ app/src/main/java/com/simposio/taskeer/
 
 ## Tests
 
-Suite JVM: `app/src/test/java/**` con 65 tests (0 fallos), incluyendo guardianes de arquitectura que verifican las capas y el aislamiento de la UI. `ExampleUnitTest` no cuenta como cobertura.
+Suite JVM: `app/src/test/java/**` con 94 tests (0 fallos), incluyendo guardianes de arquitectura que verifican las capas y el aislamiento de la UI. `ExampleUnitTest` no cuenta como cobertura.

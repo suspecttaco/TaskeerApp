@@ -8,21 +8,40 @@ import org.junit.Test
 
 class AppDatabaseSchemaTest {
 
-    private val schema: String = resolveSchema().readText()
+    private val schemaV2: String = resolveSchema(version = 2).readText()
 
     @Test
-    fun esquemaVersion1_estaExportado() {
-        assertTrue(resolveSchema().isFile)
+    fun esquemaVersion1_sigueExportado() {
+        val schemaV1 = resolveSchema(version = 1)
+
+        assertTrue(schemaV1.isFile)
         assertTrue(
-            "el esquema debe declarar la versión 1 de la base de datos",
-            Regex("\"version\"\\s*:\\s*1\\b").containsMatchIn(schema),
+            "el esquema conservado debe declarar la versión 1",
+            Regex("\"version\"\\s*:\\s*1\\b").containsMatchIn(schemaV1.readText()),
+        )
+    }
+
+    @Test
+    fun esquemaVersion2_estaExportado() {
+        assertTrue(resolveSchema(version = 2).isFile)
+        assertTrue(
+            "el esquema debe declarar la versión 2 de la base de datos",
+            Regex("\"version\"\\s*:\\s*2\\b").containsMatchIn(schemaV2),
         )
     }
 
     @Test
     fun tablaBoards_tieneLasColumnasDelConvenio() {
-        assertTrue("debe declarar la tabla boards", schema.contains("\"tableName\": \"boards\""))
-        listOf("id", "name", "updatedAt", "pending", "deletedAt").forEach { column(column = it) }
+        assertTrue("debe declarar la tabla boards", schemaV2.contains("\"tableName\": \"boards\""))
+        listOf("id", "name", "createdAt", "updatedAt", "pending", "deletedAt").forEach { column(column = it) }
+    }
+
+    @Test
+    fun columnaCreatedAt_esIntegerNoNula() {
+        val createdAt = column("createdAt")
+
+        assertEquals("INTEGER", createdAt.affinity)
+        assertTrue("createdAt debe ser no nula", createdAt.notNull)
     }
 
     @Test
@@ -31,7 +50,7 @@ class AppDatabaseSchemaTest {
 
         assertEquals("TEXT", id.affinity)
         assertTrue("la clave primaria debe ser no nula", id.notNull)
-        assertTrue("la clave primaria no debe ser autoGenerate", schema.contains("\"autoGenerate\": false"))
+        assertTrue("la clave primaria no debe ser autoGenerate", schemaV2.contains("\"autoGenerate\": false"))
     }
 
     @Test
@@ -52,7 +71,7 @@ class AppDatabaseSchemaTest {
         val match = Regex(
             "\\{\\s*\"fieldPath\"\\s*:\\s*\"$column\"\\s*,\\s*\"columnName\"\\s*:\\s*\"$column\"\\s*,\\s*" +
                 "\"affinity\"\\s*:\\s*\"([A-Z]+)\"(?:\\s*,\\s*\"notNull\"\\s*:\\s*(true|false))?\\s*\\}",
-        ).find(schema) ?: error("no encontré la columna $column en el esquema")
+        ).find(schemaV2) ?: error("no encontré la columna $column en el esquema")
 
         return ColumnSchema(
             affinity = match.groupValues[1],
@@ -60,8 +79,8 @@ class AppDatabaseSchemaTest {
         )
     }
 
-    private fun resolveSchema(): File {
-        val relativePath = "app/schemas/com.simposio.taskeer.data.local.AppDatabase/1.json"
+    private fun resolveSchema(version: Int): File {
+        val relativePath = "app/schemas/com.simposio.taskeer.data.local.AppDatabase/$version.json"
         val userDir = File(requireNotNull(System.getProperty("user.dir"))).absoluteFile
         return generateSequence(userDir) { it.parentFile }
             .map { File(it, relativePath) }

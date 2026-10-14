@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.simposio.taskeer.R
@@ -40,6 +41,7 @@ fun AppShell(
     dynamicColor: Boolean,
     onThemeModeChange: (ThemeMode) -> Unit,
     onDynamicColorChange: (Boolean) -> Unit,
+    viewModelFactory: ViewModelProvider.Factory,
     modifier: Modifier = Modifier,
 ) {
     val navController = rememberNavController()
@@ -93,6 +95,7 @@ fun AppShell(
     ) { innerPadding ->
         AppNavHost(
             navController = navController,
+            viewModelFactory = viewModelFactory,
             modifier = Modifier
                 .padding(innerPadding)
                 .consumeWindowInsets(innerPadding),
@@ -171,6 +174,8 @@ private fun AppShellPreview() {
             dynamicColor = true,
             onThemeModeChange = {},
             onDynamicColorChange = {},
+            // La preview abre el destino inicial (Inicio): la factoría nunca se usa.
+            viewModelFactory = object : ViewModelProvider.Factory {},
         )
     }
 }

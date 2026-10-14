@@ -2,6 +2,7 @@ package com.simposio.taskeer.ui.app
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.ViewModelProvider
 import com.simposio.taskeer.domain.model.ThemeMode
 import com.simposio.taskeer.ui.shell.AppShell
 import com.simposio.taskeer.ui.theme.TaskeerTheme
@@ -12,6 +13,7 @@ fun TaskeerApp(
     dynamicColor: Boolean,
     onThemeModeChange: (ThemeMode) -> Unit,
     onDynamicColorChange: (Boolean) -> Unit,
+    viewModelFactory: ViewModelProvider.Factory,
     modifier: Modifier = Modifier,
 ) {
     TaskeerTheme(themeMode = themeMode, dynamicColor = dynamicColor) {
@@ -20,6 +22,7 @@ fun TaskeerApp(
             dynamicColor = dynamicColor,
             onThemeModeChange = onThemeModeChange,
             onDynamicColorChange = onDynamicColorChange,
+            viewModelFactory = viewModelFactory,
             modifier = modifier,
         )
     }

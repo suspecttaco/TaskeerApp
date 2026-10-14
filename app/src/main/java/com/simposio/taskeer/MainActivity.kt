@@ -18,9 +18,11 @@ class MainActivity : ComponentActivity() {
         (application as TaskeerApplication).container
     }
 
-    private val appViewModel: AppViewModel by viewModels {
+    private val viewModelFactory: AppViewModelFactory by lazy {
         AppViewModelFactory(container)
     }
+
+    private val appViewModel: AppViewModel by viewModels { viewModelFactory }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,6 +36,7 @@ class MainActivity : ComponentActivity() {
                 dynamicColor = dynamicColor,
                 onThemeModeChange = appViewModel::setThemeMode,
                 onDynamicColorChange = appViewModel::setDynamicColor,
+                viewModelFactory = viewModelFactory,
             )
         }
     }
