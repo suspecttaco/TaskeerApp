@@ -5,20 +5,14 @@ Aplicación nativa Android (Kotlin + Jetpack Compose) para gestionar tareas kanb
 ## Requisitos
 
 - JDK 25 (Android Studio JBR o compatible)
-- Android SDK (resuelto vía `local.properties`)
+- Android SDK configurado en el entorno local
 - Android Studio / Gradle
 
 ## Cómo compilar y ejecutar tests
 
 ```bash
-./init.sh            # Comprueba entorno (JDK/SDK) y ejecuta tests JVM
-./init.sh --full     # Además: lintDebug y assembleDebug
-```
-
-También puedes usar Gradle directamente:
-
-```bash
-./gradlew :app:testDebugUnitTest
+./gradlew :app:testDebugUnitTest              # tests JVM
+./gradlew :app:lintDebug :app:assembleDebug   # lint + build de depuración
 ```
 
 La puerta de verificación son los tests JVM en `app/src/test/java/**` (JUnit 4). Los tests instrumentados (`app/src/androidTest/**`) requieren emulador y no forman parte de la puerta de verificación.
