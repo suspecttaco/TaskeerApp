@@ -8,6 +8,11 @@
 /.opencode/
 /progress/
 /specs/
+/notes/
+/AGENTS.md
+/CHECKPOINTS.md
+/init.sh
+/feature_list.json
 .DS_Store
 /build
 /captures
