@@ -44,7 +44,17 @@ class LocalDataLayerRulesTest {
 
     @Test
     fun domainYUiSinTiposDeDataLocal() {
-        val forbiddenTokens = listOf("androidx.room", "AppDatabase", "BoardEntity", "BoardDao", "BoardMapping", "SyncableEntity")
+        val forbiddenTokens = listOf(
+            "androidx.room",
+            "AppDatabase",
+            "BoardEntity",
+            "BoardDao",
+            "BoardMapping",
+            "ColumnEntity",
+            "ColumnDao",
+            "ColumnMapping",
+            "SyncableEntity",
+        )
 
         val violations = listOf("domain", "ui").flatMap { layer ->
             kotlinSources(File(sourcesRoot, layer)).flatMap { file ->
@@ -85,6 +95,9 @@ class LocalDataLayerRulesTest {
             "BoardDao",
             "BoardEntity",
             "BoardMapping",
+            "ColumnDao",
+            "ColumnEntity",
+            "ColumnMapping",
             "SyncableEntity",
         )
 

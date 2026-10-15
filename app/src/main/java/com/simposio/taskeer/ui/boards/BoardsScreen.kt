@@ -1,5 +1,6 @@
 package com.simposio.taskeer.ui.boards
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,7 +33,11 @@ import com.simposio.taskeer.domain.model.Board
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 
 @Composable
-fun BoardsScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifier = Modifier) {
+fun BoardsScreen(
+    viewModelFactory: ViewModelProvider.Factory,
+    onOpen: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val viewModel: BoardsViewModel = viewModel(factory = viewModelFactory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -41,6 +46,7 @@ fun BoardsScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifier
         onCreate = viewModel::createBoard,
         onRename = viewModel::renameBoard,
         onDelete = viewModel::deleteBoard,
+        onOpen = onOpen,
         modifier = modifier,
     )
 }
@@ -51,6 +57,7 @@ fun BoardsContent(
     onCreate: (String) -> Unit,
     onRename: (String, String) -> Unit,
     onDelete: (String) -> Unit,
+    onOpen: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var newName by rememberSaveable { mutableStateOf("") }
@@ -116,6 +123,7 @@ fun BoardsContent(
                             editingId = null
                         },
                         onDelete = { onDelete(board.id) },
+                        onOpen = { onOpen(board.id) },
                     )
                 }
             }
@@ -133,6 +141,7 @@ private fun BoardRow(
     onCancelEditing: () -> Unit,
     onConfirmRename: () -> Unit,
     onDelete: () -> Unit,
+    onOpen: () -> Unit,
 ) {
     if (editing) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -151,7 +160,12 @@ private fun BoardRow(
         }
     } else {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = board.name, modifier = Modifier.weight(1f))
+            Text(
+                text = board.name,
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onOpen),
+            )
             TextButton(onClick = onStartEditing) {
                 Text(stringResource(R.string.board_rename))
             }
@@ -171,6 +185,7 @@ private fun BoardsContentPreview() {
             onCreate = {},
             onRename = { _, _ -> },
             onDelete = {},
+            onOpen = {},
         )
     }
 }
