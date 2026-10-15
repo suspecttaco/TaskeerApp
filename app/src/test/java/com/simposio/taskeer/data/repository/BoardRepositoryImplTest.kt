@@ -2,6 +2,8 @@ package com.simposio.taskeer.data.repository
 
 import com.simposio.taskeer.data.local.BoardDao
 import com.simposio.taskeer.data.local.BoardEntity
+import com.simposio.taskeer.data.local.ColumnDao
+import com.simposio.taskeer.data.local.ColumnEntity
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import java.time.Instant
@@ -23,7 +25,7 @@ class BoardRepositoryImplTest {
     @Test
     fun createBoard_persisteYPermiteRelistar() = runTest {
         val dao = FakeBoardDao()
-        val repository = BoardRepositoryImpl(dao, now = { now })
+        val repository = repository(dao)
 
         val result = repository.createBoard("  Compras  ")
 
@@ -46,7 +48,8 @@ class BoardRepositoryImplTest {
     @Test
     fun createBoard_sinNombre_noEscribeEnElDao() = runTest {
         val dao = FakeBoardDao()
-        val repository = BoardRepositoryImpl(dao, now = { now })
+        val columnDao = FakeColumnDao(dao)
+        val repository = repository(dao, columnDao)
 
         val result = repository.createBoard("   ")
 
@@ -54,13 +57,48 @@ class BoardRepositoryImplTest {
         assertTrue(error is DomainError.Validation)
         assertEquals("BOARD_NAME_REQUIRED", error.code)
         assertTrue(dao.stored.isEmpty())
+        assertEquals(0, columnDao.seedCalls)
+    }
+
+    @Test
+    fun createBoard_siembraLasTresColumnasPorDefecto() = runTest {
+        val dao = FakeBoardDao()
+        val columnDao = FakeColumnDao(dao)
+        val repository = repository(dao, columnDao)
+
+        val board = (repository.createBoard("Compras") as DomainResult.Success).value
+
+        val seeded = columnDao.seededColumns.values.toList()
+        assertEquals(listOf("Por hacer", "En progreso", "Hecho"), seeded.map { it.name })
+        assertEquals(listOf(0, 1, 2), seeded.map { it.position })
+        assertEquals(listOf(false, false, true), seeded.map { it.isDoneColumn })
+        assertTrue("todas apuntan al tablero creado", seeded.all { it.boardId == board.id })
+        assertTrue("todas nacen pendientes", seeded.all { it.pending })
+        assertTrue("ninguna nace borrada", seeded.all { it.deletedAt == null })
+        assertTrue("todas con el instante de creación", seeded.all { it.updatedAt == board.createdAt.toEpochMilli() })
+        assertTrue("todas nacen sin límite WIP", seeded.all { it.wipLimit == null })
+        assertEquals(3, seeded.map { it.id }.toSet().size)
+    }
+
+    @Test
+    fun createBoard_laSiembraEsUnaUnicaLlamadaTransaccional() = runTest {
+        val dao = FakeBoardDao()
+        val columnDao = FakeColumnDao(dao)
+        val repository = repository(dao, columnDao)
+
+        repository.createBoard("Compras")
+
+        assertEquals("tablero y columnas se escriben en una sola llamada", 1, columnDao.seedCalls)
+        assertEquals(3, columnDao.seededColumns.size)
+        assertTrue("el tablero se escribe en la transacción de siembra", columnDao.boards.isNotEmpty())
+        assertEquals("el tablero se escribe una sola vez", 1, dao.upsertCalls)
     }
 
     @Test
     fun renameBoard_persisteElNombreYConservaIdYCreacion() = runTest {
         val dao = FakeBoardDao()
         var clock = now
-        val repository = BoardRepositoryImpl(dao, now = { clock })
+        val repository = repository(dao, now = { clock })
         val created = (repository.createBoard("Compras") as DomainResult.Success).value
 
         clock = now.plusSeconds(60)
@@ -81,11 +119,11 @@ class BoardRepositoryImplTest {
     @Test
     fun renameBoard_unaNuevaInstanciaLeeElNombreNuevo() = runTest {
         val dao = FakeBoardDao()
-        val first = BoardRepositoryImpl(dao, now = { now })
+        val first = repository(dao, now = { now })
         val created = (first.createBoard("Compras") as DomainResult.Success).value
         first.renameBoard(created.id, "Mercado")
 
-        val second = BoardRepositoryImpl(dao, now = { now.plusSeconds(90) })
+        val second = repository(dao, now = { now.plusSeconds(90) })
 
         assertEquals(listOf("Mercado"), second.observeBoards().first().map { it.name })
     }
@@ -93,7 +131,7 @@ class BoardRepositoryImplTest {
     @Test
     fun renameBoard_sinNombre_noEscribeEnElDao() = runTest {
         val dao = FakeBoardDao()
-        val repository = BoardRepositoryImpl(dao, now = { now })
+        val repository = repository(dao, now = { now })
         val created = (repository.createBoard("Compras") as DomainResult.Success).value
         val before = dao.stored.getValue(created.id)
 
@@ -108,7 +146,7 @@ class BoardRepositoryImplTest {
     fun deleteBoard_marcaDeletedAtYNoBorraLaFila() = runTest {
         val dao = FakeBoardDao()
         var clock = now
-        val repository = BoardRepositoryImpl(dao, now = { clock })
+        val repository = repository(dao, now = { clock })
         val created = (repository.createBoard("Compras") as DomainResult.Success).value
 
         clock = now.plusSeconds(120)
@@ -128,7 +166,7 @@ class BoardRepositoryImplTest {
     fun observeBoards_excluyeLosBorrados() = runTest {
         val dao = FakeBoardDao()
         var clock = now
-        val repository = BoardRepositoryImpl(dao, now = { clock })
+        val repository = repository(dao, now = { clock })
         val active = (repository.createBoard("Activo") as DomainResult.Success).value
         val removed = (repository.createBoard("Borrado") as DomainResult.Success).value
 
@@ -143,7 +181,7 @@ class BoardRepositoryImplTest {
     fun observeBoards_conservaElOrdenDeCreacion() = runTest {
         val dao = FakeBoardDao()
         var clock = now
-        val repository = BoardRepositoryImpl(dao, now = { clock })
+        val repository = repository(dao, now = { clock })
         val first = (repository.createBoard("Primero") as DomainResult.Success).value
         clock = now.plusSeconds(1)
         val second = (repository.createBoard("Segundo") as DomainResult.Success).value
@@ -159,7 +197,7 @@ class BoardRepositoryImplTest {
     @Test
     fun renameBoard_deUnIdDesconocido_fallaConNotFound() = runTest {
         val dao = FakeBoardDao()
-        val repository = BoardRepositoryImpl(dao, now = { now })
+        val repository = repository(dao, now = { now })
 
         val result = repository.renameBoard("no-existe", "Nuevo")
 
@@ -172,7 +210,7 @@ class BoardRepositoryImplTest {
     @Test
     fun deleteBoard_deUnIdDesconocido_fallaConNotFound() = runTest {
         val dao = FakeBoardDao()
-        val repository = BoardRepositoryImpl(dao, now = { now })
+        val repository = repository(dao, now = { now })
 
         val result = repository.deleteBoard("no-existe")
 
@@ -186,7 +224,7 @@ class BoardRepositoryImplTest {
     fun deleteBoard_deUnTableroYaBorrado_fallaConNotFound() = runTest {
         val dao = FakeBoardDao()
         var clock = now
-        val repository = BoardRepositoryImpl(dao, now = { clock })
+        val repository = repository(dao, now = { clock })
         val created = (repository.createBoard("Compras") as DomainResult.Success).value
         clock = now.plusSeconds(60)
         repository.deleteBoard(created.id)
@@ -205,7 +243,7 @@ class BoardRepositoryImplTest {
     fun renameBoard_deUnTableroYaBorrado_fallaConNotFound() = runTest {
         val dao = FakeBoardDao()
         var clock = now
-        val repository = BoardRepositoryImpl(dao, now = { clock })
+        val repository = repository(dao, now = { clock })
         val created = (repository.createBoard("Compras") as DomainResult.Success).value
         clock = now.plusSeconds(60)
         repository.deleteBoard(created.id)
@@ -220,8 +258,17 @@ class BoardRepositoryImplTest {
         assertEquals(afterDelete, dao.stored.getValue(created.id))
     }
 
+    private fun repository(
+        dao: FakeBoardDao,
+        columnDao: FakeColumnDao = FakeColumnDao(dao),
+        now: () -> Instant = { this.now },
+    ): BoardRepositoryImpl = BoardRepositoryImpl(dao, columnDao, now)
+
     private class FakeBoardDao : BoardDao {
         private val rows = MutableStateFlow<Map<String, BoardEntity>>(emptyMap())
+
+        var upsertCalls: Int = 0
+            private set
 
         val stored: Map<String, BoardEntity> get() = rows.value
 
@@ -234,7 +281,48 @@ class BoardRepositoryImplTest {
         override suspend fun findById(id: String): BoardEntity? = rows.value[id]
 
         override suspend fun upsert(board: BoardEntity) {
+            upsertCalls++
             rows.value = rows.value + (board.id to board)
+        }
+    }
+
+    private class FakeColumnDao(private val boardDao: FakeBoardDao) : ColumnDao() {
+        private val columns = MutableStateFlow<Map<String, ColumnEntity>>(emptyMap())
+
+        var seedCalls: Int = 0
+            private set
+
+        val boards: Map<String, BoardEntity> get() = boardDao.stored
+        val seededColumns: Map<String, ColumnEntity> get() = columns.value
+
+        override fun observeByBoard(boardId: String): Flow<List<ColumnEntity>> = columns.map { stored ->
+            stored.values
+                .filter { it.boardId == boardId && it.deletedAt == null }
+                .sortedWith(compareBy({ it.position }, { it.id }))
+        }
+
+        override suspend fun findActiveByBoard(boardId: String): List<ColumnEntity> =
+            columns.value.values
+                .filter { it.boardId == boardId && it.deletedAt == null }
+                .sortedWith(compareBy({ it.position }, { it.id }))
+
+        override suspend fun findById(id: String): ColumnEntity? = columns.value[id]
+
+        override suspend fun upsert(column: ColumnEntity) {
+            columns.value = columns.value + (column.id to column)
+        }
+
+        override suspend fun upsertAll(columns: List<ColumnEntity>) {
+            this.columns.value = this.columns.value + columns.associateBy { it.id }
+        }
+
+        override suspend fun insertBoard(board: BoardEntity) {
+            boardDao.upsert(board)
+        }
+
+        override suspend fun insertBoardWithSeed(board: BoardEntity, columns: List<ColumnEntity>) {
+            seedCalls++
+            super.insertBoardWithSeed(board, columns)
         }
     }
 }

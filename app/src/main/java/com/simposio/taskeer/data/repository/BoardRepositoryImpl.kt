@@ -1,11 +1,13 @@
 package com.simposio.taskeer.data.repository
 
 import com.simposio.taskeer.data.local.BoardDao
+import com.simposio.taskeer.data.local.ColumnDao
 import com.simposio.taskeer.data.local.toBoard
 import com.simposio.taskeer.data.local.toEntity
 import com.simposio.taskeer.domain.board.newBoard
 import com.simposio.taskeer.domain.board.renamed
 import com.simposio.taskeer.domain.board.softDeleted
+import com.simposio.taskeer.domain.column.defaultBoardColumns
 import com.simposio.taskeer.domain.model.Board
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
@@ -15,6 +17,7 @@ import kotlinx.coroutines.flow.map
 
 class BoardRepositoryImpl(
     private val dao: BoardDao,
+    private val columnDao: ColumnDao,
     private val now: () -> Instant = Instant::now,
 ) : BoardRepository {
 
@@ -25,8 +28,12 @@ class BoardRepositoryImpl(
         when (val result = newBoard(name, now())) {
             is DomainResult.Failure -> result
             is DomainResult.Success -> {
-                dao.upsert(result.value.toEntity())
-                DomainResult.Success(result.value)
+                val board = result.value
+                // Una sola llamada transaccional (tablero + siembra): si falla, no
+                // queda un tablero sin columnas.
+                val seed = defaultBoardColumns(board.id, board.createdAt)
+                columnDao.insertBoardWithSeed(board.toEntity(), seed.map { it.toEntity() })
+                DomainResult.Success(board)
             }
         }
 
