@@ -9,6 +9,7 @@ import org.junit.Test
 class AppDatabaseSchemaTest {
 
     private val schemaV2: String = resolveSchema(version = 2).readText()
+    private val schemaV3: String = resolveSchema(version = 3).readText()
 
     @Test
     fun esquemaVersion1_sigueExportado() {
@@ -22,11 +23,20 @@ class AppDatabaseSchemaTest {
     }
 
     @Test
-    fun esquemaVersion2_estaExportado() {
+    fun esquemaVersion2_sigueExportado() {
         assertTrue(resolveSchema(version = 2).isFile)
         assertTrue(
             "el esquema debe declarar la versión 2 de la base de datos",
             Regex("\"version\"\\s*:\\s*2\\b").containsMatchIn(schemaV2),
+        )
+    }
+
+    @Test
+    fun esquemaVersion3_estaExportado() {
+        assertTrue(resolveSchema(version = 3).isFile)
+        assertTrue(
+            "el esquema debe declarar la versión 3 de la base de datos",
+            Regex("\"version\"\\s*:\\s*3\\b").containsMatchIn(schemaV3),
         )
     }
 
@@ -67,11 +77,52 @@ class AppDatabaseSchemaTest {
         assertTrue("pending debe ser no nula", pending.notNull)
     }
 
-    private fun column(column: String): ColumnSchema {
+    @Test
+    fun tablaColumns_tieneLasColumnasDelModelo() {
+        val columnsTable = columnsTable()
+
+        listOf("id", "boardId", "name", "position", "wipLimit", "isDoneColumn", "updatedAt", "pending", "deletedAt")
+            .forEach { column(columnsTable, it) }
+    }
+
+    @Test
+    fun columnaBoardId_esTextNoNula() {
+        val boardId = column(columnsTable(), "boardId")
+
+        assertEquals("TEXT", boardId.affinity)
+        assertTrue("boardId debe ser no nula", boardId.notNull)
+    }
+
+    @Test
+    fun columnaPosition_esIntegerNoNula() {
+        val position = column(columnsTable(), "position")
+
+        assertEquals("INTEGER", position.affinity)
+        assertTrue("position debe ser no nula", position.notNull)
+    }
+
+    @Test
+    fun columnaWipLimit_admiteNull() {
+        val wipLimit = column(columnsTable(), "wipLimit")
+
+        assertEquals("INTEGER", wipLimit.affinity)
+        assertFalse("wipLimit debe admitir NULL", wipLimit.notNull)
+    }
+
+    private fun columnsTable(): String {
+        val start = schemaV3.indexOf("\"tableName\": \"columns\"")
+        assertTrue("el esquema v3 debe declarar la tabla columns", start >= 0)
+        val nextTable = schemaV3.indexOf("\"tableName\":", start + 1)
+        return schemaV3.substring(start, if (nextTable < 0) schemaV3.length else nextTable)
+    }
+
+    private fun column(column: String): ColumnSchema = column(schemaV2, column)
+
+    private fun column(schema: String, column: String): ColumnSchema {
         val match = Regex(
             "\\{\\s*\"fieldPath\"\\s*:\\s*\"$column\"\\s*,\\s*\"columnName\"\\s*:\\s*\"$column\"\\s*,\\s*" +
                 "\"affinity\"\\s*:\\s*\"([A-Z]+)\"(?:\\s*,\\s*\"notNull\"\\s*:\\s*(true|false))?\\s*\\}",
-        ).find(schemaV2) ?: error("no encontré la columna $column en el esquema")
+        ).find(schema) ?: error("no encontré la columna $column en el esquema")
 
         return ColumnSchema(
             affinity = match.groupValues[1],
