@@ -163,6 +163,7 @@ private fun AppDestination.labelRes(): Int = when (this) {
     AppDestination.MY_DAY -> R.string.nav_my_day
     AppDestination.WORKSPACES -> R.string.nav_workspaces
     AppDestination.SETTINGS -> R.string.nav_settings
+    AppDestination.BOARD_COLUMNS -> R.string.columns_title
 }
 
 @Preview(showBackground = true)

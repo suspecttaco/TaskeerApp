@@ -9,10 +9,10 @@ class AppDatabaseMigrationTest {
     private val source: String = File(resolveLocalRoot(), "AppDatabase.kt").readText()
 
     @Test
-    fun versionActual_esDos() {
+    fun versionActual_esTres() {
         assertTrue(
-            "AppDatabase debe declarar la versión 2",
-            Regex("version\\s*=\\s*2\\b").containsMatchIn(source),
+            "AppDatabase debe declarar la versión 3",
+            Regex("version\\s*=\\s*3\\b").containsMatchIn(source),
         )
     }
 
@@ -26,10 +26,33 @@ class AppDatabaseMigrationTest {
     }
 
     @Test
-    fun migraciones_incluyenLaMigracion1a2() {
+    fun migracion2a3_creaLaTablaColumns() {
+        assertTrue("debe declarar una Migration(2, 3)", source.contains("Migration(2, 3)"))
         assertTrue(
-            "MIGRATIONS debe incluir MIGRATION_1_2",
-            Regex("MIGRATIONS[^=]*=\\s*listOf\\(\\s*MIGRATION_1_2\\s*\\)").containsMatchIn(source),
+            "la migración debe crear la tabla columns",
+            source.contains("CREATE TABLE IF NOT EXISTS `columns`"),
+        )
+        listOf(
+            "`boardId` TEXT NOT NULL",
+            "`name` TEXT NOT NULL",
+            "`position` INTEGER NOT NULL",
+            "`wipLimit` INTEGER",
+            "`isDoneColumn` INTEGER NOT NULL",
+            "`updatedAt` INTEGER NOT NULL",
+            "`pending` INTEGER NOT NULL",
+            "`deletedAt` INTEGER",
+            "PRIMARY KEY(`id`)",
+        ).forEach { fragment ->
+            assertTrue("la tabla columns debe declarar $fragment", source.contains(fragment))
+        }
+    }
+
+    @Test
+    fun migraciones_incluyenLaMigracion1a2YLa2a3() {
+        assertTrue(
+            "MIGRATIONS debe incluir MIGRATION_1_2 y MIGRATION_2_3",
+            Regex("MIGRATIONS[^=]*=\\s*listOf\\(\\s*MIGRATION_1_2\\s*,\\s*MIGRATION_2_3\\s*\\)")
+                .containsMatchIn(source),
         )
         assertTrue("las migraciones se aplican con addMigrations", source.contains("addMigrations("))
     }

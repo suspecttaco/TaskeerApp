@@ -15,6 +15,16 @@
     <string name="board_save">Guardar</string>
     <string name="board_cancel">Cancelar</string>
     <string name="boards_empty">No hay tableros todavía</string>
+    <string name="columns_title">Columnas</string>
+    <string name="column_name_label">Nombre de la columna</string>
+    <string name="column_create">Crear</string>
+    <string name="column_rename">Renombrar</string>
+    <string name="column_delete">Borrar</string>
+    <string name="column_save">Guardar</string>
+    <string name="column_cancel">Cancelar</string>
+    <string name="column_move_up">Subir</string>
+    <string name="column_move_down">Bajar</string>
+    <string name="columns_empty">No hay columnas todavía</string>
     <string name="theme_action">Tema</string>
     <string name="theme_mode_light">Claro</string>
     <string name="theme_mode_dark">Oscuro</string>

@@ -2,8 +2,11 @@ package com.simposio.taskeer.di
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
+import androidx.lifecycle.viewmodel.CreationExtras
 import com.simposio.taskeer.ui.app.AppViewModel
 import com.simposio.taskeer.ui.boards.BoardsViewModel
+import com.simposio.taskeer.ui.columns.ColumnsViewModel
 
 class AppViewModelFactory(private val container: AppContainer) : ViewModelProvider.Factory {
 
@@ -12,5 +15,13 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
         modelClass.isAssignableFrom(AppViewModel::class.java) -> AppViewModel(container.preferencesRepository) as T
         modelClass.isAssignableFrom(BoardsViewModel::class.java) -> BoardsViewModel(container.boardRepository) as T
         else -> error("AppViewModelFactory no sabe construir ${modelClass.name}")
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T = when {
+        modelClass.isAssignableFrom(ColumnsViewModel::class.java) ->
+            ColumnsViewModel(container.columnRepository, extras.createSavedStateHandle()) as T
+
+        else -> create(modelClass)
     }
 }

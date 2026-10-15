@@ -1,6 +1,7 @@
 package com.simposio.taskeer.ui.navigation
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -38,5 +39,16 @@ class AppDestinationTest {
     fun fromRoute_resuelveElDestino() {
         assertEquals(AppDestination.MY_DAY, AppDestination.fromRoute("my_day"))
         assertNull(AppDestination.fromRoute("desconocido"))
+    }
+
+    @Test
+    fun boardColumnsNoEsSeccionPrincipal() {
+        assertFalse("las columnas no son una sección de la barra", AppDestination.BOARD_COLUMNS in AppDestination.topLevel)
+        assertEquals("board_columns/{boardId}", AppDestination.BOARD_COLUMNS.route)
+    }
+
+    @Test
+    fun boardColumnsRouteLlevaElTablero() {
+        assertEquals("board_columns/tablero-1", AppDestination.boardColumnsRoute("tablero-1"))
     }
 }

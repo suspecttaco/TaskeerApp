@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
 import com.simposio.taskeer.data.local.AppDatabase
 import com.simposio.taskeer.data.repository.BoardRepositoryImpl
+import com.simposio.taskeer.data.repository.ColumnRepositoryImpl
 import com.simposio.taskeer.data.repository.PreferencesRepositoryImpl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,9 +16,11 @@ fun createAppContainer(context: Context): AppContainer {
         scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
         produceFile = { context.preferencesDataStoreFile(PreferencesRepositoryImpl.DATA_STORE_NAME) },
     )
+    val database = AppDatabase.create(context)
     return AppContainer(
         preferencesRepository = PreferencesRepositoryImpl(dataStore),
         timeZoneProvider = SystemTimeZoneProvider,
-        boardRepository = BoardRepositoryImpl(AppDatabase.create(context).boardDao()),
+        boardRepository = BoardRepositoryImpl(database.boardDao(), database.columnDao()),
+        columnRepository = ColumnRepositoryImpl(database.boardDao(), database.columnDao()),
     )
 }
