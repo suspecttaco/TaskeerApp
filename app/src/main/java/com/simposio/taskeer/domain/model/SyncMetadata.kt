@@ -3,7 +3,6 @@ package com.simposio.taskeer.domain.model
 import java.time.Instant
 import java.util.UUID
 
-/** Metadatos de sincronización de toda entidad sincronizable. */
 data class SyncMetadata(
     val clientId: String,
     val updatedAt: Instant,

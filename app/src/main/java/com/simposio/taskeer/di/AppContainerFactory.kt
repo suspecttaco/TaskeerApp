@@ -32,6 +32,5 @@ fun createAppContainer(context: Context): AppContainer {
     )
 }
 
-// Conteo real de tareas por columna para el guard de columns-crud; es una función y no
-// una línea dentro de createAppContainer para que sea comprobable en un test JVM.
+// Función aparte y no una línea en createAppContainer para poder probarla en un test JVM.
 fun taskCountByColumn(taskDao: TaskDao): suspend (String) -> Int = { columnId -> taskDao.countByColumn(columnId) }
