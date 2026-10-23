@@ -53,6 +53,9 @@ class LocalDataLayerRulesTest {
             "ColumnEntity",
             "ColumnDao",
             "ColumnMapping",
+            "TaskEntity",
+            "TaskDao",
+            "TaskMapping",
             "SyncableEntity",
         )
 
@@ -98,6 +101,9 @@ class LocalDataLayerRulesTest {
             "ColumnDao",
             "ColumnEntity",
             "ColumnMapping",
+            "TaskDao",
+            "TaskEntity",
+            "TaskMapping",
             "SyncableEntity",
         )
 
