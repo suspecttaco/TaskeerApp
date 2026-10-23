@@ -32,7 +32,7 @@ class PreferencesRepositoryImpl(
 
     private fun readPreferences(): Flow<Preferences> = dataStore.data
         .catch { cause ->
-            // Un fichero ilegible no debe tumbar el arranque: se cae a las preferencias por defecto.
+            // Un fichero ilegible no debe tumbar el arranque: se usan las preferencias por defecto.
             if (cause is IOException) emit(emptyPreferences()) else throw cause
         }
 

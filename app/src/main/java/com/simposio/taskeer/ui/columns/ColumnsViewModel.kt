@@ -18,11 +18,15 @@ class ColumnsViewModel(
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    val boardId: String = requireNotNull(savedStateHandle[BOARD_ID_ARG]) { "Falta el boardId de la ruta" }
+    val boardId: String =
+        requireNotNull(savedStateHandle[BOARD_ID_ARG]) { "Falta el boardId de la ruta" }
 
     private val error = MutableStateFlow<DomainError?>(null)
 
-    val uiState: StateFlow<ColumnsUiState> = combine(repository.observeColumns(boardId), error) { columns, error ->
+    val uiState: StateFlow<ColumnsUiState> = combine(
+        repository.observeColumns(boardId),
+        error,
+    ) { columns, error ->
         ColumnsUiState(columns = columns, error = error)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), ColumnsUiState())
 

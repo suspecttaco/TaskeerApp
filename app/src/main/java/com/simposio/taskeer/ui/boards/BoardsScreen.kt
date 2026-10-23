@@ -70,7 +70,10 @@ fun BoardsContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(text = stringResource(R.string.boards_title), style = MaterialTheme.typography.titleLarge)
+        Text(
+            text = stringResource(R.string.boards_title),
+            style = MaterialTheme.typography.titleLarge,
+        )
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
@@ -101,7 +104,10 @@ fun BoardsContent(
         }
 
         if (state.boards.isEmpty()) {
-            Text(text = stringResource(R.string.boards_empty), style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = stringResource(R.string.boards_empty),
+                style = MaterialTheme.typography.bodyMedium,
+            )
         } else {
             LazyColumn(
                 modifier = Modifier.weight(1f),

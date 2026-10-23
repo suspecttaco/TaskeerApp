@@ -21,7 +21,8 @@ fun newSyncMetadata(now: Instant, clientId: String = newClientId()): SyncMetadat
     deletedAt = null,
 )
 
-fun SyncMetadata.afterLocalChange(now: Instant): SyncMetadata = copy(updatedAt = now, pending = true)
+fun SyncMetadata.afterLocalChange(now: Instant): SyncMetadata =
+    copy(updatedAt = now, pending = true)
 
 fun SyncMetadata.afterLocalDelete(now: Instant): SyncMetadata =
     copy(updatedAt = now, pending = true, deletedAt = now)

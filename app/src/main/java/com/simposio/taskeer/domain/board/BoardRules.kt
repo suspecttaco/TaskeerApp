@@ -36,4 +36,6 @@ fun Board.renamed(name: String, now: Instant): DomainResult<Board> {
 fun Board.softDeleted(now: Instant): Board = copy(sync = sync.afterLocalDelete(now))
 
 private fun nameRequired(): DomainResult.Failure =
-    DomainResult.Failure(DomainError.Validation(BOARD_NAME_REQUIRED, "El nombre del tablero es obligatorio"))
+    DomainResult.Failure(
+        DomainError.Validation(BOARD_NAME_REQUIRED, "El nombre del tablero es obligatorio"),
+    )

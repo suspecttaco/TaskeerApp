@@ -8,7 +8,10 @@ sealed interface DomainError {
 
     data class NotFound(override val code: String, override val message: String) : DomainError
 
-    data class Unauthenticated(override val code: String, override val message: String) : DomainError
+    data class Unauthenticated(
+        override val code: String,
+        override val message: String,
+    ) : DomainError
 
     data class Forbidden(override val code: String, override val message: String) : DomainError
 

@@ -7,7 +7,11 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [BoardEntity::class, ColumnEntity::class, TaskEntity::class], version = 4, exportSchema = true)
+@Database(
+    entities = [BoardEntity::class, ColumnEntity::class, TaskEntity::class],
+    version = 4,
+    exportSchema = true,
+)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun boardDao(): BoardDao
     abstract fun columnDao(): ColumnDao
@@ -64,7 +68,8 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        private val MIGRATIONS: List<Migration> = listOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        private val MIGRATIONS: List<Migration> =
+            listOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
 
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, DATABASE_NAME)
