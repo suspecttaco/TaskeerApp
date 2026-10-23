@@ -23,6 +23,16 @@ class DateTimeConverterTest {
     }
 
     @Test
+    fun localEnLaZonaDelUsuario_seConvierteEnUtc() {
+        val local = LocalDateTime.of(2026, 10, 13, 12, 30)
+
+        val utc = madrid.toInstant(local)
+
+        assertEquals(Instant.parse("2026-10-13T10:30:00Z"), utc)
+        assertEquals(local, madrid.toLocalDateTime(utc))
+    }
+
+    @Test
     fun conversionConocida_cruzaElCambioDeDia() {
         val utc = Instant.parse("2026-10-13T23:30:00Z")
 

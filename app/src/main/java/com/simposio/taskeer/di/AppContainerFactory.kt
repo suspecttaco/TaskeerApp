@@ -4,9 +4,11 @@ import android.content.Context
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
 import com.simposio.taskeer.data.local.AppDatabase
+import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.repository.BoardRepositoryImpl
 import com.simposio.taskeer.data.repository.ColumnRepositoryImpl
 import com.simposio.taskeer.data.repository.PreferencesRepositoryImpl
+import com.simposio.taskeer.data.repository.TaskRepositoryImpl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,6 +23,15 @@ fun createAppContainer(context: Context): AppContainer {
         preferencesRepository = PreferencesRepositoryImpl(dataStore),
         timeZoneProvider = SystemTimeZoneProvider,
         boardRepository = BoardRepositoryImpl(database.boardDao(), database.columnDao()),
-        columnRepository = ColumnRepositoryImpl(database.boardDao(), database.columnDao()),
+        columnRepository = ColumnRepositoryImpl(
+            database.boardDao(),
+            database.columnDao(),
+            columnTaskCount = taskCountByColumn(database.taskDao()),
+        ),
+        taskRepository = TaskRepositoryImpl(database.taskDao(), database.columnDao()),
     )
 }
+
+// Conteo real de tareas por columna para el guard de columns-crud; es una función y no
+// una línea dentro de createAppContainer para que sea comprobable en un test JVM.
+fun taskCountByColumn(taskDao: TaskDao): suspend (String) -> Int = { columnId -> taskDao.countByColumn(columnId) }

@@ -10,6 +10,7 @@ class AppDatabaseSchemaTest {
 
     private val schemaV2: String = resolveSchema(version = 2).readText()
     private val schemaV3: String = resolveSchema(version = 3).readText()
+    private val schemaV4: String = resolveSchema(version = 4).readText()
 
     @Test
     fun esquemaVersion1_sigueExportado() {
@@ -32,11 +33,20 @@ class AppDatabaseSchemaTest {
     }
 
     @Test
-    fun esquemaVersion3_estaExportado() {
+    fun esquemaVersion3_sigueExportado() {
         assertTrue(resolveSchema(version = 3).isFile)
         assertTrue(
             "el esquema debe declarar la versión 3 de la base de datos",
             Regex("\"version\"\\s*:\\s*3\\b").containsMatchIn(schemaV3),
+        )
+    }
+
+    @Test
+    fun esquemaVersion4_estaExportado() {
+        assertTrue(resolveSchema(version = 4).isFile)
+        assertTrue(
+            "el esquema debe declarar la versión 4 de la base de datos",
+            Regex("\"version\"\\s*:\\s*4\\b").containsMatchIn(schemaV4),
         )
     }
 
@@ -107,6 +117,69 @@ class AppDatabaseSchemaTest {
 
         assertEquals("INTEGER", wipLimit.affinity)
         assertFalse("wipLimit debe admitir NULL", wipLimit.notNull)
+    }
+
+    @Test
+    fun tablaTasks_tieneLasColumnasDelModelo() {
+        val tasksTable = tasksTable()
+
+        listOf(
+            "id",
+            "columnId",
+            "title",
+            "description",
+            "priority",
+            "dueAt",
+            "assigneeId",
+            "position",
+            "updatedAt",
+            "pending",
+            "deletedAt",
+        ).forEach { column(tasksTable, it) }
+    }
+
+    @Test
+    fun columnaPriority_esTextNoNula() {
+        val priority = column(tasksTable(), "priority")
+
+        assertEquals("TEXT", priority.affinity)
+        assertTrue("priority debe ser no nula", priority.notNull)
+    }
+
+    @Test
+    fun columnaAssigneeId_admiteNull() {
+        val assigneeId = column(tasksTable(), "assigneeId")
+
+        assertEquals("TEXT", assigneeId.affinity)
+        assertFalse("assigneeId debe admitir NULL", assigneeId.notNull)
+    }
+
+    @Test
+    fun columnaDueAt_admiteNull() {
+        val dueAt = column(tasksTable(), "dueAt")
+
+        assertEquals("INTEGER", dueAt.affinity)
+        assertFalse("dueAt debe admitir NULL", dueAt.notNull)
+    }
+
+    @Test
+    fun indiceTasksColumnIdPosition_estaExportado() {
+        assertTrue(
+            "el esquema v4 debe exportar el índice de columna y posición",
+            schemaV4.contains("\"name\": \"index_tasks_columnId_position\""),
+        )
+        val index = schemaV4.substring(schemaV4.indexOf("\"name\": \"index_tasks_columnId_position\""))
+        assertTrue(
+            "el índice debe cubrir columnId y position",
+            index.contains("`columnId`, `position`"),
+        )
+    }
+
+    private fun tasksTable(): String {
+        val start = schemaV4.indexOf("\"tableName\": \"tasks\"")
+        assertTrue("el esquema v4 debe declarar la tabla tasks", start >= 0)
+        val nextTable = schemaV4.indexOf("\"tableName\":", start + 1)
+        return schemaV4.substring(start, if (nextTable < 0) schemaV4.length else nextTable)
     }
 
     private fun columnsTable(): String {

@@ -22,9 +22,8 @@ import kotlinx.coroutines.flow.map
 class ColumnRepositoryImpl(
     private val boardDao: BoardDao,
     private val dao: ColumnDao,
-    // Costura hasta task-editor: la tabla tasks todavía no existe, así que hoy ninguna
-    // columna puede tener tareas. task-editor debe inyectar el conteo real (sin filtrar
-    // deletedAt, como el 409 COLUMN_NOT_EMPTY de la API) al crear su TaskDao.
+    // Conteo de tareas de la columna sin filtrar deletedAt, igual que el 409
+    // COLUMN_NOT_EMPTY de la API: una columna con tareas borradas sigue bloqueada.
     private val columnTaskCount: suspend (columnId: String) -> Int = { 0 },
     private val now: () -> Instant = Instant::now,
 ) : ColumnRepository {

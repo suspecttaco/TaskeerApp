@@ -9,10 +9,10 @@ class AppDatabaseMigrationTest {
     private val source: String = File(resolveLocalRoot(), "AppDatabase.kt").readText()
 
     @Test
-    fun versionActual_esTres() {
+    fun versionActual_esCuatro() {
         assertTrue(
-            "AppDatabase debe declarar la versión 3",
-            Regex("version\\s*=\\s*3\\b").containsMatchIn(source),
+            "AppDatabase debe declarar la versión 4",
+            Regex("version\\s*=\\s*4\\b").containsMatchIn(source),
         )
     }
 
@@ -48,11 +48,45 @@ class AppDatabaseMigrationTest {
     }
 
     @Test
-    fun migraciones_incluyenLaMigracion1a2YLa2a3() {
+    fun migracion3a4_creaLaTablaTasks() {
+        assertTrue("debe declarar una Migration(3, 4)", source.contains("Migration(3, 4)"))
         assertTrue(
-            "MIGRATIONS debe incluir MIGRATION_1_2 y MIGRATION_2_3",
-            Regex("MIGRATIONS[^=]*=\\s*listOf\\(\\s*MIGRATION_1_2\\s*,\\s*MIGRATION_2_3\\s*\\)")
-                .containsMatchIn(source),
+            "la migración debe crear la tabla tasks",
+            source.contains("CREATE TABLE IF NOT EXISTS `tasks`"),
+        )
+        listOf(
+            "`id` TEXT NOT NULL",
+            "`columnId` TEXT NOT NULL",
+            "`title` TEXT NOT NULL",
+            "`description` TEXT",
+            "`priority` TEXT NOT NULL",
+            "`dueAt` INTEGER",
+            "`assigneeId` TEXT",
+            "`position` INTEGER NOT NULL",
+            "`updatedAt` INTEGER NOT NULL",
+            "`pending` INTEGER NOT NULL",
+            "`deletedAt` INTEGER",
+            "PRIMARY KEY(`id`)",
+        ).forEach { fragment ->
+            assertTrue("la tabla tasks debe declarar $fragment", source.contains(fragment))
+        }
+        assertTrue(
+            "la migración debe crear el índice de columna y posición",
+            source.contains("CREATE INDEX IF NOT EXISTS `index_tasks_columnId_position`"),
+        )
+        assertTrue(
+            "el índice debe cubrir columnId y position",
+            source.contains("ON `tasks` (`columnId`, `position`)"),
+        )
+    }
+
+    @Test
+    fun migraciones_incluyenLaMigracion1a2La2a3YLa3a4() {
+        assertTrue(
+            "MIGRATIONS debe incluir MIGRATION_1_2, MIGRATION_2_3 y MIGRATION_3_4",
+            Regex(
+                "MIGRATIONS[^=]*=\\s*listOf\\(\\s*MIGRATION_1_2\\s*,\\s*MIGRATION_2_3\\s*,\\s*MIGRATION_3_4\\s*\\)",
+            ).containsMatchIn(source),
         )
         assertTrue("las migraciones se aplican con addMigrations", source.contains("addMigrations("))
     }

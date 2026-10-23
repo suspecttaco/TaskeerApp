@@ -3,11 +3,14 @@ package com.simposio.taskeer.di
 import com.simposio.taskeer.data.repository.BoardRepository
 import com.simposio.taskeer.data.repository.ColumnRepository
 import com.simposio.taskeer.data.repository.PreferencesRepository
+import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.date.TimeZoneProvider
 import com.simposio.taskeer.domain.model.Board
 import com.simposio.taskeer.domain.model.Column
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
+import com.simposio.taskeer.domain.model.Task
+import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.model.ThemeMode
 import java.time.Instant
 import java.time.LocalDateTime
@@ -51,6 +54,15 @@ class AppContainerTest {
     }
 
     @Test
+    fun entregaElRepositorioDeTareasInyectado() {
+        val tasks = FakeTaskRepository()
+
+        val container = container(taskRepository = tasks)
+
+        assertSame(tasks, container.taskRepository)
+    }
+
+    @Test
     fun conversorUsaLaZonaEntregada() {
         val container = container()
 
@@ -63,11 +75,13 @@ class AppContainerTest {
         preferencesRepository: PreferencesRepository = FakePreferencesRepository(),
         boardRepository: BoardRepository = FakeBoardRepository(),
         columnRepository: ColumnRepository = FakeColumnRepository(),
+        taskRepository: TaskRepository = FakeTaskRepository(),
     ): AppContainer = AppContainer(
         preferencesRepository = preferencesRepository,
         timeZoneProvider = TimeZoneProvider { auckland },
         boardRepository = boardRepository,
         columnRepository = columnRepository,
+        taskRepository = taskRepository,
     )
 
     private class FakePreferencesRepository : PreferencesRepository {
@@ -109,6 +123,21 @@ class AppContainerTest {
         override suspend fun moveColumn(id: String, toIndex: Int): DomainResult<Column> = unused()
 
         override suspend fun deleteColumn(id: String): DomainResult<Unit> = unused()
+
+        private fun unused(): DomainResult.Failure =
+            DomainResult.Failure(DomainError.Unknown("UNUSED", "doble de test"))
+    }
+
+    private class FakeTaskRepository : TaskRepository {
+        override fun observeTasks(boardId: String): Flow<List<Task>> = MutableStateFlow(emptyList())
+
+        override suspend fun getTask(id: String): DomainResult<Task> = unused()
+
+        override suspend fun createTask(columnId: String, draft: TaskDraft): DomainResult<Task> = unused()
+
+        override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> = unused()
+
+        override suspend fun deleteTask(id: String): DomainResult<Unit> = unused()
 
         private fun unused(): DomainResult.Failure =
             DomainResult.Failure(DomainError.Unknown("UNUSED", "doble de test"))

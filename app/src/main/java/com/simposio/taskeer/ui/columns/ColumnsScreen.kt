@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,6 +31,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.Column as BoardColumn
 import com.simposio.taskeer.domain.model.SyncMetadata
+import com.simposio.taskeer.domain.model.Task
+import com.simposio.taskeer.domain.model.TaskPriority
+import com.simposio.taskeer.ui.tasks.TaskEditorDialog
+import com.simposio.taskeer.ui.tasks.TaskEditorViewModel
+import com.simposio.taskeer.ui.tasks.TasksViewModel
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 import java.time.Instant
 
@@ -38,28 +44,54 @@ fun ColumnsScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifie
     val viewModel: ColumnsViewModel = viewModel(factory = viewModelFactory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
+    val tasksViewModel: TasksViewModel = viewModel(factory = viewModelFactory)
+    val tasks by tasksViewModel.tasks.collectAsStateWithLifecycle()
+
+    val editorViewModel: TaskEditorViewModel = viewModel(factory = viewModelFactory)
+    val editorState by editorViewModel.uiState.collectAsStateWithLifecycle()
+
     ColumnsContent(
         state = state,
+        tasks = tasks,
         onCreate = viewModel::createColumn,
         onRename = viewModel::renameColumn,
         onMove = viewModel::moveColumn,
         onDelete = viewModel::deleteColumn,
+        onCreateTask = editorViewModel::openForCreate,
+        onEditTask = editorViewModel::openForEdit,
         modifier = modifier,
+    )
+
+    TaskEditorDialog(
+        state = editorState,
+        onTitleChange = editorViewModel::onTitleChange,
+        onDescriptionChange = editorViewModel::onDescriptionChange,
+        onPriorityChange = editorViewModel::onPriorityChange,
+        onDueAtChange = editorViewModel::onDueAtChange,
+        onAssigneeChange = editorViewModel::onAssigneeChange,
+        onSave = editorViewModel::save,
+        onDelete = editorViewModel::delete,
+        onDismiss = editorViewModel::dismiss,
     )
 }
 
 @Composable
 fun ColumnsContent(
     state: ColumnsUiState,
+    tasks: List<Task>,
     onCreate: (String) -> Unit,
     onRename: (String, String) -> Unit,
     onMove: (String, Int) -> Unit,
     onDelete: (String) -> Unit,
+    onCreateTask: (String) -> Unit,
+    onEditTask: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var newName by rememberSaveable { mutableStateOf("") }
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
     var editingName by rememberSaveable { mutableStateOf("") }
+
+    val tasksByColumn = tasks.groupBy { it.columnId }
 
     Column(
         modifier = modifier
@@ -109,6 +141,7 @@ fun ColumnsContent(
                         column = column,
                         position = index,
                         lastPosition = state.columns.lastIndex,
+                        tasks = tasksByColumn[column.id].orEmpty(),
                         editing = editingId == column.id,
                         editingName = editingName,
                         onEditingNameChange = { editingName = it },
@@ -124,6 +157,8 @@ fun ColumnsContent(
                         onMoveUp = { onMove(column.id, index - 1) },
                         onMoveDown = { onMove(column.id, index + 1) },
                         onDelete = { onDelete(column.id) },
+                        onCreateTask = { onCreateTask(column.id) },
+                        onEditTask = onEditTask,
                     )
                 }
             }
@@ -136,6 +171,7 @@ private fun ColumnRow(
     column: BoardColumn,
     position: Int,
     lastPosition: Int,
+    tasks: List<Task>,
     editing: Boolean,
     editingName: String,
     onEditingNameChange: (String) -> Unit,
@@ -145,37 +181,54 @@ private fun ColumnRow(
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     onDelete: () -> Unit,
+    onCreateTask: () -> Unit,
+    onEditTask: (String) -> Unit,
 ) {
-    if (editing) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = editingName,
-                onValueChange = onEditingNameChange,
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(onClick = onConfirmRename, enabled = editingName.isNotBlank()) {
-                Text(stringResource(R.string.column_save))
+    Column(modifier = Modifier.fillMaxWidth()) {
+        if (editing) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = editingName,
+                    onValueChange = onEditingNameChange,
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onConfirmRename, enabled = editingName.isNotBlank()) {
+                    Text(stringResource(R.string.column_save))
+                }
+                TextButton(onClick = onCancelEditing) {
+                    Text(stringResource(R.string.column_cancel))
+                }
             }
-            TextButton(onClick = onCancelEditing) {
-                Text(stringResource(R.string.column_cancel))
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = column.name, modifier = Modifier.weight(1f))
+                TextButton(onClick = onMoveUp, enabled = position > 0) {
+                    Text(stringResource(R.string.column_move_up))
+                }
+                TextButton(onClick = onMoveDown, enabled = position < lastPosition) {
+                    Text(stringResource(R.string.column_move_down))
+                }
+                TextButton(onClick = onStartEditing) {
+                    Text(stringResource(R.string.column_rename))
+                }
+                TextButton(onClick = onDelete) {
+                    Text(stringResource(R.string.column_delete))
+                }
             }
         }
-    } else {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = column.name, modifier = Modifier.weight(1f))
-            TextButton(onClick = onMoveUp, enabled = position > 0) {
-                Text(stringResource(R.string.column_move_up))
+
+        tasks.forEach { task ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = task.title, modifier = Modifier.weight(1f))
+                TextButton(onClick = { onEditTask(task.id) }) {
+                    Text(stringResource(R.string.task_edit))
+                }
             }
-            TextButton(onClick = onMoveDown, enabled = position < lastPosition) {
-                Text(stringResource(R.string.column_move_down))
-            }
-            TextButton(onClick = onStartEditing) {
-                Text(stringResource(R.string.column_rename))
-            }
-            TextButton(onClick = onDelete) {
-                Text(stringResource(R.string.column_delete))
-            }
+        }
+
+        TextButton(onClick = onCreateTask) {
+            Text(stringResource(R.string.task_add))
         }
     }
 }
@@ -186,10 +239,13 @@ private fun ColumnsContentPreview() {
     TaskeerTheme {
         ColumnsContent(
             state = ColumnsUiState(columns = previewColumns()),
+            tasks = previewTasks(),
             onCreate = {},
             onRename = { _, _ -> },
             onMove = { _, _ -> },
             onDelete = {},
+            onCreateTask = {},
+            onEditTask = {},
         )
     }
 }
@@ -211,5 +267,23 @@ private fun previewColumn(name: String, position: Int, isDoneColumn: Boolean = f
         updatedAt = Instant.EPOCH,
         pending = false,
         deletedAt = null,
+    ),
+)
+
+private fun previewTasks(): List<Task> = listOf(
+    Task(
+        columnId = "columna-0",
+        title = "Escribir el informe",
+        description = null,
+        priority = TaskPriority.MEDIUM,
+        dueAt = null,
+        assigneeId = null,
+        position = 0,
+        sync = SyncMetadata(
+            clientId = "tarea-0",
+            updatedAt = Instant.EPOCH,
+            pending = false,
+            deletedAt = null,
+        ),
     ),
 )
