@@ -15,7 +15,8 @@ class TasksViewModel(
 ) : ViewModel() {
 
     // El nombre del argumento debe coincidir con el de la ruta del tablero.
-    val boardId: String = requireNotNull(savedStateHandle[BOARD_ID_ARG]) { "Falta el boardId de la ruta" }
+    val boardId: String =
+        requireNotNull(savedStateHandle[BOARD_ID_ARG]) { "Falta el boardId de la ruta" }
 
     val tasks: StateFlow<List<Task>> = repository.observeTasks(boardId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())

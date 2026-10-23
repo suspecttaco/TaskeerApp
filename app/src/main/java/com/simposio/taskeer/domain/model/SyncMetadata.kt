@@ -3,7 +3,6 @@ package com.simposio.taskeer.domain.model
 import java.time.Instant
 import java.util.UUID
 
-/** Metadatos de sincronización de toda entidad sincronizable. */
 data class SyncMetadata(
     val clientId: String,
     val updatedAt: Instant,
@@ -22,7 +21,8 @@ fun newSyncMetadata(now: Instant, clientId: String = newClientId()): SyncMetadat
     deletedAt = null,
 )
 
-fun SyncMetadata.afterLocalChange(now: Instant): SyncMetadata = copy(updatedAt = now, pending = true)
+fun SyncMetadata.afterLocalChange(now: Instant): SyncMetadata =
+    copy(updatedAt = now, pending = true)
 
 fun SyncMetadata.afterLocalDelete(now: Instant): SyncMetadata =
     copy(updatedAt = now, pending = true, deletedAt = now)

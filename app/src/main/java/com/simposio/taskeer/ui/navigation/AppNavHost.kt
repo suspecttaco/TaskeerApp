@@ -31,13 +31,17 @@ fun AppNavHost(
         composable(AppDestination.WORKSPACES.route) {
             BoardsScreen(
                 viewModelFactory = viewModelFactory,
-                onOpen = { boardId -> navController.navigate(AppDestination.boardColumnsRoute(boardId)) },
+                onOpen = { boardId ->
+                    navController.navigate(AppDestination.boardColumnsRoute(boardId))
+                },
             )
         }
         composable(AppDestination.SETTINGS.route) { SettingsScreen() }
         composable(
             route = AppDestination.BOARD_COLUMNS.route,
-            arguments = listOf(navArgument(ColumnsViewModel.BOARD_ID_ARG) { type = NavType.StringType }),
+            arguments = listOf(
+                navArgument(ColumnsViewModel.BOARD_ID_ARG) { type = NavType.StringType },
+            ),
         ) {
             ColumnsScreen(viewModelFactory)
         }

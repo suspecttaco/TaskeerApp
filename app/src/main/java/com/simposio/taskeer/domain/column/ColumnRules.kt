@@ -19,9 +19,9 @@ fun defaultBoardColumns(
     now: Instant,
     newId: () -> String = ::newClientId,
 ): List<Column> = listOf(
-    defaultColumn(boardId, "Por hacer", position = 0, isDoneColumn = false, now = now, clientId = newId()),
-    defaultColumn(boardId, "En progreso", position = 1, isDoneColumn = false, now = now, clientId = newId()),
-    defaultColumn(boardId, "Hecho", position = 2, isDoneColumn = true, now = now, clientId = newId()),
+    defaultColumn(boardId, "Por hacer", 0, isDoneColumn = false, now = now, clientId = newId()),
+    defaultColumn(boardId, "En progreso", 1, isDoneColumn = false, now = now, clientId = newId()),
+    defaultColumn(boardId, "Hecho", 2, isDoneColumn = true, now = now, clientId = newId()),
 )
 
 fun newColumn(
@@ -81,7 +81,10 @@ fun List<Column>.movedTo(columnId: String, toIndex: Int, now: Instant): DomainRe
     }
     if (toIndex !in indices) {
         return DomainResult.Failure(
-            DomainError.Validation(COLUMN_INDEX_OUT_OF_BOUNDS, "El índice de destino está fuera de rango"),
+            DomainError.Validation(
+                COLUMN_INDEX_OUT_OF_BOUNDS,
+                "El índice de destino está fuera de rango",
+            ),
         )
     }
     if (fromIndex == toIndex) {
@@ -108,4 +111,6 @@ private fun defaultColumn(
 )
 
 private fun nameRequired(): DomainResult.Failure =
-    DomainResult.Failure(DomainError.Validation(COLUMN_NAME_REQUIRED, "El nombre de la columna es obligatorio"))
+    DomainResult.Failure(
+        DomainError.Validation(COLUMN_NAME_REQUIRED, "El nombre de la columna es obligatorio"),
+    )

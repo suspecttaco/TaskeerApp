@@ -14,8 +14,10 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T = when {
-        modelClass.isAssignableFrom(AppViewModel::class.java) -> AppViewModel(container.preferencesRepository) as T
-        modelClass.isAssignableFrom(BoardsViewModel::class.java) -> BoardsViewModel(container.boardRepository) as T
+        modelClass.isAssignableFrom(AppViewModel::class.java) ->
+            AppViewModel(container.preferencesRepository) as T
+        modelClass.isAssignableFrom(BoardsViewModel::class.java) ->
+            BoardsViewModel(container.boardRepository) as T
         modelClass.isAssignableFrom(TaskEditorViewModel::class.java) ->
             TaskEditorViewModel(container.taskRepository, container.dateTimeConverter) as T
 

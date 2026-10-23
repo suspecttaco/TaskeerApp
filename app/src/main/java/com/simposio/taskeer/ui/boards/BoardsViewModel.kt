@@ -16,7 +16,10 @@ class BoardsViewModel(private val repository: BoardRepository) : ViewModel() {
 
     private val error = MutableStateFlow<DomainError?>(null)
 
-    val uiState: StateFlow<BoardsUiState> = combine(repository.observeBoards(), error) { boards, error ->
+    val uiState: StateFlow<BoardsUiState> = combine(
+        repository.observeBoards(),
+        error,
+    ) { boards, error ->
         BoardsUiState(boards = boards, error = error)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), BoardsUiState())
 

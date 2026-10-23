@@ -12,7 +12,11 @@ import kotlinx.coroutines.launch
 class AppViewModel(private val preferences: PreferencesRepository) : ViewModel() {
 
     val themeMode: StateFlow<ThemeMode> = preferences.themeMode
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), ThemeMode.AUTO)
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
+            ThemeMode.AUTO,
+        )
 
     val dynamicColor: StateFlow<Boolean> = preferences.dynamicColor
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), true)

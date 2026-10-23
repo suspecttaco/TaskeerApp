@@ -16,7 +16,9 @@ import kotlinx.coroutines.SupervisorJob
 fun createAppContainer(context: Context): AppContainer {
     val dataStore = PreferenceDataStoreFactory.create(
         scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
-        produceFile = { context.preferencesDataStoreFile(PreferencesRepositoryImpl.DATA_STORE_NAME) },
+        produceFile = {
+            context.preferencesDataStoreFile(PreferencesRepositoryImpl.DATA_STORE_NAME)
+        },
     )
     val database = AppDatabase.create(context)
     return AppContainer(
@@ -32,6 +34,6 @@ fun createAppContainer(context: Context): AppContainer {
     )
 }
 
-// Conteo real de tareas por columna para el guard de columns-crud; es una función y no
-// una línea dentro de createAppContainer para que sea comprobable en un test JVM.
-fun taskCountByColumn(taskDao: TaskDao): suspend (String) -> Int = { columnId -> taskDao.countByColumn(columnId) }
+// Función aparte y no una línea en createAppContainer para poder probarla en un test JVM.
+fun taskCountByColumn(taskDao: TaskDao): suspend (String) -> Int =
+    { columnId -> taskDao.countByColumn(columnId) }

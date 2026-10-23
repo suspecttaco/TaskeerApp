@@ -8,11 +8,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -20,17 +18,15 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -38,11 +34,9 @@ import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.LocalUser
 import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.ui.theme.TaskeerTheme
-import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
@@ -62,9 +56,9 @@ fun TaskEditorDialog(
     if (!state.isOpen) {
         return
     }
-    var showDatePicker by remember { mutableStateOf(false) }
-    var showTimePicker by remember { mutableStateOf(false) }
-    var pickedDate by remember { mutableStateOf<LocalDate?>(null) }
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
+    var showTimePicker by rememberSaveable { mutableStateOf(false) }
+    var pickedEpochDay by rememberSaveable { mutableStateOf<Long?>(null) }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -110,13 +104,11 @@ fun TaskEditorDialog(
                     style = MaterialTheme.typography.labelLarge,
                 )
                 TaskPriority.entries.forEach { priority ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(
-                            selected = state.priority == priority,
-                            onClick = { onPriorityChange(priority) },
-                        )
-                        Text(text = stringResource(priority.labelRes()))
-                    }
+                    RadioOption(
+                        label = stringResource(priority.labelRes()),
+                        selected = state.priority == priority,
+                        onSelect = { onPriorityChange(priority) },
+                    )
                 }
 
                 Text(
@@ -141,20 +133,16 @@ fun TaskEditorDialog(
                     text = stringResource(R.string.task_assignee_label),
                     style = MaterialTheme.typography.labelLarge,
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(
-                        selected = state.assigneeId == null,
-                        onClick = { onAssigneeChange(null) },
-                    )
-                    Text(text = stringResource(R.string.task_assignee_none))
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(
-                        selected = state.assigneeId == LocalUser.ID,
-                        onClick = { onAssigneeChange(LocalUser.ID) },
-                    )
-                    Text(text = stringResource(R.string.task_assignee_local))
-                }
+                RadioOption(
+                    label = stringResource(R.string.task_assignee_none),
+                    selected = state.assigneeId == null,
+                    onSelect = { onAssigneeChange(null) },
+                )
+                RadioOption(
+                    label = stringResource(R.string.task_assignee_local),
+                    selected = state.assigneeId == LocalUser.ID,
+                    onSelect = { onAssigneeChange(LocalUser.ID) },
+                )
 
                 state.error?.let { error ->
                     Text(
@@ -166,7 +154,7 @@ fun TaskEditorDialog(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (state.taskId != null) {
-                        TextButton(onClick = onDelete) {
+                        TextButton(onClick = onDelete, enabled = !state.isSaving) {
                             Text(stringResource(R.string.task_delete))
                         }
                     }
@@ -174,7 +162,10 @@ fun TaskEditorDialog(
                     TextButton(onClick = onDismiss) {
                         Text(stringResource(R.string.task_cancel))
                     }
-                    Button(onClick = onSave, enabled = state.title.isNotBlank() && !state.isSaving) {
+                    Button(
+                        onClick = onSave,
+                        enabled = state.title.isNotBlank() && !state.isSaving,
+                    ) {
                         Text(stringResource(R.string.task_save))
                     }
                 }
@@ -186,7 +177,7 @@ fun TaskEditorDialog(
         DueDatePickerDialog(
             initialDate = state.dueAtLocal?.toLocalDate(),
             onDatePicked = { date ->
-                pickedDate = date
+                pickedEpochDay = date.toEpochDay()
                 showDatePicker = false
                 showTimePicker = true
             },
@@ -195,7 +186,7 @@ fun TaskEditorDialog(
     }
 
     if (showTimePicker) {
-        val date = pickedDate
+        val date = pickedEpochDay?.let(LocalDate::ofEpochDay)
         DueTimePickerDialog(
             initialTime = state.dueAtLocal?.toLocalTime() ?: LocalTime.of(0, 0),
             onTimePicked = { time ->
@@ -207,84 +198,20 @@ fun TaskEditorDialog(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DueDatePickerDialog(
-    initialDate: LocalDate?,
-    onDatePicked: (LocalDate) -> Unit,
-    onDismiss: () -> Unit,
+private fun RadioOption(
+    label: String,
+    selected: Boolean,
+    onSelect: () -> Unit,
 ) {
-    val state = rememberDatePickerState(
-        initialSelectedDateMillis = initialDate?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli(),
-    )
-
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    // Los milisegundos del selector están en UTC: leerlos en la zona del
-                    // usuario movería el día al cruzar medianoche.
-                    val date = state.selectedDateMillis?.let { millis ->
-                        Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
-                    }
-                    if (date != null) {
-                        onDatePicked(date)
-                    }
-                },
-            ) {
-                Text(stringResource(R.string.task_due_at_accept))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.task_cancel))
-            }
-        },
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(selected = selected, onClick = onSelect, role = Role.RadioButton),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        DatePicker(state = state)
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DueTimePickerDialog(
-    initialTime: LocalTime,
-    onTimePicked: (LocalTime) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val state = rememberTimePickerState(
-        initialHour = initialTime.hour,
-        initialMinute = initialTime.minute,
-    )
-
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = MaterialTheme.shapes.extraLarge,
-            tonalElevation = 6.dp,
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.task_due_at_time_label),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                TimePicker(state = state)
-                Row {
-                    Spacer(Modifier.weight(1f))
-                    TextButton(onClick = onDismiss) {
-                        Text(stringResource(R.string.task_cancel))
-                    }
-                    TextButton(
-                        onClick = { onTimePicked(LocalTime.of(state.hour, state.minute)) },
-                    ) {
-                        Text(stringResource(R.string.task_due_at_accept))
-                    }
-                }
-            }
-        }
+        RadioButton(selected = selected, onClick = null)
+        Text(text = label, modifier = Modifier.padding(start = 8.dp))
     }
 }
 

@@ -99,7 +99,10 @@ fun ColumnsContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(text = stringResource(R.string.columns_title), style = MaterialTheme.typography.titleLarge)
+        Text(
+            text = stringResource(R.string.columns_title),
+            style = MaterialTheme.typography.titleLarge,
+        )
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
@@ -130,7 +133,10 @@ fun ColumnsContent(
         }
 
         if (state.columns.isEmpty()) {
-            Text(text = stringResource(R.string.columns_empty), style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = stringResource(R.string.columns_empty),
+                style = MaterialTheme.typography.bodyMedium,
+            )
         } else {
             LazyColumn(
                 modifier = Modifier.weight(1f),
@@ -256,7 +262,11 @@ private fun previewColumns(): List<BoardColumn> = listOf(
     previewColumn("Hecho", position = 2, isDoneColumn = true),
 )
 
-private fun previewColumn(name: String, position: Int, isDoneColumn: Boolean = false): BoardColumn = BoardColumn(
+private fun previewColumn(
+    name: String,
+    position: Int,
+    isDoneColumn: Boolean = false,
+): BoardColumn = BoardColumn(
     boardId = "tablero-1",
     name = name,
     position = position,

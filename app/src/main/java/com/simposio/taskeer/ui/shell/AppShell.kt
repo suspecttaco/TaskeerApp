@@ -54,7 +54,9 @@ fun AppShell(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(stringResource((currentDestination ?: AppDestination.START).labelRes())) },
+                title = {
+                    Text(stringResource((currentDestination ?: AppDestination.START).labelRes()))
+                },
                 actions = {
                     Box {
                         TextButton(onClick = { themeMenuExpanded = true }) {
@@ -85,7 +87,7 @@ fun AppShell(
                                 launchSingleTop = navSpec.launchSingleTop
                             }
                         },
-                        // La barra de secciones va con etiquetas: el proyecto todavía no tiene un juego de iconos.
+                        // La barra va con etiquetas: aún no hay un juego de iconos.
                         icon = {},
                         label = { Text(stringResource(destination.labelRes())) },
                     )

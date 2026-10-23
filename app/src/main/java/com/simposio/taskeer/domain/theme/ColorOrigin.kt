@@ -11,4 +11,8 @@ private const val DYNAMIC_COLOR_MIN_SDK: Int = 31
 fun isDynamicColorAvailable(sdkInt: Int): Boolean = sdkInt >= DYNAMIC_COLOR_MIN_SDK
 
 fun resolveColorOrigin(dynamicColorEnabled: Boolean, sdkInt: Int): ColorOrigin =
-    if (dynamicColorEnabled && isDynamicColorAvailable(sdkInt)) ColorOrigin.DYNAMIC else ColorOrigin.BRAND
+    if (dynamicColorEnabled && isDynamicColorAvailable(sdkInt)) {
+        ColorOrigin.DYNAMIC
+    } else {
+        ColorOrigin.BRAND
+    }

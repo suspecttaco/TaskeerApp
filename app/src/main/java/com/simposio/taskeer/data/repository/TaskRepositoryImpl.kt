@@ -35,7 +35,6 @@ class TaskRepositoryImpl(
         if (!activeColumn(columnId)) {
             return columnNotFound()
         }
-        // La tarea nueva se añade al final de las tareas activas de su columna.
         val position = dao.findActiveByColumn(columnId).size
         return when (val result = newTask(columnId, draft, position, now())) {
             is DomainResult.Failure -> result
@@ -59,8 +58,6 @@ class TaskRepositoryImpl(
 
     override suspend fun deleteTask(id: String): DomainResult<Unit> {
         val current = activeTask(id) ?: return taskNotFound()
-        // Borrado lógico: la fila se marca, no se borra, y las posiciones de las
-        // restantes no se renumeran.
         dao.upsert(current.softDeleted(now()).toEntity())
         return DomainResult.Success(Unit)
     }
