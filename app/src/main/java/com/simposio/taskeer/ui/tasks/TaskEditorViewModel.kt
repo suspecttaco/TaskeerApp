@@ -30,13 +30,9 @@ class TaskEditorViewModel(
 
     fun openForEdit(taskId: String) {
         viewModelScope.launch {
-            when (val result = repository.getTask(taskId)) {
-                is DomainResult.Success -> _uiState.value = result.value.toEditorState()
-                is DomainResult.Failure -> _uiState.value = TaskEditorUiState(
-                    isOpen = true,
-                    taskId = taskId,
-                    error = result.error,
-                )
+            val result = repository.getTask(taskId)
+            if (result is DomainResult.Success) {
+                _uiState.value = result.value.toEditorState()
             }
         }
     }
@@ -90,11 +86,17 @@ class TaskEditorViewModel(
     }
 
     fun delete() {
-        val taskId = _uiState.value.taskId ?: return
+        val state = _uiState.value
+        val taskId = state.taskId ?: return
+        if (state.isSaving) {
+            return
+        }
+        _uiState.update { it.copy(isSaving = true, error = null) }
         viewModelScope.launch {
             when (val result = repository.deleteTask(taskId)) {
                 is DomainResult.Success -> dismiss()
-                is DomainResult.Failure -> _uiState.update { it.copy(error = result.error) }
+                is DomainResult.Failure ->
+                    _uiState.update { it.copy(isSaving = false, error = result.error) }
             }
         }
     }
