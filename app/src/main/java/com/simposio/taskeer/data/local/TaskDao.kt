@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -28,4 +29,17 @@ abstract class TaskDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun upsert(task: TaskEntity)
+
+    @Query(
+        "UPDATE subtasks SET deletedAt = :deletedAt, updatedAt = :deletedAt, pending = 1 " +
+            "WHERE taskId = :taskId AND deletedAt IS NULL",
+    )
+    abstract suspend fun softDeleteSubtasksOfTask(taskId: String, deletedAt: Long)
+
+    // Room solo envuelve en una transacción sentencias del mismo DAO: por eso la cascada vive aquí.
+    @Transaction
+    open suspend fun upsertDeletedWithSubtasks(task: TaskEntity, deletedAt: Long) {
+        upsert(task)
+        softDeleteSubtasksOfTask(task.id, deletedAt)
+    }
 }

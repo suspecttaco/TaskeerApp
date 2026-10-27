@@ -76,6 +76,31 @@ class TaskDaoConventionsTest {
     }
 
     @Test
+    fun upsertDeletedWithSubtasks_esTransaccional() {
+        val method = method("upsertDeletedWithSubtasks")
+
+        assertTrue(
+            "la cascada debe ejecutarse en una única transacción de Room",
+            Regex("@Transaction\\s+open suspend fun upsertDeletedWithSubtasks").containsMatchIn(taskDaoSource()),
+        )
+        assertTrue(method.isSuspend())
+    }
+
+    @Test
+    fun softDeleteSubtasksOfTask_soloActualizaLasActivasDeLaTarea() {
+        val source = taskDaoSource()
+
+        assertTrue(
+            "debe filtrar por tarea y por subtareas activas",
+            source.contains("WHERE taskId = :taskId AND deletedAt IS NULL"),
+        )
+        assertTrue(
+            "debe marcar la subtarea como pendiente de sincronizar",
+            source.contains("UPDATE subtasks SET deletedAt = :deletedAt, updatedAt = :deletedAt, pending = 1"),
+        )
+    }
+
+    @Test
     fun elDaoExponeLasTareasDeLasColumnasDelTablero() = runTest {
         val columnDao = FakeColumnDao().apply {
             put(columnEntity("columna-1", boardId = "tablero-1"))
@@ -130,6 +155,8 @@ class TaskDaoConventionsTest {
         override suspend fun upsert(task: TaskEntity) {
             rows.value = rows.value + (task.id to task)
         }
+
+        override suspend fun softDeleteSubtasksOfTask(taskId: String, deletedAt: Long) = Unit
     }
 
     private class FakeColumnDao : ColumnDao() {

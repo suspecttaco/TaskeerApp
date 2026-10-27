@@ -47,6 +47,8 @@ class AppContainerFactoryTest {
         override suspend fun upsert(task: TaskEntity) {
             rows.value = rows.value + (task.id to task)
         }
+
+        override suspend fun softDeleteSubtasksOfTask(taskId: String, deletedAt: Long) = Unit
     }
 
     private fun taskEntity(id: String, columnId: String): TaskEntity = TaskEntity(
