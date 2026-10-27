@@ -16,6 +16,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -33,6 +34,8 @@ import com.simposio.taskeer.domain.model.Column as BoardColumn
 import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskPriority
+import com.simposio.taskeer.ui.tasks.SubtaskActions
+import com.simposio.taskeer.ui.tasks.SubtasksViewModel
 import com.simposio.taskeer.ui.tasks.TaskEditorDialog
 import com.simposio.taskeer.ui.tasks.TaskEditorViewModel
 import com.simposio.taskeer.ui.tasks.TasksViewModel
@@ -49,6 +52,18 @@ fun ColumnsScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifie
 
     val editorViewModel: TaskEditorViewModel = viewModel(factory = viewModelFactory)
     val editorState by editorViewModel.uiState.collectAsStateWithLifecycle()
+
+    val subtasksViewModel: SubtasksViewModel = viewModel(factory = viewModelFactory)
+    val subtasksState by subtasksViewModel.uiState.collectAsStateWithLifecycle()
+
+    val openTaskId = editorState.taskId.takeIf { editorState.isOpen }
+    LaunchedEffect(openTaskId) {
+        if (openTaskId == null) {
+            subtasksViewModel.close()
+        } else {
+            subtasksViewModel.open(openTaskId)
+        }
+    }
 
     ColumnsContent(
         state = state,
@@ -69,6 +84,17 @@ fun ColumnsScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifie
         onPriorityChange = editorViewModel::onPriorityChange,
         onDueAtChange = editorViewModel::onDueAtChange,
         onAssigneeChange = editorViewModel::onAssigneeChange,
+        subtasks = subtasksState,
+        subtaskActions = SubtaskActions(
+            onNewTitleChange = subtasksViewModel::onNewTitleChange,
+            onAdd = subtasksViewModel::add,
+            onToggle = subtasksViewModel::toggle,
+            onStartEdit = subtasksViewModel::startEdit,
+            onEditTitleChange = subtasksViewModel::onEditTitleChange,
+            onSaveEdit = subtasksViewModel::saveEdit,
+            onCancelEdit = subtasksViewModel::cancelEdit,
+            onDelete = subtasksViewModel::delete,
+        ),
         onSave = editorViewModel::save,
         onDelete = editorViewModel::delete,
         onDismiss = editorViewModel::dismiss,
