@@ -56,6 +56,9 @@ class LocalDataLayerRulesTest {
             "TaskEntity",
             "TaskDao",
             "TaskMapping",
+            "SubtaskEntity",
+            "SubtaskDao",
+            "SubtaskMapping",
             "SyncableEntity",
         )
 
@@ -104,6 +107,9 @@ class LocalDataLayerRulesTest {
             "TaskDao",
             "TaskEntity",
             "TaskMapping",
+            "SubtaskEntity",
+            "SubtaskDao",
+            "SubtaskMapping",
             "SyncableEntity",
         )
 

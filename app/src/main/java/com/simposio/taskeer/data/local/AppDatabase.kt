@@ -8,14 +8,15 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [BoardEntity::class, ColumnEntity::class, TaskEntity::class],
-    version = 4,
+    entities = [BoardEntity::class, ColumnEntity::class, TaskEntity::class, SubtaskEntity::class],
+    version = 5,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun boardDao(): BoardDao
     abstract fun columnDao(): ColumnDao
     abstract fun taskDao(): TaskDao
+    abstract fun subtaskDao(): SubtaskDao
 
     companion object {
         const val DATABASE_NAME: String = "taskeer.db"
@@ -68,8 +69,29 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_4_5: Migration = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `subtasks` (" +
+                        "`id` TEXT NOT NULL, " +
+                        "`taskId` TEXT NOT NULL, " +
+                        "`title` TEXT NOT NULL, " +
+                        "`completed` INTEGER NOT NULL, " +
+                        "`position` INTEGER NOT NULL, " +
+                        "`updatedAt` INTEGER NOT NULL, " +
+                        "`pending` INTEGER NOT NULL, " +
+                        "`deletedAt` INTEGER, " +
+                        "PRIMARY KEY(`id`))",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_subtasks_taskId_position` " +
+                        "ON `subtasks` (`taskId`, `position`)",
+                )
+            }
+        }
+
         private val MIGRATIONS: List<Migration> =
-            listOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            listOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
 
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, DATABASE_NAME)
