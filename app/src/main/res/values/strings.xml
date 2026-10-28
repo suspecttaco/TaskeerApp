@@ -47,6 +47,15 @@
     <string name="task_delete">Borrar</string>
     <string name="task_add">Añadir tarea</string>
     <string name="task_edit">Editar</string>
+    <string name="subtasks_title">Subtareas</string>
+    <string name="subtask_add_label">Nueva subtarea</string>
+    <string name="subtask_add">Añadir</string>
+    <string name="subtask_delete">Borrar</string>
+    <string name="subtask_edit">Editar</string>
+    <string name="subtask_save">Guardar</string>
+    <string name="subtask_cancel">Cancelar</string>
+    <string name="subtasks_empty">Sin subtareas</string>
+    <string name="subtasks_create_hint">Guarda la tarea para poder añadir subtareas</string>
     <string name="theme_action">Tema</string>
     <string name="theme_mode_light">Claro</string>
     <string name="theme_mode_dark">Oscuro</string>

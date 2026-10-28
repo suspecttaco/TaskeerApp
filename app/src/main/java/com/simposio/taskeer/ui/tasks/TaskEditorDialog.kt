@@ -48,6 +48,8 @@ fun TaskEditorDialog(
     onPriorityChange: (TaskPriority) -> Unit,
     onDueAtChange: (LocalDateTime?) -> Unit,
     onAssigneeChange: (String?) -> Unit,
+    subtasks: SubtasksUiState,
+    subtaskActions: SubtaskActions,
     onSave: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
@@ -142,6 +144,19 @@ fun TaskEditorDialog(
                     label = stringResource(R.string.task_assignee_local),
                     selected = state.assigneeId == LocalUser.ID,
                     onSelect = { onAssigneeChange(LocalUser.ID) },
+                )
+
+                SubtasksSection(
+                    taskExists = state.taskId != null,
+                    state = subtasks,
+                    onNewTitleChange = subtaskActions.onNewTitleChange,
+                    onAdd = subtaskActions.onAdd,
+                    onToggle = subtaskActions.onToggle,
+                    onStartEdit = subtaskActions.onStartEdit,
+                    onEditTitleChange = subtaskActions.onEditTitleChange,
+                    onSaveEdit = subtaskActions.onSaveEdit,
+                    onCancelEdit = subtaskActions.onCancelEdit,
+                    onDelete = subtaskActions.onDelete,
                 )
 
                 state.error?.let { error ->
@@ -245,6 +260,8 @@ private fun TaskEditorDialogPreview() {
             onPriorityChange = {},
             onDueAtChange = {},
             onAssigneeChange = {},
+            subtasks = SubtasksUiState(),
+            subtaskActions = SubtaskActions.None,
             onSave = {},
             onDelete = {},
             onDismiss = {},

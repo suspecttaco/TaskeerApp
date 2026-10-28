@@ -11,6 +11,7 @@ class AppDatabaseSchemaTest {
     private val schemaV2: String = resolveSchema(version = 2).readText()
     private val schemaV3: String = resolveSchema(version = 3).readText()
     private val schemaV4: String = resolveSchema(version = 4).readText()
+    private val schemaV5: String = resolveSchema(version = 5).readText()
 
     @Test
     fun esquemaVersion1_sigueExportado() {
@@ -47,6 +48,15 @@ class AppDatabaseSchemaTest {
         assertTrue(
             "el esquema debe declarar la versión 4 de la base de datos",
             Regex("\"version\"\\s*:\\s*4\\b").containsMatchIn(schemaV4),
+        )
+    }
+
+    @Test
+    fun esquemaVersion5_estaExportado() {
+        assertTrue(resolveSchema(version = 5).isFile)
+        assertTrue(
+            "el esquema debe declarar la versión 5 de la base de datos",
+            Regex("\"version\"\\s*:\\s*5\\b").containsMatchIn(schemaV5),
         )
     }
 
@@ -173,6 +183,39 @@ class AppDatabaseSchemaTest {
             "el índice debe cubrir columnId y position",
             index.contains("`columnId`, `position`"),
         )
+    }
+
+    @Test
+    fun tablaSubtasks_tieneLasColumnasDelModelo() {
+        val subtasksTable = subtasksTable()
+
+        listOf("id", "taskId", "title", "completed", "position", "updatedAt", "pending", "deletedAt")
+            .forEach { column(subtasksTable, it) }
+    }
+
+    @Test
+    fun columnaCompleted_esIntegerNoNula() {
+        val completed = column(subtasksTable(), "completed")
+
+        assertEquals("INTEGER", completed.affinity)
+        assertTrue("completed debe ser no nula", completed.notNull)
+    }
+
+    @Test
+    fun indiceSubtasksTaskIdPosition_estaExportado() {
+        val marker = "\"name\": \"index_subtasks_taskId_position\""
+        assertTrue("el esquema v5 debe exportar el índice de tarea y posición", schemaV5.contains(marker))
+        assertTrue(
+            "el índice debe cubrir taskId y position",
+            schemaV5.substring(schemaV5.indexOf(marker)).contains("`taskId`, `position`"),
+        )
+    }
+
+    private fun subtasksTable(): String {
+        val start = schemaV5.indexOf("\"tableName\": \"subtasks\"")
+        assertTrue("el esquema v5 debe declarar la tabla subtasks", start >= 0)
+        val nextTable = schemaV5.indexOf("\"tableName\":", start + 1)
+        return schemaV5.substring(start, if (nextTable < 0) schemaV5.length else nextTable)
     }
 
     private fun tasksTable(): String {

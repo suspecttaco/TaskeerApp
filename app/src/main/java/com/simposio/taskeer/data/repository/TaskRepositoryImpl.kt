@@ -58,7 +58,11 @@ class TaskRepositoryImpl(
 
     override suspend fun deleteTask(id: String): DomainResult<Unit> {
         val current = activeTask(id) ?: return taskNotFound()
-        dao.upsert(current.softDeleted(now()).toEntity())
+        val deletedAt = now()
+        dao.upsertDeletedWithSubtasks(
+            current.softDeleted(deletedAt).toEntity(),
+            deletedAt.toEpochMilli(),
+        )
         return DomainResult.Success(Unit)
     }
 

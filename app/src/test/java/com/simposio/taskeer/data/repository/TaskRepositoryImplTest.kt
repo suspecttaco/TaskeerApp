@@ -3,6 +3,7 @@ package com.simposio.taskeer.data.repository
 import com.simposio.taskeer.data.local.BoardEntity
 import com.simposio.taskeer.data.local.ColumnDao
 import com.simposio.taskeer.data.local.ColumnEntity
+import com.simposio.taskeer.data.local.SubtaskEntity
 import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.TaskEntity
 import com.simposio.taskeer.domain.date.DateTimeConverter
@@ -262,6 +263,72 @@ class TaskRepositoryImplTest {
     }
 
     @Test
+    fun deleteTask_borraLogicamenteLasSubtareasActivasConElMismoInstante() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
+        val taskDao = FakeTaskDao(columnDao)
+        taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
+        taskDao.putSubtask(subtaskEntity("s1", taskId = "t1"))
+        taskDao.putSubtask(subtaskEntity("s2", taskId = "t1"))
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+
+        repository.deleteTask("t1")
+
+        listOf("s1", "s2").forEach { id ->
+            val row = taskDao.subtasks.getValue(id)
+            assertEquals(later.toEpochMilli(), row.deletedAt)
+            assertEquals(later.toEpochMilli(), row.updatedAt)
+            assertTrue(row.pending)
+        }
+        assertEquals(later.toEpochMilli(), taskDao.stored.getValue("t1").deletedAt)
+    }
+
+    @Test
+    fun deleteTask_noTocaSubtareasDeOtraTareaNiLasYaBorradas() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
+        val taskDao = FakeTaskDao(columnDao)
+        taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
+        val other = subtaskEntity("ajena", taskId = "t2")
+        val alreadyDeleted = subtaskEntity("vieja", taskId = "t1", deletedAt = now.toEpochMilli())
+        taskDao.putSubtask(other)
+        taskDao.putSubtask(alreadyDeleted)
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+
+        repository.deleteTask("t1")
+
+        assertEquals(other, taskDao.subtasks.getValue("ajena"))
+        assertEquals(now.toEpochMilli(), taskDao.subtasks.getValue("vieja").deletedAt)
+    }
+
+    @Test
+    fun deleteTask_tareaInexistente_noEscribeNiTocaSubtareas() = runTest {
+        val columnDao = FakeColumnDao()
+        val taskDao = FakeTaskDao(columnDao)
+        val subtask = subtaskEntity("s1", taskId = "t1")
+        taskDao.putSubtask(subtask)
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+
+        val result = repository.deleteTask("t1")
+
+        assertEquals("TASK_NOT_FOUND", (result as DomainResult.Failure).error.code)
+        assertEquals(0, taskDao.transactionalCalls)
+        assertEquals(subtask, taskDao.subtasks.getValue("s1"))
+    }
+
+    @Test
+    fun deleteTask_usaLaOperacionTransaccionalUnica() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
+        val taskDao = FakeTaskDao(columnDao)
+        taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+        val writesBefore = taskDao.writeCalls
+
+        repository.deleteTask("t1")
+
+        assertEquals(1, taskDao.transactionalCalls)
+        assertEquals(writesBefore, taskDao.writeCalls)
+    }
+
+    @Test
     fun deleteTask_deUnaTareaBorrada_fallaConNotFound() = runTest {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
         val taskDao = FakeTaskDao(columnDao)
@@ -314,6 +381,18 @@ class TaskRepositoryImplTest {
         deletedAt = if (deleted) now.toEpochMilli() else null,
     )
 
+    private fun subtaskEntity(id: String, taskId: String, deletedAt: Long? = null): SubtaskEntity =
+        SubtaskEntity(
+            id = id,
+            taskId = taskId,
+            title = "Subtarea $id",
+            completed = false,
+            position = 0,
+            updatedAt = now.toEpochMilli(),
+            pending = false,
+            deletedAt = deletedAt,
+        )
+
     private fun taskEntity(
         id: String,
         columnId: String,
@@ -363,9 +442,42 @@ class TaskRepositoryImplTest {
         override suspend fun countByColumn(columnId: String): Int =
             rows.value.values.count { it.columnId == columnId }
 
+        val subtasks: MutableMap<String, SubtaskEntity> = mutableMapOf()
+
+        var transactionalCalls: Int = 0
+            private set
+
+        private var inTransaction = false
+
+        fun putSubtask(subtask: SubtaskEntity) {
+            subtasks[subtask.id] = subtask
+        }
+
         override suspend fun upsert(task: TaskEntity) {
-            writeCalls++
+            if (!inTransaction) {
+                writeCalls++
+            }
             rows.value = rows.value + (task.id to task)
+        }
+
+        override suspend fun softDeleteSubtasksOfTask(taskId: String, deletedAt: Long) {
+            subtasks.replaceAll { _, row ->
+                if (row.taskId == taskId && row.deletedAt == null) {
+                    row.copy(deletedAt = deletedAt, updatedAt = deletedAt, pending = true)
+                } else {
+                    row
+                }
+            }
+        }
+
+        override suspend fun upsertDeletedWithSubtasks(task: TaskEntity, deletedAt: Long) {
+            transactionalCalls++
+            inTransaction = true
+            try {
+                super.upsertDeletedWithSubtasks(task, deletedAt)
+            } finally {
+                inTransaction = false
+            }
         }
     }
 

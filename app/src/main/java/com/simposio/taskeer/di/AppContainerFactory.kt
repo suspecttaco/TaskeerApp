@@ -8,6 +8,7 @@ import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.repository.BoardRepositoryImpl
 import com.simposio.taskeer.data.repository.ColumnRepositoryImpl
 import com.simposio.taskeer.data.repository.PreferencesRepositoryImpl
+import com.simposio.taskeer.data.repository.SubtaskRepositoryImpl
 import com.simposio.taskeer.data.repository.TaskRepositoryImpl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +32,7 @@ fun createAppContainer(context: Context): AppContainer {
             columnTaskCount = taskCountByColumn(database.taskDao()),
         ),
         taskRepository = TaskRepositoryImpl(database.taskDao(), database.columnDao()),
+        subtaskRepository = SubtaskRepositoryImpl(database.subtaskDao(), database.taskDao()),
     )
 }
 

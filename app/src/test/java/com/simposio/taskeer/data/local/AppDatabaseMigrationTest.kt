@@ -9,10 +9,10 @@ class AppDatabaseMigrationTest {
     private val source: String = File(resolveLocalRoot(), "AppDatabase.kt").readText()
 
     @Test
-    fun versionActual_esCuatro() {
+    fun versionActual_esCinco() {
         assertTrue(
-            "AppDatabase debe declarar la versión 4",
-            Regex("version\\s*=\\s*4\\b").containsMatchIn(source),
+            "AppDatabase debe declarar la versión 5",
+            Regex("version\\s*=\\s*5\\b").containsMatchIn(source),
         )
     }
 
@@ -81,11 +81,42 @@ class AppDatabaseMigrationTest {
     }
 
     @Test
-    fun migraciones_incluyenLaMigracion1a2La2a3YLa3a4() {
+    fun migracion4a5_creaLaTablaSubtasks() {
+        assertTrue("debe declarar una Migration(4, 5)", source.contains("Migration(4, 5)"))
         assertTrue(
-            "MIGRATIONS debe incluir MIGRATION_1_2, MIGRATION_2_3 y MIGRATION_3_4",
+            "la migración debe crear la tabla subtasks",
+            source.contains("CREATE TABLE IF NOT EXISTS `subtasks`"),
+        )
+        listOf(
+            "`id` TEXT NOT NULL",
+            "`taskId` TEXT NOT NULL",
+            "`title` TEXT NOT NULL",
+            "`completed` INTEGER NOT NULL",
+            "`position` INTEGER NOT NULL",
+            "`updatedAt` INTEGER NOT NULL",
+            "`pending` INTEGER NOT NULL",
+            "`deletedAt` INTEGER",
+            "PRIMARY KEY(`id`)",
+        ).forEach { fragment ->
+            assertTrue("la tabla subtasks debe declarar $fragment", source.contains(fragment))
+        }
+        assertTrue(
+            "la migración debe crear el índice de tarea y posición",
+            source.contains("CREATE INDEX IF NOT EXISTS `index_subtasks_taskId_position`"),
+        )
+        assertTrue(
+            "el índice debe cubrir taskId y position",
+            source.contains("ON `subtasks` (`taskId`, `position`)"),
+        )
+    }
+
+    @Test
+    fun migraciones_incluyenLasMigraciones1a2HastaLa4a5() {
+        assertTrue(
+            "MIGRATIONS debe incluir de MIGRATION_1_2 a MIGRATION_4_5",
             Regex(
-                "MIGRATIONS[^=]*=\\s*listOf\\(\\s*MIGRATION_1_2\\s*,\\s*MIGRATION_2_3\\s*,\\s*MIGRATION_3_4\\s*\\)",
+                "MIGRATIONS[^=]*=\\s*listOf\\(\\s*MIGRATION_1_2\\s*,\\s*MIGRATION_2_3\\s*,\\s*" +
+                    "MIGRATION_3_4\\s*,\\s*MIGRATION_4_5\\s*\\)",
             ).containsMatchIn(source),
         )
         assertTrue("las migraciones se aplican con addMigrations", source.contains("addMigrations("))

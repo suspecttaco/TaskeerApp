@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import com.simposio.taskeer.ui.app.AppViewModel
 import com.simposio.taskeer.ui.boards.BoardsViewModel
 import com.simposio.taskeer.ui.columns.ColumnsViewModel
+import com.simposio.taskeer.ui.tasks.SubtasksViewModel
 import com.simposio.taskeer.ui.tasks.TaskEditorViewModel
 import com.simposio.taskeer.ui.tasks.TasksViewModel
 
@@ -20,6 +21,8 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
             BoardsViewModel(container.boardRepository) as T
         modelClass.isAssignableFrom(TaskEditorViewModel::class.java) ->
             TaskEditorViewModel(container.taskRepository, container.dateTimeConverter) as T
+        modelClass.isAssignableFrom(SubtasksViewModel::class.java) ->
+            SubtasksViewModel(container.subtaskRepository) as T
 
         else -> error("AppViewModelFactory no sabe construir ${modelClass.name}")
     }
