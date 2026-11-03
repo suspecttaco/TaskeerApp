@@ -10,6 +10,7 @@ import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.LocalUser
 import com.simposio.taskeer.domain.model.Task
+import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -28,6 +29,7 @@ class BoardViewModel(
     private val dateTimeConverter: DateTimeConverter,
     savedStateHandle: SavedStateHandle,
     myDayTaskIds: Flow<Set<String>> = flowOf(emptySet()),
+    private val now: () -> Instant = Instant::now,
 ) : ViewModel() {
 
     val boardId: String =
@@ -49,9 +51,10 @@ class BoardViewModel(
         if (move != null && !move.isReflectedIn(ordered)) {
             byColumn.withMove(move)
         }
+        val instant = now()
         BoardUiState(
             columns = columns.sortedWith(compareBy({ it.position }, { it.id })).map { column ->
-                BoardColumnUi(column, byColumn[column.id].orEmpty().map { it.toCard(myDay) })
+                BoardColumnUi(column, byColumn[column.id].orEmpty().map { it.toCard(myDay, column.isDoneColumn, instant) })
             },
             error = error,
             newColumn = newColumn,
@@ -113,7 +116,7 @@ class BoardViewModel(
         newColumn.value = NewColumnUiState()
     }
 
-    private fun Task.toCard(myDay: Set<String>): TaskCardUi = TaskCardUi(
+    private fun Task.toCard(myDay: Set<String>, isDoneColumn: Boolean, now: Instant): TaskCardUi = TaskCardUi(
         id = id,
         title = title,
         priority = priority,
@@ -122,6 +125,7 @@ class BoardViewModel(
         assigneeId = assigneeId,
         assigneeIsMe = assigneeId == LocalUser.ID,
         inMyDay = id in myDay,
+        isOverdue = !isDoneColumn && dueAt != null && dueAt < now,
     )
 
     private data class PendingMove(val taskId: String, val toColumnId: String, val toIndex: Int) {

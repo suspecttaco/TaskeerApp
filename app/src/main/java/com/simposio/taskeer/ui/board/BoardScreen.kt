@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -293,11 +294,32 @@ private fun BoardColumnView(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
-            Text(
-                text = column.column.name,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+            ) {
+                Text(
+                    text = column.column.name,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                if (column.column.isDoneColumn) {
+                    val doneDescription = stringResource(R.string.column_done_description)
+                    Text(
+                        text = "✓",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .padding(start = 6.dp)
+                            .semantics { contentDescription = doneDescription },
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                wipCounterLabel(column.cards.size, column.column.wipLimit)?.let { label ->
+                    Text(text = label, style = MaterialTheme.typography.labelLarge)
+                }
+            }
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -368,7 +390,18 @@ private fun TaskCard(card: TaskCardUi, modifier: Modifier = Modifier, elevated: 
                 color = MaterialTheme.colorScheme.primary,
             )
             card.dueAtLocal?.let {
-                Text(text = it.format(DUE_DATE_TIME_FORMATTER), style = MaterialTheme.typography.bodySmall)
+                val formatted = it.format(DUE_DATE_TIME_FORMATTER)
+                if (card.isOverdue) {
+                    val overdueDescription = stringResource(R.string.task_overdue_description, formatted)
+                    Text(
+                        text = formatted,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.semantics { contentDescription = overdueDescription },
+                    )
+                } else {
+                    Text(text = formatted, style = MaterialTheme.typography.bodySmall)
+                }
             }
             card.assigneeId?.let { id ->
                 val label = if (card.assigneeIsMe) stringResource(R.string.task_assignee_me) else id
@@ -407,6 +440,26 @@ private fun TaskCardPreview() {
     }
 }
 
+@Preview(showBackground = true)
+@Composable
+private fun OverdueTaskCardPreview() {
+    TaskeerTheme {
+        TaskCard(
+            card = TaskCardUi(
+                id = "t2",
+                title = "Entregar la memoria",
+                priority = TaskPriority.URGENT,
+                dueAt = Instant.EPOCH,
+                dueAtLocal = LocalDateTime.of(2026, 10, 1, 9, 0),
+                assigneeId = null,
+                assigneeIsMe = false,
+                inMyDay = false,
+                isOverdue = true,
+            ),
+        )
+    }
+}
+
 @Preview(showBackground = true, heightDp = 400)
 @Composable
 private fun BoardContentPreview() {
@@ -415,7 +468,8 @@ private fun BoardContentPreview() {
             state = BoardUiState(
                 columns = listOf(
                     BoardColumnUi(previewColumn("Por hacer", 0), emptyList()),
-                    BoardColumnUi(previewColumn("En progreso", 1), emptyList()),
+                    BoardColumnUi(previewColumn("En progreso", 1, wipLimit = 3), emptyList()),
+                    BoardColumnUi(previewColumn("Hecho", 2, isDoneColumn = true), emptyList()),
                 ),
             ),
             onMove = { _, _, _ -> },
@@ -484,12 +538,17 @@ private fun NewColumnDialogPreview() {
     }
 }
 
-private fun previewColumn(name: String, position: Int): BoardColumn = BoardColumn(
+private fun previewColumn(
+    name: String,
+    position: Int,
+    wipLimit: Int? = null,
+    isDoneColumn: Boolean = false,
+): BoardColumn = BoardColumn(
     boardId = "tablero-1",
     name = name,
     position = position,
-    wipLimit = null,
-    isDoneColumn = false,
+    wipLimit = wipLimit,
+    isDoneColumn = isDoneColumn,
     createdAt = Instant.EPOCH,
     sync = SyncMetadata("columna-$position", Instant.EPOCH, pending = false, deletedAt = null),
 )

@@ -24,6 +24,8 @@
     <string name="column_cancel">Cancelar</string>
     <string name="column_move_up">Subir</string>
     <string name="column_move_down">Bajar</string>
+    <string name="column_done_description">Columna de completadas</string>
+    <string name="task_overdue_description">Vencida: %1$s</string>
     <string name="columns_empty">No hay columnas todavía</string>
     <string name="task_editor_title_create">Nueva tarea</string>
     <string name="task_editor_title_edit">Editar tarea</string>
