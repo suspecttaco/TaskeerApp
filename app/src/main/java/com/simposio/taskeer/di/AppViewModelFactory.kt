@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.simposio.taskeer.ui.app.AppViewModel
+import com.simposio.taskeer.ui.board.BoardViewModel
 import com.simposio.taskeer.ui.boards.BoardsViewModel
 import com.simposio.taskeer.ui.columns.ColumnsViewModel
 import com.simposio.taskeer.ui.tasks.SubtasksViewModel
@@ -31,6 +32,14 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
     override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T = when {
         modelClass.isAssignableFrom(ColumnsViewModel::class.java) ->
             ColumnsViewModel(container.columnRepository, extras.createSavedStateHandle()) as T
+
+        modelClass.isAssignableFrom(BoardViewModel::class.java) ->
+            BoardViewModel(
+                container.columnRepository,
+                container.taskRepository,
+                container.dateTimeConverter,
+                extras.createSavedStateHandle(),
+            ) as T
 
         modelClass.isAssignableFrom(TasksViewModel::class.java) ->
             TasksViewModel(container.taskRepository, extras.createSavedStateHandle()) as T

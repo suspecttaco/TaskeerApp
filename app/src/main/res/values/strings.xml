@@ -64,5 +64,13 @@
     <string name="theme_mode_auto">Automático</string>
     <string name="color_origin_brand">Paleta de marca</string>
     <string name="color_origin_dynamic">Colores del sistema</string>
+    <string name="board_title">Tablero</string>
+    <string name="board_column_empty">Sin tareas</string>
+    <string name="board_manage_columns">Columnas</string>
+    <string name="board_add_column">Añadir columna</string>
+    <string name="board_add_column_title">Nueva columna</string>
+    <string name="nav_back">Volver</string>
+    <string name="task_assignee_me">Yo</string>
+    <string name="task_in_my_day">Marcada en Mi día</string>
     <string name="menu_check" translatable="false">✓</string>
 </resources>

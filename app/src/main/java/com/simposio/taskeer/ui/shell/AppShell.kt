@@ -29,6 +29,7 @@ import androidx.navigation.compose.rememberNavController
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.ThemeMode
 import com.simposio.taskeer.domain.theme.isDynamicColorAvailable
+import com.simposio.taskeer.ui.board.BoardViewModel
 import com.simposio.taskeer.ui.navigation.AppDestination
 import com.simposio.taskeer.ui.navigation.AppNavHost
 import com.simposio.taskeer.ui.navigation.topLevelNavSpec
@@ -53,7 +54,22 @@ fun AppShell(
     Scaffold(
         modifier = modifier,
         topBar = {
+            val boardId = currentEntry?.arguments?.getString(BoardViewModel.BOARD_ID_ARG)
+            val upRoute = boardId?.let { currentDestination?.upRoute(it) }
             TopAppBar(
+                navigationIcon = {
+                    if (upRoute != null) {
+                        TextButton(
+                            onClick = {
+                                if (!navController.popBackStack()) {
+                                    navController.navigate(upRoute) { launchSingleTop = true }
+                                }
+                            },
+                        ) {
+                            Text(stringResource(R.string.nav_back))
+                        }
+                    }
+                },
                 title = {
                     Text(stringResource((currentDestination ?: AppDestination.START).labelRes()))
                 },
@@ -165,6 +181,7 @@ private fun AppDestination.labelRes(): Int = when (this) {
     AppDestination.MY_DAY -> R.string.nav_my_day
     AppDestination.WORKSPACES -> R.string.nav_workspaces
     AppDestination.SETTINGS -> R.string.nav_settings
+    AppDestination.BOARD -> R.string.board_title
     AppDestination.BOARD_COLUMNS -> R.string.columns_title
 }
 
