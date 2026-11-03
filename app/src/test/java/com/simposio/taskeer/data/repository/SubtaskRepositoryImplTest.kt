@@ -335,6 +335,8 @@ class SubtaskRepositoryImplTest {
 
         override suspend fun upsert(task: TaskEntity) = Unit
 
+        override suspend fun upsertAll(tasks: List<TaskEntity>) = Unit
+
         override suspend fun softDeleteSubtasksOfTask(taskId: String, deletedAt: Long) = Unit
     }
 }

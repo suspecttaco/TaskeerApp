@@ -30,6 +30,10 @@ abstract class TaskDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun upsert(task: TaskEntity)
 
+    // Una sola sentencia: Room la ejecuta de forma atómica sin @Transaction.
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsertAll(tasks: List<TaskEntity>)
+
     @Query(
         "UPDATE subtasks SET deletedAt = :deletedAt, updatedAt = :deletedAt, pending = 1 " +
             "WHERE taskId = :taskId AND deletedAt IS NULL",

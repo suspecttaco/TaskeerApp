@@ -6,6 +6,7 @@ import com.simposio.taskeer.data.local.ColumnEntity
 import com.simposio.taskeer.data.local.SubtaskEntity
 import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.TaskEntity
+import com.simposio.taskeer.data.local.toTask
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.date.TimeZoneProvider
 import com.simposio.taskeer.domain.model.DomainError
@@ -369,9 +370,205 @@ class TaskRepositoryImplTest {
         assertFalse(tasks.any { it.isDeleted })
     }
 
-    private fun columnEntity(id: String, deleted: Boolean = false): ColumnEntity = ColumnEntity(
+    @Test
+    fun moveTask_entreColumnas_persisteColumnIdYPosicionesContiguas() = runTest {
+        val (taskDao, repository) = moveFixture()
+
+        val result = repository.moveTask("a", "columna-2", 1)
+
+        val moved = (result as DomainResult.Success).value
+        assertEquals("columna-2", moved.columnId)
+        assertEquals(1, moved.position)
+        assertEquals(later, moved.sync.updatedAt)
+        assertTrue(moved.sync.pending)
+        assertEquals(listOf("b" to 0, "c" to 1), taskDao.column("columna-1"))
+        assertEquals(listOf("x" to 0, "a" to 1, "y" to 2), taskDao.column("columna-2"))
+        assertEquals(1, taskDao.writeCalls)
+    }
+
+    @Test
+    fun moveTask_entreColumnas_soloEscribeLasTareasCambiadas() = runTest {
+        val (taskDao, repository) = moveFixture()
+
+        repository.moveTask("c", "columna-2", 2)
+
+        assertEquals(now.toEpochMilli(), taskDao.stored.getValue("a").updatedAt)
+        assertEquals(now.toEpochMilli(), taskDao.stored.getValue("x").updatedAt)
+        assertEquals(later.toEpochMilli(), taskDao.stored.getValue("c").updatedAt)
+        assertEquals(now.toEpochMilli(), taskDao.stored.getValue("b").updatedAt)
+    }
+
+    @Test
+    fun moveTask_aColumnaVacia_usaElIndiceCero() = runTest {
+        val (taskDao, repository) = moveFixture()
+
+        val result = repository.moveTask("a", "columna-vacia", 0)
+
+        assertEquals("columna-vacia", (result as DomainResult.Success).value.columnId)
+        assertEquals(listOf("a" to 0), taskDao.column("columna-vacia"))
+        assertEquals(listOf("b" to 0, "c" to 1), taskDao.column("columna-1"))
+    }
+
+    @Test
+    fun moveTask_dentroDeLaColumna_reordenaYPersisteContiguo() = runTest {
+        val (taskDao, repository) = moveFixture()
+
+        val result = repository.moveTask("c", "columna-1", 0)
+
+        assertEquals(0, (result as DomainResult.Success).value.position)
+        assertEquals(listOf("c" to 0, "a" to 1, "b" to 2), taskDao.column("columna-1"))
+    }
+
+    @Test
+    fun moveTask_alMismoIndice_noEscribeYDevuelveLaTareaIgual() = runTest {
+        val (taskDao, repository) = moveFixture()
+        val writesBefore = taskDao.writeCalls
+
+        val result = repository.moveTask("b", "columna-1", 1)
+
+        assertEquals(taskDao.stored.getValue("b").toTask(), (result as DomainResult.Success).value)
+        assertEquals(writesBefore, taskDao.writeCalls)
+    }
+
+    @Test
+    fun moveTask_tareaInexistenteOBorrada_fallaConTaskNotFoundSinEscribir() = runTest {
+        val (taskDao, repository) = moveFixture()
+        val writesBefore = taskDao.writeCalls
+
+        val missing = repository.moveTask("nada", "columna-2", 0)
+        val deleted = repository.moveTask("borrada", "columna-2", 0)
+
+        listOf(missing, deleted).forEach {
+            val error = (it as DomainResult.Failure).error
+            assertTrue(error is DomainError.NotFound)
+            assertEquals("TASK_NOT_FOUND", error.code)
+        }
+        assertEquals(writesBefore, taskDao.writeCalls)
+    }
+
+    @Test
+    fun moveTask_columnaDestinoInexistenteOBorrada_fallaConColumnNotFound() = runTest {
+        val (taskDao, repository) = moveFixture()
+        val writesBefore = taskDao.writeCalls
+
+        val missing = repository.moveTask("a", "columna-x", 0)
+        val deleted = repository.moveTask("a", "columna-borrada", 0)
+
+        listOf(missing, deleted).forEach {
+            val error = (it as DomainResult.Failure).error
+            assertTrue(error is DomainError.NotFound)
+            assertEquals("COLUMN_NOT_FOUND", error.code)
+        }
+        assertEquals(writesBefore, taskDao.writeCalls)
+    }
+
+    @Test
+    fun moveTask_aColumnaDeOtroTablero_fallaConColumnBoardMismatchSinEscribir() = runTest {
+        val (taskDao, repository) = moveFixture()
+        val writesBefore = taskDao.writeCalls
+
+        val result = repository.moveTask("a", "columna-ajena", 0)
+
+        val error = (result as DomainResult.Failure).error
+        assertTrue(error is DomainError.Validation)
+        assertEquals("COLUMN_BOARD_MISMATCH", error.code)
+        assertEquals("columna-1", taskDao.stored.getValue("a").columnId)
+        assertEquals(writesBefore, taskDao.writeCalls)
+    }
+
+    @Test
+    fun moveTask_indiceFueraDeRango_fallaConIndexOutOfBoundsSinEscribir() = runTest {
+        val (taskDao, repository) = moveFixture()
+        val writesBefore = taskDao.writeCalls
+
+        val beyondDestination = repository.moveTask("a", "columna-2", 3)
+        val beyondSame = repository.moveTask("a", "columna-1", 3)
+        val negative = repository.moveTask("a", "columna-2", -1)
+
+        listOf(beyondDestination, beyondSame, negative).forEach {
+            val error = (it as DomainResult.Failure).error
+            assertTrue(error is DomainError.Validation)
+            assertEquals("TASK_INDEX_OUT_OF_BOUNDS", error.code)
+        }
+        assertEquals(writesBefore, taskDao.writeCalls)
+    }
+
+    @Test
+    fun moveTask_ordenDeComprobacion_tareaLuegoColumnaLuegoTableroLuegoIndice() = runTest {
+        val (_, repository) = moveFixture()
+
+        assertEquals("TASK_NOT_FOUND", (repository.moveTask("nada", "columna-x", 99) as DomainResult.Failure).error.code)
+        assertEquals("COLUMN_NOT_FOUND", (repository.moveTask("a", "columna-x", 99) as DomainResult.Failure).error.code)
+        assertEquals("COLUMN_BOARD_MISMATCH", (repository.moveTask("a", "columna-ajena", 99) as DomainResult.Failure).error.code)
+        assertEquals("TASK_INDEX_OUT_OF_BOUNDS", (repository.moveTask("a", "columna-2", 99) as DomainResult.Failure).error.code)
+    }
+
+    @Test
+    fun moveTask_conHuecosEnLasPosiciones_losNormalizaAlMover() = runTest {
+        val columnDao = FakeColumnDao().apply {
+            put(columnEntity("columna-1"))
+            put(columnEntity("columna-2"))
+        }
+        val taskDao = FakeTaskDao(columnDao)
+        taskDao.put(taskEntity("a", columnId = "columna-1", position = 0))
+        taskDao.put(taskEntity("b", columnId = "columna-1", position = 5))
+        taskDao.put(taskEntity("c", columnId = "columna-1", position = 5))
+        taskDao.put(taskEntity("x", columnId = "columna-2", position = 3))
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+
+        repository.moveTask("a", "columna-2", 0)
+
+        assertEquals(listOf("b" to 0, "c" to 1), taskDao.column("columna-1"))
+        assertEquals(listOf("a" to 0, "x" to 1), taskDao.column("columna-2"))
+    }
+
+    @Test
+    fun moveTask_loAlmacenadoEsLoQueObservaObserveTasksTrasReiniciar() = runTest {
+        val (taskDao, repository) = moveFixture()
+        repository.moveTask("a", "columna-2", 0)
+
+        val reopened = TaskRepositoryImpl(taskDao, taskDao.columnDao, now = { later })
+        val tasks = reopened.observeTasks(BOARD_ID).first()
+
+        assertEquals(
+            listOf("a" to "columna-2", "b" to "columna-1", "c" to "columna-1", "x" to "columna-2", "y" to "columna-2"),
+            tasks.map { it.id to it.columnId },
+        )
+        assertEquals(0, tasks.first { it.id == "a" }.position)
+        assertEquals("columna-2", (reopened.getTask("a") as DomainResult.Success).value.columnId)
+    }
+
+    private fun moveFixture(): Pair<FakeTaskDao, TaskRepositoryImpl> {
+        val columnDao = FakeColumnDao().apply {
+            put(columnEntity("columna-1"))
+            put(columnEntity("columna-2"))
+            put(columnEntity("columna-vacia"))
+            put(columnEntity("columna-borrada", deleted = true))
+            put(columnEntity("columna-ajena", boardId = "tablero-2"))
+        }
+        val taskDao = FakeTaskDao(columnDao)
+        taskDao.put(taskEntity("a", columnId = "columna-1", position = 0))
+        taskDao.put(taskEntity("b", columnId = "columna-1", position = 1))
+        taskDao.put(taskEntity("c", columnId = "columna-1", position = 2))
+        taskDao.put(taskEntity("x", columnId = "columna-2", position = 0))
+        taskDao.put(taskEntity("y", columnId = "columna-2", position = 1))
+        taskDao.put(taskEntity("borrada", columnId = "columna-1", position = 3, deletedAt = now))
+        return taskDao to TaskRepositoryImpl(taskDao, columnDao, now = { later })
+    }
+
+    private fun FakeTaskDao.column(columnId: String): List<Pair<String, Int>> =
+        stored.values
+            .filter { it.columnId == columnId && it.deletedAt == null }
+            .sortedBy { it.position }
+            .map { it.id to it.position }
+
+    private fun columnEntity(
+        id: String,
+        deleted: Boolean = false,
+        boardId: String = BOARD_ID,
+    ): ColumnEntity = ColumnEntity(
         id = id,
-        boardId = BOARD_ID,
+        boardId = boardId,
         name = "Por hacer",
         position = 0,
         wipLimit = null,
@@ -476,7 +673,7 @@ class TaskRepositoryImplTest {
         deletedAt = deletedAt?.toEpochMilli(),
     )
 
-    private class FakeTaskDao(private val columnDao: FakeColumnDao) : TaskDao() {
+    private class FakeTaskDao(val columnDao: FakeColumnDao) : TaskDao() {
         private val rows = MutableStateFlow<Map<String, TaskEntity>>(emptyMap())
 
         var writeCalls: Int = 0
@@ -521,6 +718,11 @@ class TaskRepositoryImplTest {
                 writeCalls++
             }
             rows.value = rows.value + (task.id to task)
+        }
+
+        override suspend fun upsertAll(tasks: List<TaskEntity>) {
+            writeCalls++
+            rows.value = rows.value + tasks.associateBy { it.id }
         }
 
         override suspend fun softDeleteSubtasksOfTask(taskId: String, deletedAt: Long) {

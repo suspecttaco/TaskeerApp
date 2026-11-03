@@ -3,6 +3,7 @@ package com.simposio.taskeer.data.repository
 import com.simposio.taskeer.data.local.ColumnDao
 import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.toEntity
+import com.simposio.taskeer.data.local.toColumn
 import com.simposio.taskeer.data.local.toTask
 import com.simposio.taskeer.domain.column.COLUMN_NOT_FOUND
 import com.simposio.taskeer.domain.model.DomainError
@@ -10,6 +11,8 @@ import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.task.TASK_NOT_FOUND
+import com.simposio.taskeer.domain.task.checkSameBoard
+import com.simposio.taskeer.domain.task.movedTask
 import com.simposio.taskeer.domain.task.newTask
 import com.simposio.taskeer.domain.task.softDeleted
 import com.simposio.taskeer.domain.task.updated
@@ -52,6 +55,28 @@ class TaskRepositoryImpl(
             is DomainResult.Success -> {
                 dao.upsert(result.value.toEntity())
                 DomainResult.Success(result.value)
+            }
+        }
+    }
+
+    override suspend fun moveTask(id: String, toColumnId: String, toIndex: Int): DomainResult<Task> {
+        val current = activeTask(id) ?: return taskNotFound()
+        val destination = columnDao.findById(toColumnId)?.takeIf { it.deletedAt == null }?.toColumn()
+            ?: return columnNotFound()
+        // El boardId de una columna no cambia, así que sirve aunque la columna origen esté borrada.
+        val sourceBoardId = columnDao.findById(current.columnId)?.boardId
+        if (sourceBoardId != null) {
+            checkSameBoard(sourceBoardId, destination)?.let { return DomainResult.Failure(it) }
+        }
+        val source = dao.findActiveByColumn(current.columnId).map { it.toTask() }
+        val target = if (toColumnId == current.columnId) source else dao.findActiveByColumn(toColumnId).map { it.toTask() }
+        return when (val result = movedTask(current, source, target, toColumnId, toIndex, now())) {
+            is DomainResult.Failure -> result
+            is DomainResult.Success -> {
+                if (result.value.isNotEmpty()) {
+                    dao.upsertAll(result.value.map { it.toEntity() })
+                }
+                DomainResult.Success(result.value.firstOrNull { it.id == id } ?: current)
             }
         }
     }
