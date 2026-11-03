@@ -33,9 +33,93 @@ class DomainErrorTest {
     }
 
     @Test
-    fun serverError_mapeaAUnknown() {
+    fun serverError_mapeaAServerConMensajeGenerico() {
         val error = DomainError.fromApi("INTERNAL_SERVER_ERROR", "Fallo interno")
-        assertEquals(DomainError.Unknown("INTERNAL_SERVER_ERROR", "Fallo interno"), error)
+
+        assertEquals(
+            DomainError.Server("INTERNAL_SERVER_ERROR", "Error del servidor. Inténtalo de nuevo más tarde"),
+            error,
+        )
+    }
+
+    @Test
+    fun tablaDeCodigos_cadaCodigoResuelveSuVarianteYConservaElCode() {
+        val table: Map<(String, String) -> DomainError, List<String>> = mapOf(
+            DomainError::Validation to listOf(
+                "VALIDATION_ERROR", "INVALID_RECOVERY_CODE", "INVALID_OR_EXPIRED_TOKEN",
+                "INVALID_OR_EXPIRED_INVITATION", "INVALID_OAUTH_STATE", "INVALID_PROVIDER",
+                "GOOGLE_EMAIL_MISSING", "NO_LOCAL_PASSWORD", "INVALID_COUNTRY", "INVALID_TIMEZONE",
+                "CANNOT_CHANGE_OWNER_ROLE", "CANNOT_TRANSFER_TO_SELF", "OWNER_MUST_TRANSFER_OWNERSHIP",
+                "CROSS_WORKSPACE_MOVE", "SAME_WORKSPACE", "REMINDER_NOT_PENDING",
+                "ASSIGNEE_NOT_WORKSPACE_MEMBER", "USER_NOT_WORKSPACE_MEMBER",
+            ),
+            DomainError::Unauthenticated to listOf(
+                "UNAUTHENTICATED", "INVALID_CREDENTIALS", "INVALID_REFRESH_TOKEN",
+                "INVALID_GOOGLE_TOKEN", "INVALID_STREAM_TICKET",
+            ),
+            DomainError::Forbidden to listOf(
+                "FORBIDDEN", "EMAIL_NOT_VERIFIED", "WORKSPACE_LIMIT_REACHED",
+                "GOOGLE_EMAIL_NOT_VERIFIED", "UNTRUSTED_ORIGIN",
+            ),
+            DomainError::NotFound to listOf(
+                "WORKSPACE_NOT_FOUND", "BOARD_NOT_FOUND", "COLUMN_NOT_FOUND", "TASK_NOT_FOUND",
+                "SUBTASK_NOT_FOUND", "REMINDER_NOT_FOUND", "NOTIFICATION_NOT_FOUND",
+                "MEMBER_NOT_FOUND", "INVITATION_NOT_FOUND",
+            ),
+            DomainError::Conflict to listOf(
+                "EMAIL_ALREADY_REGISTERED", "LOCAL_ACCOUNT_EMAIL_NOT_VERIFIED", "SLUG_ALREADY_TAKEN",
+                "SLUG_CONFLICT", "COLUMN_NOT_EMPTY", "COLUMN_WIP_LIMIT_REACHED",
+                "CONCURRENT_PASSWORD_CHANGE",
+            ),
+            DomainError::RateLimited to listOf("TOO_MANY_REQUESTS"),
+        )
+
+        table.forEach { (variant, codes) ->
+            codes.forEach { code ->
+                val actual = DomainError.fromApi(code, "mensaje")
+                assertEquals(code, variant(code, "mensaje"), actual)
+                assertEquals(code, actual.code)
+            }
+        }
+    }
+
+    @Test
+    fun codigosDe5xx_resuelvenAServerConservandoElCode() {
+        listOf(
+            "INTERNAL_SERVER_ERROR", "SUBSCRIPTION_NOT_FOUND", "ENTITLEMENT_NOT_CONFIGURED",
+            "FREE_PLAN_NOT_SEEDED", "SLUG_GENERATION_FAILED", "EMAIL_VERIFICATION_DISABLED",
+        ).forEach { code ->
+            val actual = DomainError.fromApi(code, "detalle interno")
+
+            assertTrue(code, actual is DomainError.Server)
+            assertEquals(code, actual.code)
+            assertEquals("Error del servidor. Inténtalo de nuevo más tarde", actual.message)
+        }
+    }
+
+    @Test
+    fun excepcionesAlSufijo_seResuelvenPorCodigoExacto() {
+        assertTrue(DomainError.fromApi("COLUMN_WIP_LIMIT_REACHED", "m") is DomainError.Conflict)
+        assertTrue(DomainError.fromApi("SUBSCRIPTION_NOT_FOUND", "m") is DomainError.Server)
+        assertTrue(DomainError.fromApi("INVALID_CREDENTIALS", "m") is DomainError.Unauthenticated)
+        assertTrue(DomainError.fromApi("SLUG_GENERATION_FAILED", "m") is DomainError.Server)
+        assertTrue(DomainError.fromApi("SLUG_CONFLICT", "m") is DomainError.Conflict)
+    }
+
+    @Test
+    fun limiteDesconocido_siguesiendoUnknown() {
+        assertTrue(DomainError.fromApi("ALGO_LIMIT_REACHED", "m") is DomainError.Unknown)
+    }
+
+    @Test
+    fun notFoundDesconocido_resuelveANotFoundPorSufijo() {
+        assertTrue(DomainError.fromApi("ALGO_NOT_FOUND", "m") is DomainError.NotFound)
+    }
+
+    @Test
+    fun codigoEnMinusculasOVacio_esUnknown() {
+        assertTrue(DomainError.fromApi("validation_error", "m") is DomainError.Unknown)
+        assertTrue(DomainError.fromApi("", "m") is DomainError.Unknown)
     }
 
     @Test
