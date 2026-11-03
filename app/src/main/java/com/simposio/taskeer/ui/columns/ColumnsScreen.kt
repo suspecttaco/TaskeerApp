@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
@@ -72,6 +74,7 @@ fun ColumnsScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifie
         onRename = viewModel::renameColumn,
         onMove = viewModel::moveColumn,
         onDelete = viewModel::deleteColumn,
+        onSetWipLimit = viewModel::setWipLimit,
         onCreateTask = editorViewModel::openForCreate,
         onEditTask = editorViewModel::openForEdit,
         modifier = modifier,
@@ -111,6 +114,7 @@ fun ColumnsContent(
     onRename: (String, String) -> Unit,
     onMove: (String, Int) -> Unit,
     onDelete: (String) -> Unit,
+    onSetWipLimit: (String, Int?) -> Unit,
     onCreateTask: (String) -> Unit,
     onEditTask: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -191,6 +195,7 @@ fun ColumnsContent(
                         onMoveUp = { onMove(column.id, index - 1) },
                         onMoveDown = { onMove(column.id, index + 1) },
                         onDelete = { onDelete(column.id) },
+                        onSetWipLimit = { onSetWipLimit(column.id, it) },
                         onCreateTask = { onCreateTask(column.id) },
                         onEditTask = onEditTask,
                     )
@@ -215,6 +220,7 @@ private fun ColumnRow(
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     onDelete: () -> Unit,
+    onSetWipLimit: (Int?) -> Unit,
     onCreateTask: () -> Unit,
     onEditTask: (String) -> Unit,
 ) {
@@ -252,6 +258,30 @@ private fun ColumnRow(
             }
         }
 
+        var limitText by rememberSaveable(column.id) { mutableStateOf(column.wipLimit?.toString().orEmpty()) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = limitText,
+                onValueChange = { limitText = it },
+                label = { Text(stringResource(R.string.column_wip_limit_label)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(
+                onClick = {
+                    when (val input = parseWipLimitInput(limitText)) {
+                        WipLimitInput.Empty -> onSetWipLimit(null)
+                        is WipLimitInput.Value -> onSetWipLimit(input.limit)
+                        WipLimitInput.Invalid -> Unit
+                    }
+                },
+                enabled = parseWipLimitInput(limitText) != WipLimitInput.Invalid,
+            ) {
+                Text(stringResource(R.string.column_wip_limit_set))
+            }
+        }
+
         tasks.forEach { task ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(text = task.title, modifier = Modifier.weight(1f))
@@ -278,6 +308,7 @@ private fun ColumnsContentPreview() {
             onRename = { _, _ -> },
             onMove = { _, _ -> },
             onDelete = {},
+            onSetWipLimit = { _, _ -> },
             onCreateTask = {},
             onEditTask = {},
         )

@@ -538,13 +538,154 @@ class TaskRepositoryImplTest {
         assertEquals("columna-2", (reopened.getTask("a") as DomainResult.Success).value.columnId)
     }
 
-    private fun moveFixture(): Pair<FakeTaskDao, TaskRepositoryImpl> {
+    @Test
+    fun createTask_columnaLlena_fallaConWipLimitReachedSinEscribir() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1", wipLimit = 2)) }
+        val taskDao = FakeTaskDao(columnDao)
+        taskDao.put(taskEntity("t0", columnId = "columna-1", position = 0))
+        taskDao.put(taskEntity("t1", columnId = "columna-1", position = 1))
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val writesBefore = taskDao.writeCalls
+
+        val error = (repository.createTask("columna-1", TaskDraft(title = "Nueva")) as DomainResult.Failure).error
+
+        assertTrue(error is DomainError.Conflict)
+        assertEquals("COLUMN_WIP_LIMIT_REACHED", error.code)
+        assertEquals(writesBefore, taskDao.writeCalls)
+    }
+
+    @Test
+    fun createTask_columnaConHueco_crea() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1", wipLimit = 2)) }
+        val taskDao = FakeTaskDao(columnDao)
+        taskDao.put(taskEntity("t0", columnId = "columna-1", position = 0))
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+
+        val result = repository.createTask("columna-1", TaskDraft(title = "Nueva"))
+
+        assertEquals(1, (result as DomainResult.Success).value.position)
+    }
+
+    @Test
+    fun createTask_sinLimite_creaAunqueHayaMuchas() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
+        val taskDao = FakeTaskDao(columnDao)
+        repeat(5) { taskDao.put(taskEntity("t$it", columnId = "columna-1", position = it)) }
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+
+        assertTrue(repository.createTask("columna-1", TaskDraft(title = "Nueva")) is DomainResult.Success)
+    }
+
+    @Test
+    fun createTask_tareaBorradaLiberaCupo() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1", wipLimit = 1)) }
+        val taskDao = FakeTaskDao(columnDao)
+        taskDao.put(taskEntity("t0", columnId = "columna-1", position = 0, deletedAt = now))
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+
+        assertTrue(repository.createTask("columna-1", TaskDraft(title = "Nueva")) is DomainResult.Success)
+    }
+
+    @Test
+    fun createTask_tituloVacioEnColumnaLlena_devuelveTituloRequerido() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1", wipLimit = 1)) }
+        val taskDao = FakeTaskDao(columnDao)
+        taskDao.put(taskEntity("t0", columnId = "columna-1", position = 0))
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+
+        val result = repository.createTask("columna-1", TaskDraft(title = "  "))
+
+        assertEquals("TASK_TITLE_REQUIRED", (result as DomainResult.Failure).error.code)
+    }
+
+    @Test
+    fun createTask_columnaInexistenteConLimite_devuelveColumnNotFound() = runTest {
+        val columnDao = FakeColumnDao()
+        val repository = TaskRepositoryImpl(FakeTaskDao(columnDao), columnDao, now = { now })
+
+        val result = repository.createTask("nada", TaskDraft(title = "Nueva"))
+
+        assertEquals("COLUMN_NOT_FOUND", (result as DomainResult.Failure).error.code)
+    }
+
+    @Test
+    fun moveTask_aColumnaLlena_fallaConWipLimitReachedSinEscribir() = runTest {
+        val (taskDao, repository) = moveFixture(limitColumn2 = 2)
+        val writesBefore = taskDao.writeCalls
+
+        val error = (repository.moveTask("a", "columna-2", 0) as DomainResult.Failure).error
+
+        assertTrue(error is DomainError.Conflict)
+        assertEquals("COLUMN_WIP_LIMIT_REACHED", error.code)
+        assertEquals(writesBefore, taskDao.writeCalls)
+        assertEquals("columna-1", taskDao.stored.getValue("a").columnId)
+    }
+
+    @Test
+    fun moveTask_aColumnaConHueco_mueve() = runTest {
+        val (_, repository) = moveFixture(limitColumn2 = 3)
+
+        val result = repository.moveTask("a", "columna-2", 0)
+
+        assertEquals("columna-2", (result as DomainResult.Success).value.columnId)
+    }
+
+    @Test
+    fun moveTask_dentroDeColumnaLlena_reordena() = runTest {
+        val (taskDao, repository) = moveFixture(limitColumn1 = 3)
+
+        val result = repository.moveTask("c", "columna-1", 0)
+
+        assertTrue(result is DomainResult.Success)
+        assertEquals(listOf("c" to 0, "a" to 1, "b" to 2), taskDao.column("columna-1"))
+    }
+
+    @Test
+    fun moveTask_salirDeColumnaSobrepasada_sePermite() = runTest {
+        val (_, repository) = moveFixture(limitColumn1 = 1, limitColumnVacia = 5)
+
+        val result = repository.moveTask("a", "columna-vacia", 0)
+
+        assertEquals("columna-vacia", (result as DomainResult.Success).value.columnId)
+    }
+
+    @Test
+    fun moveTask_indiceInvalidoConDestinoLleno_devuelveIndexOutOfBounds() = runTest {
+        val (_, repository) = moveFixture(limitColumn2 = 2)
+
+        val result = repository.moveTask("a", "columna-2", 99)
+
+        assertEquals("TASK_INDEX_OUT_OF_BOUNDS", (result as DomainResult.Failure).error.code)
+    }
+
+    @Test
+    fun moveTask_otroTableroConLimite_devuelveColumnBoardMismatch() = runTest {
+        val (_, repository) = moveFixture(limitAjena = 1)
+
+        val result = repository.moveTask("a", "columna-ajena", 0)
+
+        assertEquals("COLUMN_BOARD_MISMATCH", (result as DomainResult.Failure).error.code)
+    }
+
+    @Test
+    fun moveTask_destinoSinLimite_noBloquea() = runTest {
+        val (_, repository) = moveFixture()
+
+        assertTrue(repository.moveTask("a", "columna-2", 0) is DomainResult.Success)
+    }
+
+    private fun moveFixture(
+        limitColumn1: Int? = null,
+        limitColumn2: Int? = null,
+        limitColumnVacia: Int? = null,
+        limitAjena: Int? = null,
+    ): Pair<FakeTaskDao, TaskRepositoryImpl> {
         val columnDao = FakeColumnDao().apply {
-            put(columnEntity("columna-1"))
-            put(columnEntity("columna-2"))
-            put(columnEntity("columna-vacia"))
+            put(columnEntity("columna-1", wipLimit = limitColumn1))
+            put(columnEntity("columna-2", wipLimit = limitColumn2))
+            put(columnEntity("columna-vacia", wipLimit = limitColumnVacia))
             put(columnEntity("columna-borrada", deleted = true))
-            put(columnEntity("columna-ajena", boardId = "tablero-2"))
+            put(columnEntity("columna-ajena", boardId = "tablero-2", wipLimit = limitAjena))
         }
         val taskDao = FakeTaskDao(columnDao)
         taskDao.put(taskEntity("a", columnId = "columna-1", position = 0))
@@ -566,12 +707,13 @@ class TaskRepositoryImplTest {
         id: String,
         deleted: Boolean = false,
         boardId: String = BOARD_ID,
+        wipLimit: Int? = null,
     ): ColumnEntity = ColumnEntity(
         id = id,
         boardId = boardId,
         name = "Por hacer",
         position = 0,
-        wipLimit = null,
+        wipLimit = wipLimit,
         isDoneColumn = false,
         createdAt = 0L,
         updatedAt = now.toEpochMilli(),

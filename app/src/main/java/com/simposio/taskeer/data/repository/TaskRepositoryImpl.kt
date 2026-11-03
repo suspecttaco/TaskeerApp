@@ -6,6 +6,7 @@ import com.simposio.taskeer.data.local.toEntity
 import com.simposio.taskeer.data.local.toColumn
 import com.simposio.taskeer.data.local.toTask
 import com.simposio.taskeer.domain.column.COLUMN_NOT_FOUND
+import com.simposio.taskeer.domain.column.checkWipLimit
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.Task
@@ -35,13 +36,13 @@ class TaskRepositoryImpl(
     }
 
     override suspend fun createTask(columnId: String, draft: TaskDraft): DomainResult<Task> {
-        if (!activeColumn(columnId)) {
-            return columnNotFound()
-        }
+        val column = columnDao.findById(columnId)?.takeIf { it.deletedAt == null }?.toColumn()
+            ?: return columnNotFound()
         val position = dao.findActiveByColumn(columnId).size
         return when (val result = newTask(columnId, draft, position, now())) {
             is DomainResult.Failure -> result
             is DomainResult.Success -> {
+                checkWipLimit(column, position)?.let { return DomainResult.Failure(it) }
                 dao.upsert(result.value.toEntity())
                 DomainResult.Success(result.value)
             }
@@ -73,6 +74,10 @@ class TaskRepositoryImpl(
         return when (val result = movedTask(current, source, target, toColumnId, toIndex, now())) {
             is DomainResult.Failure -> result
             is DomainResult.Success -> {
+                if (toColumnId != current.columnId) {
+                    checkWipLimit(destination, target.count { it.id != id })
+                        ?.let { return DomainResult.Failure(it) }
+                }
                 if (result.value.isNotEmpty()) {
                     dao.upsertAll(result.value.map { it.toEntity() })
                 }
@@ -93,9 +98,6 @@ class TaskRepositoryImpl(
 
     private suspend fun activeTask(id: String): Task? =
         dao.findById(id)?.toTask()?.takeUnless { it.isDeleted }
-
-    private suspend fun activeColumn(columnId: String): Boolean =
-        columnDao.findById(columnId)?.let { it.deletedAt == null } == true
 
     private fun columnNotFound(): DomainResult.Failure =
         DomainResult.Failure(DomainError.NotFound(COLUMN_NOT_FOUND, "La columna no existe"))

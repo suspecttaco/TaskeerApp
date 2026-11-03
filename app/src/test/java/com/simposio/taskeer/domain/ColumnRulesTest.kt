@@ -4,6 +4,8 @@ import com.simposio.taskeer.domain.column.COLUMN_INDEX_OUT_OF_BOUNDS
 import com.simposio.taskeer.domain.column.COLUMN_NAME_REQUIRED
 import com.simposio.taskeer.domain.column.COLUMN_NOT_EMPTY
 import com.simposio.taskeer.domain.column.COLUMN_NOT_FOUND
+import com.simposio.taskeer.domain.column.COLUMN_WIP_LIMIT_REACHED
+import com.simposio.taskeer.domain.column.checkWipLimit
 import com.simposio.taskeer.domain.column.defaultBoardColumns
 import com.simposio.taskeer.domain.column.deletedIfEmpty
 import com.simposio.taskeer.domain.column.movedTo
@@ -322,6 +324,37 @@ class ColumnRulesTest {
         )
 
         edited.forEach { assertEquals(born.createdAt, it.createdAt) }
+    }
+
+    @Test
+    fun checkWipLimit_sinLimite_noBloquea() {
+        assertNull(checkWipLimit(column("c1", "A", 0, wipLimit = null), 50))
+    }
+
+    @Test
+    fun checkWipLimit_conHueco_noBloquea() {
+        assertNull(checkWipLimit(column("c1", "A", 0, wipLimit = 3), 2))
+    }
+
+    @Test
+    fun checkWipLimit_alcanzado_devuelveConflictConElCodigo() {
+        val error = checkWipLimit(column("c1", "A", 0, wipLimit = 3), 3)
+
+        assertTrue(error is DomainError.Conflict)
+        assertEquals(COLUMN_WIP_LIMIT_REACHED, error?.code)
+    }
+
+    @Test
+    fun checkWipLimit_sobrepasado_devuelveConflict() {
+        assertEquals(COLUMN_WIP_LIMIT_REACHED, checkWipLimit(column("c1", "A", 0, wipLimit = 3), 5)?.code)
+    }
+
+    @Test
+    fun checkWipLimit_mensajeIncluyeNombreYLimite() {
+        val message = checkWipLimit(column("c1", "Revisión", 0, wipLimit = 3), 3)?.message.orEmpty()
+
+        assertTrue(message.contains("Revisión"))
+        assertTrue(message.contains("3"))
     }
 
     private fun column(

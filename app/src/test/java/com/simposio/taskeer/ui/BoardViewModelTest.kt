@@ -43,6 +43,10 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class BoardViewModelTest {
 
+    private companion object {
+        val NOW: Instant = Instant.parse("2026-10-21T10:00:00Z")
+    }
+
     private val madrid = DateTimeConverter(TimeZoneProvider { ZoneId.of("Europe/Madrid") })
 
     @Before
@@ -328,6 +332,86 @@ class BoardViewModelTest {
         assertTrue(viewModel.uiState.value.newColumn.error != null)
     }
 
+    @Test
+    fun moveTask_wipLimitReached_revertsAndExposesError() = runTest {
+        val tasks = MutableStateFlow(listOf(task("a", "c1", 0), task("x", "c2", 0)))
+        val error = DomainError.Conflict("COLUMN_WIP_LIMIT_REACHED", "La columna alcanzó su límite")
+        val repository = FakeTaskRepository(tasks).apply { failure = error }
+        val viewModel = viewModel(
+            MutableStateFlow(listOf(column("c1", 0), column("c2", 1))),
+            tasks,
+            repository,
+        )
+        collect(viewModel)
+
+        viewModel.moveTask("a", "c2", 0)
+
+        assertEquals(listOf("a"), viewModel.uiState.value.columns[0].cards.map { it.id })
+        assertEquals(listOf("x"), viewModel.uiState.value.columns[1].cards.map { it.id })
+        assertEquals(error, viewModel.uiState.value.error)
+    }
+
+    @Test
+    fun overdue_enColumnaNormal_esTrue() = runTest {
+        assertEquals(true, overdueOf(NOW.minusSeconds(1), isDone = false))
+    }
+
+    @Test
+    fun overdue_mismaFechaEnColumnaDeCompletadas_esFalse() = runTest {
+        assertEquals(false, overdueOf(NOW.minusSeconds(1), isDone = true))
+    }
+
+    @Test
+    fun overdue_fechaFutura_esFalse() = runTest {
+        assertEquals(false, overdueOf(NOW.plusSeconds(1), isDone = false))
+    }
+
+    @Test
+    fun overdue_sinFecha_esFalse() = runTest {
+        assertEquals(false, overdueOf(null, isDone = false))
+    }
+
+    @Test
+    fun overdue_fechaIgualAAhora_esFalse() = runTest {
+        assertEquals(false, overdueOf(NOW, isDone = false))
+    }
+
+    @Test
+    fun overdue_tarjetaArrastradaDeFormaOptimistaACompletadas_esFalse() = runTest {
+        val tasks = MutableStateFlow(listOf(task("a", "c1", 0, dueAt = NOW.minusSeconds(60))))
+        val repository = FakeTaskRepository(tasks).apply { gate = CompletableDeferred() }
+        val viewModel = viewModel(
+            MutableStateFlow(listOf(column("c1", 0), column("c2", 1, isDoneColumn = true))),
+            tasks,
+            repository,
+        )
+        collect(viewModel)
+        assertTrue(viewModel.uiState.value.columns[0].cards.single().isOverdue)
+
+        viewModel.moveTask("a", "c2", 0)
+
+        assertFalse(viewModel.uiState.value.columns[1].cards.single().isOverdue)
+    }
+
+    @Test
+    fun doneColumnFlag_isExposedPerColumn() = runTest {
+        val tasks = MutableStateFlow(emptyList<Task>())
+        val viewModel = viewModel(
+            MutableStateFlow(listOf(column("c1", 0), column("c2", 1, isDoneColumn = true))),
+            tasks,
+        )
+        collect(viewModel)
+
+        assertEquals(listOf(false, true), viewModel.uiState.value.columns.map { it.column.isDoneColumn })
+    }
+
+    private fun TestScope.overdueOf(dueAt: Instant?, isDone: Boolean): Boolean {
+        val tasks = MutableStateFlow(listOf(task("a", "c1", 0, dueAt = dueAt)))
+        val viewModel = viewModel(MutableStateFlow(listOf(column("c1", 0, isDone))), tasks)
+        collect(viewModel)
+        return viewModel.uiState.value.columns.single().cards.single().isOverdue
+    }
+
     private fun TestScope.collect(viewModel: BoardViewModel) {
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
     }
@@ -338,21 +422,22 @@ class BoardViewModelTest {
         repository: FakeTaskRepository = FakeTaskRepository(tasks),
         myDay: Flow<Set<String>>? = null,
         columnRepository: ColumnRepository = FakeColumnRepository(columns),
+        now: () -> Instant = { NOW },
     ): BoardViewModel {
         val handle = SavedStateHandle(mapOf(BoardViewModel.BOARD_ID_ARG to "tablero-1"))
         return if (myDay == null) {
-            BoardViewModel(columnRepository, repository, madrid, handle)
+            BoardViewModel(columnRepository, repository, madrid, handle, now = now)
         } else {
-            BoardViewModel(columnRepository, repository, madrid, handle, myDay)
+            BoardViewModel(columnRepository, repository, madrid, handle, myDay, now)
         }
     }
 
-    private fun column(id: String, position: Int): Column = Column(
+    private fun column(id: String, position: Int, isDoneColumn: Boolean = false): Column = Column(
         boardId = "tablero-1",
         name = "Columna $id",
         position = position,
         wipLimit = null,
-        isDoneColumn = false,
+        isDoneColumn = isDoneColumn,
         createdAt = Instant.EPOCH,
         sync = SyncMetadata(id, Instant.EPOCH, pending = false, deletedAt = null),
     )

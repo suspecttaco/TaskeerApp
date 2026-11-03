@@ -34,4 +34,5 @@ data class TaskCardUi(
     val assigneeId: String?,
     val assigneeIsMe: Boolean,
     val inMyDay: Boolean,
+    val isOverdue: Boolean = false,
 )
