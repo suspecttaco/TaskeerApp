@@ -42,6 +42,10 @@ class ColumnsViewModel(
         launchOperation { repository.moveColumn(id, toIndex) }
     }
 
+    fun setWipLimit(id: String, limit: Int?) {
+        launchOperation { repository.setWipLimit(id, limit) }
+    }
+
     fun deleteColumn(id: String) {
         launchOperation { repository.deleteColumn(id) }
     }
