@@ -22,7 +22,7 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
         modelClass.isAssignableFrom(TaskEditorViewModel::class.java) ->
             TaskEditorViewModel(container.taskRepository, container.dateTimeConverter) as T
         modelClass.isAssignableFrom(SubtasksViewModel::class.java) ->
-            SubtasksViewModel(container.subtaskRepository) as T
+            SubtasksViewModel(container.subtaskRepository, container.dateTimeConverter) as T
 
         else -> error("AppViewModelFactory no sabe construir ${modelClass.name}")
     }

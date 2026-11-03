@@ -4,6 +4,7 @@ import com.simposio.taskeer.domain.model.Subtask
 import com.simposio.taskeer.domain.model.SyncMetadata
 import java.time.Instant
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -19,6 +20,9 @@ class SubtaskMappingTest {
             title = "Reunir datos",
             completed = true,
             position = 2,
+            assigneeId = "local-user",
+            dueAt = at.plusSeconds(5).toEpochMilli(),
+            createdAt = at.minusSeconds(60).toEpochMilli(),
             updatedAt = at.toEpochMilli(),
             pending = true,
             deletedAt = at.toEpochMilli(),
@@ -27,10 +31,37 @@ class SubtaskMappingTest {
         val subtask = entity.toSubtask()
 
         assertEquals(
-            Subtask("t1", "Reunir datos", true, 2, SyncMetadata("sub-1", at, pending = true, deletedAt = at)),
+            Subtask(
+                taskId = "t1",
+                title = "Reunir datos",
+                completed = true,
+                position = 2,
+                assigneeId = "local-user",
+                dueAt = at.plusSeconds(5),
+                createdAt = at.minusSeconds(60),
+                sync = SyncMetadata("sub-1", at, pending = true, deletedAt = at),
+            ),
             subtask,
         )
         assertEquals(entity, subtask.toEntity())
         assertTrue(subtask.isDeleted)
+    }
+
+    @Test
+    fun sinAsignadoNiFecha_idaYVueltaConservaNulos() {
+        val subtask = Subtask(
+            taskId = "t1",
+            title = "A",
+            completed = false,
+            position = 0,
+            createdAt = at,
+            sync = SyncMetadata("sub-2", at, pending = false, deletedAt = null),
+        )
+
+        val roundTrip = subtask.toEntity().toSubtask()
+
+        assertNull(roundTrip.assigneeId)
+        assertNull(roundTrip.dueAt)
+        assertEquals(subtask, roundTrip)
     }
 }

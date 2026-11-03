@@ -8,14 +8,16 @@ import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.Subtask
 import com.simposio.taskeer.domain.model.SubtaskDraft
+import com.simposio.taskeer.domain.model.SubtaskProgress
 import com.simposio.taskeer.domain.subtask.SUBTASK_NOT_FOUND
 import com.simposio.taskeer.domain.subtask.newSubtask
-import com.simposio.taskeer.domain.subtask.retitled
 import com.simposio.taskeer.domain.subtask.softDeleted
+import com.simposio.taskeer.domain.subtask.updated
 import com.simposio.taskeer.domain.subtask.withCompleted
 import com.simposio.taskeer.domain.task.TASK_NOT_FOUND
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 
 class SubtaskRepositoryImpl(
@@ -27,6 +29,11 @@ class SubtaskRepositoryImpl(
     override fun observeSubtasks(taskId: String): Flow<List<Subtask>> =
         dao.observeByTask(taskId).map { entities -> entities.map { it.toSubtask() } }
 
+    override fun observeSubtaskProgress(taskId: String): Flow<SubtaskProgress> =
+        combine(dao.observeTotalCount(taskId), dao.observeCompletedCount(taskId)) { total, completed ->
+            SubtaskProgress(total = total, completed = completed)
+        }
+
     override suspend fun createSubtask(taskId: String, draft: SubtaskDraft): DomainResult<Subtask> {
         if (taskDao.findById(taskId)?.let { it.deletedAt == null } != true) {
             return DomainResult.Failure(DomainError.NotFound(TASK_NOT_FOUND, "La tarea no existe"))
@@ -37,7 +44,7 @@ class SubtaskRepositoryImpl(
 
     override suspend fun updateSubtask(id: String, draft: SubtaskDraft): DomainResult<Subtask> {
         val current = activeSubtask(id) ?: return subtaskNotFound()
-        return persist(current.retitled(draft, now()))
+        return persist(current.updated(draft, now()))
     }
 
     override suspend fun setSubtaskCompleted(

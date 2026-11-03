@@ -8,13 +8,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,7 +24,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -37,8 +34,6 @@ import com.simposio.taskeer.ui.theme.TaskeerTheme
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 
 @Composable
 fun TaskEditorDialog(
@@ -120,7 +115,7 @@ fun TaskEditorDialog(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedButton(onClick = { showDatePicker = true }) {
                         Text(
-                            text = state.dueAtLocal?.format(DATE_TIME_FORMATTER)
+                            text = state.dueAtLocal?.format(DUE_DATE_TIME_FORMATTER)
                                 ?: stringResource(R.string.task_due_at_none),
                         )
                     }
@@ -154,6 +149,8 @@ fun TaskEditorDialog(
                     onToggle = subtaskActions.onToggle,
                     onStartEdit = subtaskActions.onStartEdit,
                     onEditTitleChange = subtaskActions.onEditTitleChange,
+                    onEditDueAtChange = subtaskActions.onEditDueAtChange,
+                    onEditAssigneeChange = subtaskActions.onEditAssigneeChange,
                     onSaveEdit = subtaskActions.onSaveEdit,
                     onCancelEdit = subtaskActions.onCancelEdit,
                     onDelete = subtaskActions.onDelete,
@@ -213,23 +210,6 @@ fun TaskEditorDialog(
     }
 }
 
-@Composable
-private fun RadioOption(
-    label: String,
-    selected: Boolean,
-    onSelect: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .selectable(selected = selected, onClick = onSelect, role = Role.RadioButton),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RadioButton(selected = selected, onClick = null)
-        Text(text = label, modifier = Modifier.padding(start = 8.dp))
-    }
-}
-
 @StringRes
 private fun TaskPriority.labelRes(): Int = when (this) {
     TaskPriority.LOW -> R.string.task_priority_low
@@ -237,9 +217,6 @@ private fun TaskPriority.labelRes(): Int = when (this) {
     TaskPriority.HIGH -> R.string.task_priority_high
     TaskPriority.URGENT -> R.string.task_priority_urgent
 }
-
-private val DATE_TIME_FORMATTER: DateTimeFormatter =
-    DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
 
 @Preview(showBackground = true)
 @Composable

@@ -333,6 +333,111 @@ class ColumnRepositoryImplTest {
         assertEquals(listOf("a", "b"), columns.map { it.id })
     }
 
+    @Test
+    fun renameColumn_nombreDe101_noEscribeYNombraElLimite() = runTest {
+        val boardDao = FakeBoardDao().apply { put(boardEntity()) }
+        val columnDao = FakeColumnDao()
+        columnDao.put(columnEntity("c1", name = "Vieja", position = 0))
+        val writesBefore = columnDao.writeCalls
+        val repository = ColumnRepositoryImpl(boardDao, columnDao, now = { later })
+
+        val result = repository.renameColumn("c1", "x".repeat(101))
+
+        val error = (result as DomainResult.Failure).error
+        assertEquals("COLUMN_NAME_TOO_LONG", error.code)
+        assertTrue(error.message.contains("100"))
+        assertEquals(writesBefore, columnDao.writeCalls)
+    }
+
+    @Test
+    fun createColumn_nombreDe101_noEscribe() = runTest {
+        val boardDao = FakeBoardDao().apply { put(boardEntity()) }
+        val columnDao = FakeColumnDao()
+        val repository = ColumnRepositoryImpl(boardDao, columnDao, now = { now })
+
+        val result = repository.createColumn(BOARD_ID, "x".repeat(101))
+
+        assertEquals("COLUMN_NAME_TOO_LONG", (result as DomainResult.Failure).error.code)
+        assertEquals(0, columnDao.writeCalls)
+    }
+
+    @Test
+    fun createColumn_fijaCreatedAtConElNow() = runTest {
+        val boardDao = FakeBoardDao().apply { put(boardEntity()) }
+        val columnDao = FakeColumnDao()
+        val repository = ColumnRepositoryImpl(boardDao, columnDao, now = { now })
+
+        val created = (repository.createColumn(BOARD_ID, "Nueva") as DomainResult.Success).value
+
+        assertEquals(now, created.createdAt)
+        assertEquals(now.toEpochMilli(), columnDao.stored.getValue(created.id).createdAt)
+    }
+
+    @Test
+    fun setWipLimit_fijaElLimiteYMarcaPendienteConUnaEscritura() = runTest {
+        val boardDao = FakeBoardDao().apply { put(boardEntity()) }
+        val columnDao = FakeColumnDao()
+        val original = columnEntity("c1", name = "Col", position = 2, isDoneColumn = true, pending = false)
+            .copy(createdAt = 42L)
+        columnDao.put(original)
+        val repository = ColumnRepositoryImpl(boardDao, columnDao, now = { later })
+
+        val result = repository.setWipLimit("c1", 3)
+
+        assertEquals(3, (result as DomainResult.Success).value.wipLimit)
+        assertEquals(
+            original.copy(wipLimit = 3, pending = true, updatedAt = later.toEpochMilli()),
+            columnDao.stored.getValue("c1"),
+        )
+        assertEquals(1, columnDao.writeCalls)
+    }
+
+    @Test
+    fun setWipLimit_conNulo_quitaElLimite() = runTest {
+        val boardDao = FakeBoardDao().apply { put(boardEntity()) }
+        val columnDao = FakeColumnDao()
+        columnDao.put(columnEntity("c1", name = "Col", position = 0, wipLimit = 5))
+        val repository = ColumnRepositoryImpl(boardDao, columnDao, now = { later })
+
+        val result = repository.setWipLimit("c1", null)
+
+        assertNull((result as DomainResult.Success).value.wipLimit)
+        assertNull(columnDao.stored.getValue("c1").wipLimit)
+    }
+
+    @Test
+    fun setWipLimit_menorQueUno_devuelveElErrorSinEscribir() = runTest {
+        val boardDao = FakeBoardDao().apply { put(boardEntity()) }
+        val columnDao = FakeColumnDao()
+        columnDao.put(columnEntity("c1", name = "Col", position = 0))
+        val writesBefore = columnDao.writeCalls
+        val repository = ColumnRepositoryImpl(boardDao, columnDao, now = { later })
+
+        val result = repository.setWipLimit("c1", 0)
+
+        val error = (result as DomainResult.Failure).error
+        assertEquals("COLUMN_WIP_LIMIT_INVALID", error.code)
+        assertTrue(error.message.contains("1"))
+        assertEquals(writesBefore, columnDao.writeCalls)
+    }
+
+    @Test
+    fun setWipLimit_columnaInexistenteOBorrada_devuelveNotFoundSinEscribir() = runTest {
+        val boardDao = FakeBoardDao().apply { put(boardEntity()) }
+        val columnDao = FakeColumnDao()
+        columnDao.put(columnEntity("borrada", name = "Col", position = 0, deletedAt = now))
+        val writesBefore = columnDao.writeCalls
+        val repository = ColumnRepositoryImpl(boardDao, columnDao, now = { later })
+
+        listOf("borrada", "no-existe").forEach { id ->
+            val error = (repository.setWipLimit(id, 2) as DomainResult.Failure).error
+
+            assertTrue(error is DomainError.NotFound)
+            assertEquals("COLUMN_NOT_FOUND", error.code)
+        }
+        assertEquals(writesBefore, columnDao.writeCalls)
+    }
+
     private fun boardEntity(id: String = BOARD_ID, deleted: Boolean = false): BoardEntity = BoardEntity(
         id = id,
         name = "Tablero",
@@ -359,6 +464,7 @@ class ColumnRepositoryImplTest {
         position = position,
         wipLimit = wipLimit,
         isDoneColumn = isDoneColumn,
+        createdAt = 0L,
         updatedAt = updatedAt.toEpochMilli(),
         pending = pending,
         deletedAt = deletedAt?.toEpochMilli(),

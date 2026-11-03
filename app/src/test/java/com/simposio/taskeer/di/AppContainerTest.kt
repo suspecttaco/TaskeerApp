@@ -12,6 +12,7 @@ import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.Subtask
 import com.simposio.taskeer.domain.model.SubtaskDraft
+import com.simposio.taskeer.domain.model.SubtaskProgress
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.model.ThemeMode
@@ -134,6 +135,8 @@ class AppContainerTest {
 
         override suspend fun renameColumn(id: String, name: String): DomainResult<Column> = unused()
 
+        override suspend fun setWipLimit(columnId: String, limit: Int?): DomainResult<Column> = unused()
+
         override suspend fun moveColumn(id: String, toIndex: Int): DomainResult<Column> = unused()
 
         override suspend fun deleteColumn(id: String): DomainResult<Unit> = unused()
@@ -159,6 +162,9 @@ class AppContainerTest {
 
     private class FakeSubtaskRepository : SubtaskRepository {
         override fun observeSubtasks(taskId: String): Flow<List<Subtask>> = MutableStateFlow(emptyList())
+
+        override fun observeSubtaskProgress(taskId: String): Flow<SubtaskProgress> =
+            MutableStateFlow(SubtaskProgress(0, 0))
 
         override suspend fun createSubtask(taskId: String, draft: SubtaskDraft): DomainResult<Subtask> = unused()
 

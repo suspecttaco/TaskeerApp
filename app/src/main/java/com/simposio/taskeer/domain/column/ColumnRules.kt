@@ -10,6 +10,10 @@ import com.simposio.taskeer.domain.model.newSyncMetadata
 import java.time.Instant
 
 const val COLUMN_NAME_REQUIRED = "COLUMN_NAME_REQUIRED"
+const val COLUMN_NAME_TOO_LONG = "COLUMN_NAME_TOO_LONG"
+const val COLUMN_NAME_MAX_LENGTH = 100
+const val COLUMN_WIP_LIMIT_INVALID = "COLUMN_WIP_LIMIT_INVALID"
+const val COLUMN_WIP_LIMIT_MIN = 1
 const val COLUMN_NOT_EMPTY = "COLUMN_NOT_EMPTY"
 const val COLUMN_INDEX_OUT_OF_BOUNDS = "COLUMN_INDEX_OUT_OF_BOUNDS"
 const val COLUMN_NOT_FOUND = "COLUMN_NOT_FOUND"
@@ -32,9 +36,7 @@ fun newColumn(
     clientId: String = newClientId(),
 ): DomainResult<Column> {
     val trimmed = name.trim()
-    if (trimmed.isEmpty()) {
-        return nameRequired()
-    }
+    nameFailure(trimmed)?.let { return it }
     return DomainResult.Success(
         Column(
             boardId = boardId,
@@ -42,6 +44,7 @@ fun newColumn(
             position = position,
             wipLimit = null,
             isDoneColumn = false,
+            createdAt = now,
             sync = newSyncMetadata(now, clientId),
         ),
     )
@@ -49,10 +52,20 @@ fun newColumn(
 
 fun Column.renamed(name: String, now: Instant): DomainResult<Column> {
     val trimmed = name.trim()
-    if (trimmed.isEmpty()) {
-        return nameRequired()
-    }
+    nameFailure(trimmed)?.let { return it }
     return DomainResult.Success(copy(name = trimmed, sync = sync.afterLocalChange(now)))
+}
+
+fun Column.withWipLimit(wipLimit: Int?, now: Instant): DomainResult<Column> {
+    if (wipLimit != null && wipLimit < COLUMN_WIP_LIMIT_MIN) {
+        return DomainResult.Failure(
+            DomainError.Validation(
+                COLUMN_WIP_LIMIT_INVALID,
+                "El valor mínimo del límite WIP es $COLUMN_WIP_LIMIT_MIN",
+            ),
+        )
+    }
+    return DomainResult.Success(copy(wipLimit = wipLimit, sync = sync.afterLocalChange(now)))
 }
 
 fun Column.softDeleted(now: Instant): Column = copy(sync = sync.afterLocalDelete(now))
@@ -107,10 +120,19 @@ private fun defaultColumn(
     position = position,
     wipLimit = null,
     isDoneColumn = isDoneColumn,
+    createdAt = now,
     sync = newSyncMetadata(now, clientId),
 )
 
-private fun nameRequired(): DomainResult.Failure =
-    DomainResult.Failure(
+private fun nameFailure(trimmed: String): DomainResult.Failure? = when {
+    trimmed.isEmpty() -> DomainResult.Failure(
         DomainError.Validation(COLUMN_NAME_REQUIRED, "El nombre de la columna es obligatorio"),
     )
+    trimmed.length > COLUMN_NAME_MAX_LENGTH -> DomainResult.Failure(
+        DomainError.Validation(
+            COLUMN_NAME_TOO_LONG,
+            "El nombre de la columna no puede superar los $COLUMN_NAME_MAX_LENGTH caracteres",
+        ),
+    )
+    else -> null
+}

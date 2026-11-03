@@ -8,6 +8,7 @@ import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.model.TaskPriority
+import com.simposio.taskeer.domain.task.newTask
 import com.simposio.taskeer.ui.tasks.TaskEditorViewModel
 import java.time.Instant
 import java.time.ZoneOffset
@@ -89,6 +90,19 @@ class TaskEditorViewModelTest {
         assertFalse(viewModel.uiState.value.isSaving)
     }
 
+    @Test
+    fun save_conTituloDe201_exponeElErrorDeLongitudYNoQuedaGuardando() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+        viewModel.openForCreate("c1")
+        viewModel.onTitleChange("x".repeat(201))
+
+        viewModel.save()
+
+        assertEquals("TASK_TITLE_TOO_LONG", viewModel.uiState.value.error?.code)
+        assertFalse(viewModel.uiState.value.isSaving)
+        assertTrue(viewModel.uiState.value.isOpen)
+    }
+
     private fun viewModel(repository: TaskRepository) =
         TaskEditorViewModel(repository, DateTimeConverter { ZoneOffset.UTC })
 
@@ -100,6 +114,7 @@ class TaskEditorViewModelTest {
         dueAt = null,
         assigneeId = null,
         position = 0,
+        createdAt = Instant.EPOCH,
         sync = SyncMetadata(clientId = id, updatedAt = Instant.EPOCH, pending = false, deletedAt = null),
     )
 
@@ -116,7 +131,7 @@ class TaskEditorViewModelTest {
                 ?: DomainResult.Failure(DomainError.NotFound("TASK_NOT_FOUND", "No existe"))
 
         override suspend fun createTask(columnId: String, draft: TaskDraft): DomainResult<Task> =
-            error("no se usa")
+            newTask(columnId, draft, position = 0, now = Instant.EPOCH)
 
         override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> =
             error("no se usa")

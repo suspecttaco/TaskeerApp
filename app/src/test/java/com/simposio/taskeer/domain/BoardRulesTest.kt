@@ -68,6 +68,46 @@ class BoardRulesTest {
     }
 
     @Test
+    fun newBoard_longitudesDelNombre() {
+        fun code(length: Int): String? =
+            (newBoard("x".repeat(length), now) as? DomainResult.Failure)?.error?.code
+
+        assertEquals("BOARD_NAME_REQUIRED", code(0))
+        assertEquals("BOARD_NAME_TOO_SHORT", code(1))
+        assertNull(code(2))
+        assertNull(code(150))
+        assertEquals("BOARD_NAME_TOO_LONG", code(151))
+    }
+
+    @Test
+    fun newBoard_longitudSeMideTrasRecortar() {
+        assertNull((newBoard("  " + "x".repeat(150) + "  ", now) as? DomainResult.Failure))
+        assertEquals(
+            "BOARD_NAME_TOO_SHORT",
+            (newBoard("  x  ", now) as DomainResult.Failure).error.code,
+        )
+    }
+
+    @Test
+    fun newBoard_mensajesEnEspanolConElLimite() {
+        val short = (newBoard("x", now) as DomainResult.Failure).error
+        val long = (newBoard("x".repeat(151), now) as DomainResult.Failure).error
+
+        assertTrue(short is DomainError.Validation)
+        assertEquals("El nombre del tablero debe tener al menos 2 caracteres", short.message)
+        assertEquals("El nombre del tablero no puede superar los 150 caracteres", long.message)
+    }
+
+    @Test
+    fun renamed_aplicaLosMismosLimitesQueElAlta() {
+        val board = (newBoard("Compras", now) as DomainResult.Success).value
+
+        assertEquals("BOARD_NAME_TOO_SHORT", (board.renamed("x", now) as DomainResult.Failure).error.code)
+        assertEquals("BOARD_NAME_TOO_LONG", (board.renamed("x".repeat(151), now) as DomainResult.Failure).error.code)
+        assertTrue(board.renamed("xx", now) is DomainResult.Success)
+    }
+
+    @Test
     fun renamed_cambiaElNombreYNoTocaIdNiCreatedAt() {
         val board = (newBoard("Compras", now, clientId = "uuid-1") as DomainResult.Success).value
         val later = now.plusSeconds(60)

@@ -77,6 +77,10 @@ class BoardRepositoryImplTest {
         assertTrue("ninguna nace borrada", seeded.all { it.deletedAt == null })
         assertTrue("todas con el instante de creación", seeded.all { it.updatedAt == board.createdAt.toEpochMilli() })
         assertTrue("todas nacen sin límite WIP", seeded.all { it.wipLimit == null })
+        assertTrue(
+            "todas con createdAt igual al del tablero",
+            seeded.all { it.createdAt == board.createdAt.toEpochMilli() },
+        )
         assertEquals(3, seeded.map { it.id }.toSet().size)
     }
 
@@ -256,6 +260,59 @@ class BoardRepositoryImplTest {
         assertTrue(error is DomainError.NotFound)
         assertEquals("BOARD_NOT_FOUND", error.code)
         assertEquals(afterDelete, dao.stored.getValue(created.id))
+    }
+
+    @Test
+    fun createBoard_nombreFueraDeLimites_noEscribeYNombraElLimite() = runTest {
+        val dao = FakeBoardDao()
+        val columnDao = FakeColumnDao(dao)
+        val repository = repository(dao, columnDao)
+
+        val short = (repository.createBoard("x") as DomainResult.Failure).error
+        val long = (repository.createBoard("x".repeat(151)) as DomainResult.Failure).error
+
+        assertEquals("BOARD_NAME_TOO_SHORT", short.code)
+        assertTrue(short.message.contains("2"))
+        assertEquals("BOARD_NAME_TOO_LONG", long.code)
+        assertTrue(long.message.contains("150"))
+        assertTrue(dao.stored.isEmpty())
+        assertEquals(0, columnDao.seedCalls)
+    }
+
+    @Test
+    fun renameBoard_nombreDemasiadoLargo_noEscribe() = runTest {
+        val dao = FakeBoardDao()
+        val repository = repository(dao)
+        val created = (repository.createBoard("Compras") as DomainResult.Success).value
+        val before = dao.stored.getValue(created.id)
+        val upsertsBefore = dao.upsertCalls
+
+        val result = repository.renameBoard(created.id, "x".repeat(151))
+
+        assertEquals("BOARD_NAME_TOO_LONG", (result as DomainResult.Failure).error.code)
+        assertEquals(before, dao.stored.getValue(created.id))
+        assertEquals(upsertsBefore, dao.upsertCalls)
+    }
+
+    @Test
+    fun renameBoard_tableroExistenteDeUnCaracter_sePuedeRenombrarAUnoValido() = runTest {
+        val dao = FakeBoardDao()
+        dao.upsert(
+            BoardEntity(
+                id = "viejo",
+                name = "A",
+                createdAt = now.toEpochMilli(),
+                updatedAt = now.toEpochMilli(),
+                pending = false,
+                deletedAt = null,
+            ),
+        )
+        val repository = repository(dao)
+
+        val result = repository.renameBoard("viejo", "Compras")
+
+        assertEquals("Compras", (result as DomainResult.Success).value.name)
+        assertEquals("Compras", dao.stored.getValue("viejo").name)
     }
 
     private fun repository(

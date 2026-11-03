@@ -68,6 +68,7 @@ class ColumnDaoConventionsTest {
                 position = 0,
                 wipLimit = null,
                 isDoneColumn = false,
+                createdAt = 0L,
                 updatedAt = 1L,
                 pending = true,
                 deletedAt = null,

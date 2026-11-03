@@ -1,6 +1,7 @@
 package com.simposio.taskeer.data.local
 
 import java.io.File
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -9,10 +10,10 @@ class AppDatabaseMigrationTest {
     private val source: String = File(resolveLocalRoot(), "AppDatabase.kt").readText()
 
     @Test
-    fun versionActual_esCinco() {
+    fun versionActual_esSeis() {
         assertTrue(
-            "AppDatabase debe declarar la versión 5",
-            Regex("version\\s*=\\s*5\\b").containsMatchIn(source),
+            "AppDatabase debe declarar la versión 6",
+            Regex("version\\s*=\\s*6\\b").containsMatchIn(source),
         )
     }
 
@@ -111,15 +112,55 @@ class AppDatabaseMigrationTest {
     }
 
     @Test
-    fun migraciones_incluyenLasMigraciones1a2HastaLa4a5() {
+    fun migracion5a6_anadeLasCincoColumnas() {
+        val body = migration5to6()
+        listOf(
+            "ALTER TABLE subtasks ADD COLUMN assigneeId TEXT\"",
+            "ALTER TABLE subtasks ADD COLUMN dueAt INTEGER\"",
+            "ALTER TABLE columns ADD COLUMN createdAt INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE tasks ADD COLUMN createdAt INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE subtasks ADD COLUMN createdAt INTEGER NOT NULL DEFAULT 0",
+        ).forEach { statement ->
+            assertTrue("la migración 5 a 6 debe contener $statement", body.contains(statement))
+        }
+    }
+
+    @Test
+    fun migracion5a6_rellenaCreatedAtConUpdatedAtDespuesDeAnadirLaColumna() {
+        val body = migration5to6()
+        listOf("columns", "tasks", "subtasks").forEach { table ->
+            val add = body.indexOf("ALTER TABLE $table ADD COLUMN createdAt")
+            val update = body.indexOf("UPDATE $table SET createdAt = updatedAt\"")
+            assertTrue("falta ADD COLUMN createdAt en $table", add >= 0)
+            assertTrue("falta el relleno de createdAt en $table", update > add)
+        }
+    }
+
+    @Test
+    fun migracion5a6_noEsDestructiva() {
+        val body = migration5to6().uppercase()
+
+        assertFalse("no debe borrar tablas", body.contains("DROP"))
+        assertFalse("no debe borrar filas", body.contains("DELETE"))
+    }
+
+    @Test
+    fun migraciones_incluyenLasMigraciones1a2HastaLa5a6() {
         assertTrue(
-            "MIGRATIONS debe incluir de MIGRATION_1_2 a MIGRATION_4_5",
+            "MIGRATIONS debe incluir de MIGRATION_1_2 a MIGRATION_5_6",
             Regex(
                 "MIGRATIONS[^=]*=\\s*listOf\\(\\s*MIGRATION_1_2\\s*,\\s*MIGRATION_2_3\\s*,\\s*" +
-                    "MIGRATION_3_4\\s*,\\s*MIGRATION_4_5\\s*\\)",
+                    "MIGRATION_3_4\\s*,\\s*MIGRATION_4_5\\s*,\\s*MIGRATION_5_6\\s*\\)",
             ).containsMatchIn(source),
         )
         assertTrue("las migraciones se aplican con addMigrations", source.contains("addMigrations("))
+    }
+
+    private fun migration5to6(): String {
+        val start = source.indexOf("Migration(5, 6)")
+        assertTrue("debe declarar una Migration(5, 6)", start >= 0)
+        val end = source.indexOf("private val MIGRATIONS", start)
+        return source.substring(start, end)
     }
 
     private fun resolveLocalRoot(): File {

@@ -8,6 +8,7 @@ import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.domain.task.newTask
+import com.simposio.taskeer.domain.task.softDeleted
 import com.simposio.taskeer.domain.task.updated
 import java.time.Instant
 import org.junit.Assert.assertEquals
@@ -151,6 +152,69 @@ class TaskRulesTest {
         assertEquals("TASK_TITLE_REQUIRED", error.code)
     }
 
+    @Test
+    fun newTask_longitudesDelTitulo() {
+        fun code(length: Int): String? =
+            (newTask("c", TaskDraft(title = "x".repeat(length)), 0, now) as? DomainResult.Failure)?.error?.code
+
+        assertEquals("TASK_TITLE_REQUIRED", code(0))
+        assertNull(code(200))
+        assertEquals("TASK_TITLE_TOO_LONG", code(201))
+    }
+
+    @Test
+    fun newTask_longitudesDeLaDescripcion() {
+        fun code(length: Int): String? =
+            (newTask("c", TaskDraft(title = "T", description = "d".repeat(length)), 0, now) as? DomainResult.Failure)
+                ?.error?.code
+
+        assertNull(code(5000))
+        assertEquals("TASK_DESCRIPTION_TOO_LONG", code(5001))
+    }
+
+    @Test
+    fun newTask_descripcionNulaOEnBlanco_sigueNormalizandoANulo() {
+        listOf(null, "   ").forEach { description ->
+            val created = (newTask("c", TaskDraft(title = "T", description = description), 0, now) as DomainResult.Success).value
+
+            assertNull(created.description)
+        }
+    }
+
+    @Test
+    fun newTask_tituloYDescripcionInvalidos_prevaleceElDelTitulo() {
+        val draft = TaskDraft(title = "x".repeat(201), description = "d".repeat(5001))
+
+        val error = (newTask("c", draft, 0, now) as DomainResult.Failure).error
+
+        assertEquals("TASK_TITLE_TOO_LONG", error.code)
+    }
+
+    @Test
+    fun updated_aplicaLosMismosLimitesQueElAlta() {
+        val current = task()
+
+        val title = (current.updated(TaskDraft(title = "x".repeat(201)), later) as DomainResult.Failure).error
+        val description = (current.updated(TaskDraft(title = "T", description = "d".repeat(5001)), later) as DomainResult.Failure).error
+
+        assertEquals("TASK_TITLE_TOO_LONG", title.code)
+        assertEquals("El título de la tarea no puede superar los 200 caracteres", title.message)
+        assertEquals("TASK_DESCRIPTION_TOO_LONG", description.code)
+        assertTrue(description.message.contains("5000"))
+    }
+
+    @Test
+    fun createdAt_alCrearEsElNowYSobreviveAEditarOBorrar() {
+        val created = (newTask("c", TaskDraft(title = "T"), 0, now) as DomainResult.Success).value
+        assertEquals(now, created.createdAt)
+
+        val otherNow = later.plusSeconds(500)
+        val updated = (created.updated(TaskDraft(title = "U"), otherNow) as DomainResult.Success).value
+
+        assertEquals(now, updated.createdAt)
+        assertEquals(now, updated.softDeleted(otherNow).createdAt)
+    }
+
     private fun task(
         columnId: String = "columna-1",
         title: String = "Tarea",
@@ -164,6 +228,7 @@ class TaskRulesTest {
         dueAt = null,
         assigneeId = null,
         position = position,
+        createdAt = Instant.EPOCH,
         sync = sync,
     )
 }

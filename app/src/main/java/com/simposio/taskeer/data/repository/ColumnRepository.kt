@@ -11,6 +11,8 @@ interface ColumnRepository {
 
     suspend fun renameColumn(id: String, name: String): DomainResult<Column>
 
+    suspend fun setWipLimit(columnId: String, limit: Int?): DomainResult<Column>
+
     suspend fun moveColumn(id: String, toIndex: Int): DomainResult<Column>
 
     suspend fun deleteColumn(id: String): DomainResult<Unit>

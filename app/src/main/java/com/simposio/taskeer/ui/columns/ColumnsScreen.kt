@@ -91,6 +91,8 @@ fun ColumnsScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifie
             onToggle = subtasksViewModel::toggle,
             onStartEdit = subtasksViewModel::startEdit,
             onEditTitleChange = subtasksViewModel::onEditTitleChange,
+            onEditDueAtChange = subtasksViewModel::onEditDueAtChange,
+            onEditAssigneeChange = subtasksViewModel::onEditAssigneeChange,
             onSaveEdit = subtasksViewModel::saveEdit,
             onCancelEdit = subtasksViewModel::cancelEdit,
             onDelete = subtasksViewModel::delete,
@@ -298,6 +300,7 @@ private fun previewColumn(
     position = position,
     wipLimit = null,
     isDoneColumn = isDoneColumn,
+    createdAt = Instant.EPOCH,
     sync = SyncMetadata(
         clientId = "columna-$position",
         updatedAt = Instant.EPOCH,
@@ -315,6 +318,7 @@ private fun previewTasks(): List<Task> = listOf(
         dueAt = null,
         assigneeId = null,
         position = 0,
+        createdAt = Instant.EPOCH,
         sync = SyncMetadata(
             clientId = "tarea-0",
             updatedAt = Instant.EPOCH,

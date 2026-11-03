@@ -7,6 +7,7 @@ import com.simposio.taskeer.data.local.TaskEntity
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.SubtaskDraft
+import com.simposio.taskeer.domain.model.SubtaskProgress
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -161,6 +162,88 @@ class SubtaskRepositoryImplTest {
         assertEquals(writesBefore, fixture.dao.writeCalls)
     }
 
+    @Test
+    fun createSubtask_conAsignadoYFecha_losPersisteYRecortaElAsignado() = runTest {
+        val fixture = fixture()
+        val due = now.plusSeconds(3600)
+
+        val result = fixture.repository.createSubtask("t1", SubtaskDraft("A", "  local-user  ", due))
+
+        val row = fixture.dao.stored.getValue((result as DomainResult.Success).value.id)
+        assertEquals("local-user", row.assigneeId)
+        assertEquals(due.toEpochMilli(), row.dueAt)
+        assertEquals(now.toEpochMilli(), row.createdAt)
+    }
+
+    @Test
+    fun updateSubtask_sinAsignadoNiFecha_losQuitaYConservaCreatedAt() = runTest {
+        val fixture = fixture(clock = later)
+        fixture.dao.put(entity("s1").copy(assigneeId = "local-user", dueAt = 5L, createdAt = 7L))
+
+        fixture.repository.updateSubtask("s1", SubtaskDraft("A"))
+
+        val row = fixture.dao.stored.getValue("s1")
+        assertNull(row.assigneeId)
+        assertNull(row.dueAt)
+        assertEquals(7L, row.createdAt)
+    }
+
+    @Test
+    fun setSubtaskCompleted_conservaAsignadoYFecha() = runTest {
+        val fixture = fixture(clock = later)
+        fixture.dao.put(entity("s1").copy(assigneeId = "local-user", dueAt = 5L))
+
+        fixture.repository.setSubtaskCompleted("s1", true)
+
+        val row = fixture.dao.stored.getValue("s1")
+        assertEquals("local-user", row.assigneeId)
+        assertEquals(5L, row.dueAt)
+    }
+
+    @Test
+    fun createSubtask_tituloDe201_noEscribeYNombraElLimite() = runTest {
+        val fixture = fixture()
+
+        val result = fixture.repository.createSubtask("t1", SubtaskDraft("x".repeat(201)))
+
+        val error = (result as DomainResult.Failure).error
+        assertEquals("SUBTASK_TITLE_TOO_LONG", error.code)
+        assertTrue(error.message.contains("200"))
+        assertEquals(0, fixture.dao.writeCalls)
+    }
+
+    @Test
+    fun observeSubtaskProgress_cuentaTotalYCompletadasSoloActivas() = runTest {
+        val fixture = fixture()
+        fixture.dao.put(entity("a", completed = true))
+        fixture.dao.put(entity("b"))
+        fixture.dao.put(entity("c"))
+        fixture.dao.put(entity("borrada", completed = true, deletedAt = later.toEpochMilli()))
+        fixture.dao.put(entity("ajena", taskId = "t2", completed = true))
+
+        assertEquals(SubtaskProgress(3, 1), fixture.repository.observeSubtaskProgress("t1").first())
+    }
+
+    @Test
+    fun observeSubtaskProgress_alBorrarUnaCompletada_baja() = runTest {
+        val fixture = fixture()
+        fixture.dao.put(entity("a", completed = true))
+        fixture.dao.put(entity("b"))
+        fixture.dao.put(entity("c"))
+
+        fixture.repository.deleteSubtask("a")
+
+        assertEquals(SubtaskProgress(2, 0), fixture.repository.observeSubtaskProgress("t1").first())
+    }
+
+    @Test
+    fun observeSubtaskProgress_sinSubtareasOTareaInexistente_esCeroCero() = runTest {
+        val fixture = fixture()
+
+        assertEquals(SubtaskProgress(0, 0), fixture.repository.observeSubtaskProgress("t1").first())
+        assertEquals(SubtaskProgress(0, 0), fixture.repository.observeSubtaskProgress("no-existe").first())
+    }
+
     private class Fixture(val dao: FakeSubtaskDao, val repository: SubtaskRepositoryImpl)
 
     private fun fixture(clock: Instant = now, taskDeleted: Boolean = false): Fixture {
@@ -175,6 +258,7 @@ class SubtaskRepositoryImplTest {
                 dueAt = null,
                 assigneeId = null,
                 position = 0,
+                createdAt = 0L,
                 updatedAt = now.toEpochMilli(),
                 pending = false,
                 deletedAt = if (taskDeleted) now.toEpochMilli() else null,
@@ -196,6 +280,9 @@ class SubtaskRepositoryImplTest {
         title = "Subtarea $id",
         completed = completed,
         position = position,
+        assigneeId = null,
+        dueAt = null,
+        createdAt = 0L,
         updatedAt = now.toEpochMilli(),
         pending = pending,
         deletedAt = deletedAt,
@@ -218,6 +305,12 @@ class SubtaskRepositoryImplTest {
 
         override suspend fun findActiveByTask(taskId: String): List<SubtaskEntity> =
             activeOf(rows.value.values, taskId)
+
+        override fun observeTotalCount(taskId: String): Flow<Int> =
+            rows.map { activeOf(it.values, taskId).size }
+
+        override fun observeCompletedCount(taskId: String): Flow<Int> =
+            rows.map { activeOf(it.values, taskId).count { subtask -> subtask.completed } }
 
         override suspend fun findById(id: String): SubtaskEntity? = rows.value[id]
 

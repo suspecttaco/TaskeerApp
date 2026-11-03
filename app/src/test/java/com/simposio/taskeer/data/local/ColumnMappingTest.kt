@@ -22,6 +22,7 @@ class ColumnMappingTest {
             position = 2,
             wipLimit = 5,
             isDoneColumn = true,
+            createdAt = 0L,
             updatedAt = instant.toEpochMilli(),
             pending = true,
             deletedAt = null,
@@ -51,6 +52,7 @@ class ColumnMappingTest {
             position = 2,
             wipLimit = null,
             isDoneColumn = true,
+            createdAt = Instant.EPOCH,
             sync = SyncMetadata(
                 clientId = "uuid-1",
                 updatedAt = updatedAt,
@@ -111,6 +113,7 @@ class ColumnMappingTest {
         position = 1,
         wipLimit = wipLimit,
         isDoneColumn = false,
+        createdAt = Instant.EPOCH,
         sync = sync,
     )
 }

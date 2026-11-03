@@ -25,6 +25,7 @@ class TaskMappingTest {
             dueAt = dueAt.toEpochMilli(),
             assigneeId = "local-user",
             position = 4,
+            createdAt = 0L,
             updatedAt = dueAt.toEpochMilli(),
             pending = true,
             deletedAt = null,
@@ -56,6 +57,7 @@ class TaskMappingTest {
             dueAt = dueAt,
             assigneeId = "local-user",
             position = 4,
+            createdAt = Instant.EPOCH,
             sync = SyncMetadata("tarea-1", dueAt, pending = true, deletedAt = null),
         )
 
@@ -84,6 +86,7 @@ class TaskMappingTest {
             dueAt = dueAt,
             assigneeId = null,
             position = 2,
+            createdAt = Instant.EPOCH,
             sync = SyncMetadata("tarea-1", dueAt, pending = true, deletedAt = dueAt),
         )
 
@@ -108,6 +111,7 @@ class TaskMappingTest {
             dueAt = null,
             assigneeId = null,
             position = 0,
+            createdAt = 0L,
             updatedAt = dueAt.toEpochMilli(),
             pending = true,
             deletedAt = null,
@@ -134,6 +138,7 @@ class TaskMappingTest {
                 dueAt = null,
                 assigneeId = null,
                 position = 0,
+                createdAt = 0L,
                 updatedAt = dueAt.toEpochMilli(),
                 pending = true,
                 deletedAt = null,

@@ -11,6 +11,7 @@ import com.simposio.taskeer.domain.column.movedTo
 import com.simposio.taskeer.domain.column.newColumn
 import com.simposio.taskeer.domain.column.renamed
 import com.simposio.taskeer.domain.column.renumbered
+import com.simposio.taskeer.domain.column.withWipLimit
 import com.simposio.taskeer.domain.model.Board
 import com.simposio.taskeer.domain.model.Column
 import com.simposio.taskeer.domain.model.DomainError
@@ -48,6 +49,17 @@ class ColumnRepositoryImpl(
     override suspend fun renameColumn(id: String, name: String): DomainResult<Column> {
         val current = activeColumn(id) ?: return columnNotFound()
         return when (val result = current.renamed(name, now())) {
+            is DomainResult.Failure -> result
+            is DomainResult.Success -> {
+                dao.upsert(result.value.toEntity())
+                DomainResult.Success(result.value)
+            }
+        }
+    }
+
+    override suspend fun setWipLimit(columnId: String, limit: Int?): DomainResult<Column> {
+        val current = activeColumn(columnId) ?: return columnNotFound()
+        return when (val result = current.withWipLimit(limit, now())) {
             is DomainResult.Failure -> result
             is DomainResult.Success -> {
                 dao.upsert(result.value.toEntity())
