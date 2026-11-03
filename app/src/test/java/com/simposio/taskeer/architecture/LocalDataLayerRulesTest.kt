@@ -59,6 +59,10 @@ class LocalDataLayerRulesTest {
             "SubtaskEntity",
             "SubtaskDao",
             "SubtaskMapping",
+            "MyDayEntryEntity",
+            "MyDayDao",
+            "MyDayRow",
+            "MyDayMapping",
             "SyncableEntity",
         )
 
@@ -110,6 +114,10 @@ class LocalDataLayerRulesTest {
             "SubtaskEntity",
             "SubtaskDao",
             "SubtaskMapping",
+            "MyDayEntryEntity",
+            "MyDayDao",
+            "MyDayRow",
+            "MyDayMapping",
             "SyncableEntity",
         )
 
