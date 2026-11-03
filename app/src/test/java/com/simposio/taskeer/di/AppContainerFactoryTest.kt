@@ -4,6 +4,7 @@ import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.TaskEntity
 import com.simposio.taskeer.data.repository.BoardRepository
 import com.simposio.taskeer.data.repository.ColumnRepository
+import com.simposio.taskeer.data.repository.MyDayRepository
 import com.simposio.taskeer.data.repository.PreferencesRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskRepository
@@ -40,6 +41,7 @@ class AppContainerFactoryTest {
             columnRepository = stub<ColumnRepository>(),
             taskRepository = stub<TaskRepository>(),
             subtaskRepository = stub<SubtaskRepository>(),
+            myDayRepository = stub<MyDayRepository>(),
         )
 
         val viewModel = AppViewModelFactory(container).create(SubtasksViewModel::class.java)
