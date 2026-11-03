@@ -10,12 +10,14 @@ import com.simposio.taskeer.domain.model.newSyncMetadata
 import java.time.Instant
 
 const val BOARD_NAME_REQUIRED = "BOARD_NAME_REQUIRED"
+const val BOARD_NAME_TOO_SHORT = "BOARD_NAME_TOO_SHORT"
+const val BOARD_NAME_TOO_LONG = "BOARD_NAME_TOO_LONG"
+const val BOARD_NAME_MIN_LENGTH = 2
+const val BOARD_NAME_MAX_LENGTH = 150
 
 fun newBoard(name: String, now: Instant, clientId: String = newClientId()): DomainResult<Board> {
     val trimmed = name.trim()
-    if (trimmed.isEmpty()) {
-        return nameRequired()
-    }
+    nameFailure(trimmed)?.let { return it }
     return DomainResult.Success(
         Board(
             name = trimmed,
@@ -27,15 +29,24 @@ fun newBoard(name: String, now: Instant, clientId: String = newClientId()): Doma
 
 fun Board.renamed(name: String, now: Instant): DomainResult<Board> {
     val trimmed = name.trim()
-    if (trimmed.isEmpty()) {
-        return nameRequired()
-    }
+    nameFailure(trimmed)?.let { return it }
     return DomainResult.Success(copy(name = trimmed, sync = sync.afterLocalChange(now)))
 }
 
 fun Board.softDeleted(now: Instant): Board = copy(sync = sync.afterLocalDelete(now))
 
-private fun nameRequired(): DomainResult.Failure =
-    DomainResult.Failure(
-        DomainError.Validation(BOARD_NAME_REQUIRED, "El nombre del tablero es obligatorio"),
+private fun nameFailure(trimmed: String): DomainResult.Failure? = when {
+    trimmed.isEmpty() -> validation(BOARD_NAME_REQUIRED, "El nombre del tablero es obligatorio")
+    trimmed.length < BOARD_NAME_MIN_LENGTH -> validation(
+        BOARD_NAME_TOO_SHORT,
+        "El nombre del tablero debe tener al menos $BOARD_NAME_MIN_LENGTH caracteres",
     )
+    trimmed.length > BOARD_NAME_MAX_LENGTH -> validation(
+        BOARD_NAME_TOO_LONG,
+        "El nombre del tablero no puede superar los $BOARD_NAME_MAX_LENGTH caracteres",
+    )
+    else -> null
+}
+
+private fun validation(code: String, message: String): DomainResult.Failure =
+    DomainResult.Failure(DomainError.Validation(code, message))

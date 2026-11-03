@@ -12,6 +12,7 @@ class AppDatabaseSchemaTest {
     private val schemaV3: String = resolveSchema(version = 3).readText()
     private val schemaV4: String = resolveSchema(version = 4).readText()
     private val schemaV5: String = resolveSchema(version = 5).readText()
+    private val schemaV6: String = resolveSchema(version = 6).readText()
 
     @Test
     fun esquemaVersion1_sigueExportado() {
@@ -209,6 +210,42 @@ class AppDatabaseSchemaTest {
             "el índice debe cubrir taskId y position",
             schemaV5.substring(schemaV5.indexOf(marker)).contains("`taskId`, `position`"),
         )
+    }
+
+    @Test
+    fun esquemaVersion6_estaExportadoYConservaDel1Al5() {
+        assertTrue(resolveSchema(version = 6).isFile)
+        assertTrue(
+            "el esquema debe declarar la versión 6 de la base de datos",
+            Regex("\"version\"\\s*:\\s*6\\b").containsMatchIn(schemaV6),
+        )
+        (1..5).forEach { assertTrue(resolveSchema(version = it).isFile) }
+    }
+
+    @Test
+    fun v6_subtasksAssigneeIdYDueAt_sonNulas() {
+        val subtasks = tableV6("subtasks")
+
+        assertEquals(ColumnSchema("TEXT", false), column(subtasks, "assigneeId"))
+        assertEquals(ColumnSchema("INTEGER", false), column(subtasks, "dueAt"))
+    }
+
+    @Test
+    fun v6_createdAtEsIntegerNoNuloEnColumnsTasksYSubtasks() {
+        listOf("columns", "tasks", "subtasks").forEach { table ->
+            assertEquals(
+                "createdAt de $table",
+                ColumnSchema("INTEGER", true),
+                column(tableV6(table), "createdAt"),
+            )
+        }
+    }
+
+    private fun tableV6(name: String): String {
+        val start = schemaV6.indexOf("\"tableName\": \"$name\"")
+        assertTrue("el esquema v6 debe declarar la tabla $name", start >= 0)
+        val nextTable = schemaV6.indexOf("\"tableName\":", start + 1)
+        return schemaV6.substring(start, if (nextTable < 0) schemaV6.length else nextTable)
     }
 
     private fun subtasksTable(): String {

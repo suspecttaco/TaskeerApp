@@ -376,10 +376,69 @@ class TaskRepositoryImplTest {
         position = 0,
         wipLimit = null,
         isDoneColumn = false,
+        createdAt = 0L,
         updatedAt = now.toEpochMilli(),
         pending = true,
         deletedAt = if (deleted) now.toEpochMilli() else null,
     )
+
+    @Test
+    fun createTask_tituloDe201_noEscribeYNombraElLimite() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
+        val taskDao = FakeTaskDao(columnDao)
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+
+        val result = repository.createTask("columna-1", TaskDraft(title = "x".repeat(201)))
+
+        val error = (result as DomainResult.Failure).error
+        assertEquals("TASK_TITLE_TOO_LONG", error.code)
+        assertTrue(error.message.contains("200"))
+        assertEquals(0, taskDao.writeCalls)
+    }
+
+    @Test
+    fun createTask_descripcionDe5001_noEscribe() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
+        val taskDao = FakeTaskDao(columnDao)
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+
+        val result = repository.createTask("columna-1", TaskDraft(title = "T", description = "d".repeat(5001)))
+
+        val error = (result as DomainResult.Failure).error
+        assertEquals("TASK_DESCRIPTION_TOO_LONG", error.code)
+        assertTrue(error.message.contains("5000"))
+        assertEquals(0, taskDao.writeCalls)
+    }
+
+    @Test
+    fun updateTask_tituloDe201_noEscribe() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
+        val taskDao = FakeTaskDao(columnDao)
+        taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
+        val writesBefore = taskDao.writeCalls
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+
+        val result = repository.updateTask("t1", TaskDraft(title = "x".repeat(201)))
+
+        assertEquals("TASK_TITLE_TOO_LONG", (result as DomainResult.Failure).error.code)
+        assertEquals(writesBefore, taskDao.writeCalls)
+    }
+
+    @Test
+    fun createTask_fijaCreatedAtYUpdateTaskLoConserva() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
+        val taskDao = FakeTaskDao(columnDao)
+        var clock = now
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { clock })
+
+        val created = (repository.createTask("columna-1", TaskDraft(title = "T")) as DomainResult.Success).value
+        clock = later
+        repository.updateTask(created.id, TaskDraft(title = "U"))
+
+        val row = taskDao.stored.getValue(created.id)
+        assertEquals(now.toEpochMilli(), row.createdAt)
+        assertEquals(later.toEpochMilli(), row.updatedAt)
+    }
 
     private fun subtaskEntity(id: String, taskId: String, deletedAt: Long? = null): SubtaskEntity =
         SubtaskEntity(
@@ -388,6 +447,9 @@ class TaskRepositoryImplTest {
             title = "Subtarea $id",
             completed = false,
             position = 0,
+            assigneeId = null,
+            dueAt = null,
+            createdAt = 0L,
             updatedAt = now.toEpochMilli(),
             pending = false,
             deletedAt = deletedAt,
@@ -408,6 +470,7 @@ class TaskRepositoryImplTest {
         dueAt = null,
         assigneeId = null,
         position = position,
+        createdAt = 0L,
         updatedAt = updatedAt.toEpochMilli(),
         pending = true,
         deletedAt = deletedAt?.toEpochMilli(),

@@ -34,6 +34,18 @@ class SubtaskDaoConventionsTest {
     }
 
     @Test
+    fun conteos_devuelvenFlowYExcluyenLasBorradas() {
+        val source = daoSource()
+
+        assertEquals(Flow::class.java, method("observeTotalCount").returnType)
+        assertEquals(Flow::class.java, method("observeCompletedCount").returnType)
+        assertTrue(
+            source.contains("SELECT COUNT(*) FROM subtasks WHERE taskId = :taskId AND deletedAt IS NULL\""),
+        )
+        assertTrue(source.contains("AND completed = 1"))
+    }
+
+    @Test
     fun subtaskDao_noBorraFisicamente() {
         val source = daoSource()
 

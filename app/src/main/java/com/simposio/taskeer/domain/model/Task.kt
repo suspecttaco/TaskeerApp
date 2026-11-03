@@ -10,6 +10,7 @@ data class Task(
     val dueAt: Instant?,
     val assigneeId: String?,
     val position: Int,
+    val createdAt: Instant,
     val sync: SyncMetadata,
 ) {
     val id: String get() = sync.clientId

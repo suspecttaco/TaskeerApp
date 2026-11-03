@@ -3,8 +3,10 @@ package com.simposio.taskeer.ui.tasks
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.simposio.taskeer.data.repository.SubtaskRepository
+import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.SubtaskDraft
+import java.time.LocalDateTime
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,7 +14,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class SubtasksViewModel(private val repository: SubtaskRepository) : ViewModel() {
+class SubtasksViewModel(
+    private val repository: SubtaskRepository,
+    private val dateTimeConverter: DateTimeConverter,
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SubtasksUiState())
 
@@ -56,7 +61,23 @@ class SubtasksViewModel(private val repository: SubtaskRepository) : ViewModel()
 
     fun startEdit(id: String) {
         val subtask = _uiState.value.items.firstOrNull { it.id == id } ?: return
-        _uiState.update { it.copy(editingId = id, editingTitle = subtask.title, error = null) }
+        _uiState.update {
+            it.copy(
+                editingId = id,
+                editingTitle = subtask.title,
+                editingDueAtLocal = subtask.dueAt?.let(dateTimeConverter::toLocalDateTime),
+                editingAssigneeId = subtask.assigneeId,
+                error = null,
+            )
+        }
+    }
+
+    fun onEditDueAtChange(value: LocalDateTime?) {
+        _uiState.update { it.copy(editingDueAtLocal = value, error = null) }
+    }
+
+    fun onEditAssigneeChange(value: String?) {
+        _uiState.update { it.copy(editingAssigneeId = value, error = null) }
     }
 
     fun onEditTitleChange(value: String) {
@@ -66,8 +87,13 @@ class SubtasksViewModel(private val repository: SubtaskRepository) : ViewModel()
     fun saveEdit() {
         val state = _uiState.value
         val id = state.editingId ?: return
+        val draft = SubtaskDraft(
+            title = state.editingTitle,
+            assigneeId = state.editingAssigneeId,
+            dueAt = state.editingDueAtLocal?.let(dateTimeConverter::toInstant),
+        )
         viewModelScope.launch {
-            when (val result = repository.updateSubtask(id, SubtaskDraft(state.editingTitle))) {
+            when (val result = repository.updateSubtask(id, draft)) {
                 is DomainResult.Success -> cancelEdit()
                 is DomainResult.Failure -> _uiState.update { it.copy(error = result.error) }
             }
@@ -75,7 +101,15 @@ class SubtasksViewModel(private val repository: SubtaskRepository) : ViewModel()
     }
 
     fun cancelEdit() {
-        _uiState.update { it.copy(editingId = null, editingTitle = "", error = null) }
+        _uiState.update {
+            it.copy(
+                editingId = null,
+                editingTitle = "",
+                editingDueAtLocal = null,
+                editingAssigneeId = null,
+                error = null,
+            )
+        }
     }
 
     fun toggle(id: String, completed: Boolean) {

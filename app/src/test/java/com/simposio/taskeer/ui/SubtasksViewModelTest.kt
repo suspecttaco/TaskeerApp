@@ -1,14 +1,18 @@
 package com.simposio.taskeer.ui
 
 import com.simposio.taskeer.data.repository.SubtaskRepository
+import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.Subtask
 import com.simposio.taskeer.domain.model.SubtaskDraft
+import com.simposio.taskeer.domain.model.SubtaskProgress
 import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.ui.tasks.SubtasksUiState
 import com.simposio.taskeer.ui.tasks.SubtasksViewModel
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -28,6 +32,9 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class SubtasksViewModelTest {
 
+    private val zone: ZoneId = ZoneId.of("America/Mexico_City")
+    private val converter = DateTimeConverter { zone }
+
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -41,7 +48,7 @@ class SubtasksViewModelTest {
     @Test
     fun open_cargaLasSubtareasDeLaTarea() = runTest {
         val repository = FakeSubtaskRepository(subtask("s1", "t1"), subtask("s2", "t2"))
-        val viewModel = SubtasksViewModel(repository)
+        val viewModel = SubtasksViewModel(repository, converter)
 
         viewModel.open("t1")
 
@@ -52,7 +59,7 @@ class SubtasksViewModelTest {
     @Test
     fun add_creaYVaciaElCampo() = runTest {
         val repository = FakeSubtaskRepository()
-        val viewModel = SubtasksViewModel(repository)
+        val viewModel = SubtasksViewModel(repository, converter)
         viewModel.open("t1")
         viewModel.onNewTitleChange("Nueva")
 
@@ -66,7 +73,7 @@ class SubtasksViewModelTest {
     @Test
     fun add_conTituloEnBlanco_noLlamaAlRepositorio() = runTest {
         val repository = FakeSubtaskRepository()
-        val viewModel = SubtasksViewModel(repository)
+        val viewModel = SubtasksViewModel(repository, converter)
         viewModel.open("t1")
         viewModel.onNewTitleChange("   ")
 
@@ -80,7 +87,7 @@ class SubtasksViewModelTest {
         val repository = FakeSubtaskRepository().apply {
             failWith = DomainError.NotFound("TASK_NOT_FOUND", "La tarea no existe")
         }
-        val viewModel = SubtasksViewModel(repository)
+        val viewModel = SubtasksViewModel(repository, converter)
         viewModel.open("t1")
         viewModel.onNewTitleChange("Nueva")
 
@@ -93,7 +100,7 @@ class SubtasksViewModelTest {
     @Test
     fun saveEdit_actualizaElTituloYCierraLaEdicion() = runTest {
         val repository = FakeSubtaskRepository(subtask("s1", "t1", "Viejo"))
-        val viewModel = SubtasksViewModel(repository)
+        val viewModel = SubtasksViewModel(repository, converter)
         viewModel.open("t1")
         viewModel.startEdit("s1")
         viewModel.onEditTitleChange("Nuevo")
@@ -105,9 +112,73 @@ class SubtasksViewModelTest {
     }
 
     @Test
+    fun startEdit_precargaFechaLocalYAsignado() = runTest {
+        val due = Instant.parse("2026-10-22T18:30:00Z")
+        val repository = FakeSubtaskRepository(
+            subtask("s1", "t1").copy(assigneeId = "local-user", dueAt = due),
+        )
+        val viewModel = SubtasksViewModel(repository, converter)
+        viewModel.open("t1")
+
+        viewModel.startEdit("s1")
+
+        assertEquals(LocalDateTime.of(2026, 10, 22, 12, 30), viewModel.uiState.value.editingDueAtLocal)
+        assertEquals("local-user", viewModel.uiState.value.editingAssigneeId)
+    }
+
+    @Test
+    fun saveEdit_enviaLaFechaConvertidaAUtcYElAsignado() = runTest {
+        val repository = FakeSubtaskRepository(subtask("s1", "t1"))
+        val viewModel = SubtasksViewModel(repository, converter)
+        viewModel.open("t1")
+        viewModel.startEdit("s1")
+        viewModel.onEditDueAtChange(LocalDateTime.of(2026, 10, 22, 12, 30))
+        viewModel.onEditAssigneeChange("local-user")
+
+        viewModel.saveEdit()
+
+        val saved = viewModel.uiState.value.items.single()
+        assertEquals(Instant.parse("2026-10-22T18:30:00Z"), saved.dueAt)
+        assertEquals("local-user", saved.assigneeId)
+    }
+
+    @Test
+    fun saveEdit_quitarLaFecha_enviaNulo() = runTest {
+        val repository = FakeSubtaskRepository(
+            subtask("s1", "t1").copy(dueAt = Instant.parse("2026-10-22T18:30:00Z")),
+        )
+        val viewModel = SubtasksViewModel(repository, converter)
+        viewModel.open("t1")
+        viewModel.startEdit("s1")
+        viewModel.onEditDueAtChange(null)
+
+        viewModel.saveEdit()
+
+        assertNull(viewModel.uiState.value.items.single().dueAt)
+    }
+
+    @Test
+    fun saveEdit_conErrorDeLongitud_loExponeYMantieneLaEdicion() = runTest {
+        val repository = FakeSubtaskRepository(subtask("s1", "t1")).apply {
+            failWith = DomainError.Validation(
+                "SUBTASK_TITLE_TOO_LONG",
+                "El título de la subtarea no puede superar los 200 caracteres",
+            )
+        }
+        val viewModel = SubtasksViewModel(repository, converter)
+        viewModel.open("t1")
+        viewModel.startEdit("s1")
+
+        viewModel.saveEdit()
+
+        assertEquals("SUBTASK_TITLE_TOO_LONG", viewModel.uiState.value.error?.code)
+        assertEquals("s1", viewModel.uiState.value.editingId)
+    }
+
+    @Test
     fun toggle_delegaEnSetSubtaskCompleted() = runTest {
         val repository = FakeSubtaskRepository(subtask("s1", "t1"))
-        val viewModel = SubtasksViewModel(repository)
+        val viewModel = SubtasksViewModel(repository, converter)
         viewModel.open("t1")
 
         viewModel.toggle("s1", true)
@@ -118,7 +189,7 @@ class SubtasksViewModelTest {
     @Test
     fun delete_delegaEnElRepositorio() = runTest {
         val repository = FakeSubtaskRepository(subtask("s1", "t1"))
-        val viewModel = SubtasksViewModel(repository)
+        val viewModel = SubtasksViewModel(repository, converter)
         viewModel.open("t1")
 
         viewModel.delete("s1")
@@ -130,7 +201,7 @@ class SubtasksViewModelTest {
     @Test
     fun close_liberaElEstado() = runTest {
         val repository = FakeSubtaskRepository(subtask("s1", "t1"))
-        val viewModel = SubtasksViewModel(repository)
+        val viewModel = SubtasksViewModel(repository, converter)
         viewModel.open("t1")
         viewModel.onNewTitleChange("pendiente")
 
@@ -140,7 +211,14 @@ class SubtasksViewModelTest {
     }
 
     private fun subtask(id: String, taskId: String, title: String = "Subtarea $id"): Subtask =
-        Subtask(taskId, title, false, 0, SyncMetadata(id, Instant.EPOCH, pending = true, deletedAt = null))
+        Subtask(
+            taskId = taskId,
+            title = title,
+            completed = false,
+            position = 0,
+            createdAt = Instant.EPOCH,
+            sync = SyncMetadata(id, Instant.EPOCH, pending = true, deletedAt = null),
+        )
 
     private class FakeSubtaskRepository(vararg initial: Subtask) : SubtaskRepository {
         private val rows = MutableStateFlow(initial.toList())
@@ -152,19 +230,29 @@ class SubtasksViewModelTest {
         override fun observeSubtasks(taskId: String): Flow<List<Subtask>> =
             rows.map { all -> all.filter { it.taskId == taskId } }
 
+        override fun observeSubtaskProgress(taskId: String): Flow<SubtaskProgress> =
+            rows.map { all -> all.filter { it.taskId == taskId } }
+                .map { SubtaskProgress(it.size, it.count { subtask -> subtask.completed }) }
+
         override suspend fun createSubtask(taskId: String, draft: SubtaskDraft): DomainResult<Subtask> {
             failWith?.let { return DomainResult.Failure(it) }
             created += draft.title
             val subtask = Subtask(
-                taskId, draft.title, false, rows.value.size,
-                SyncMetadata("n${rows.value.size}", Instant.EPOCH, pending = true, deletedAt = null),
+                taskId = taskId,
+                title = draft.title,
+                completed = false,
+                position = rows.value.size,
+                createdAt = Instant.EPOCH,
+                sync = SyncMetadata("n${rows.value.size}", Instant.EPOCH, pending = true, deletedAt = null),
             )
             rows.value = rows.value + subtask
             return DomainResult.Success(subtask)
         }
 
-        override suspend fun updateSubtask(id: String, draft: SubtaskDraft): DomainResult<Subtask> =
-            change(id) { it.copy(title = draft.title) }
+        override suspend fun updateSubtask(id: String, draft: SubtaskDraft): DomainResult<Subtask> {
+            failWith?.let { return DomainResult.Failure(it) }
+            return change(id) { it.copy(title = draft.title, assigneeId = draft.assigneeId, dueAt = draft.dueAt) }
+        }
 
         override suspend fun setSubtaskCompleted(id: String, completed: Boolean): DomainResult<Subtask> =
             change(id) { it.copy(completed = completed) }

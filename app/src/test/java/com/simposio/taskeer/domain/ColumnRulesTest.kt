@@ -11,6 +11,7 @@ import com.simposio.taskeer.domain.column.newColumn
 import com.simposio.taskeer.domain.column.renamed
 import com.simposio.taskeer.domain.column.renumbered
 import com.simposio.taskeer.domain.column.softDeleted
+import com.simposio.taskeer.domain.column.withWipLimit
 import com.simposio.taskeer.domain.model.Column
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
@@ -253,6 +254,76 @@ class ColumnRulesTest {
         assertEquals(COLUMN_NOT_FOUND, error.code)
     }
 
+    @Test
+    fun newColumn_longitudesDelNombre() {
+        fun code(length: Int): String? =
+            (newColumn("tablero-1", "x".repeat(length), 0, now) as? DomainResult.Failure)?.error?.code
+
+        assertEquals("COLUMN_NAME_REQUIRED", code(0))
+        assertNull(code(1))
+        assertNull(code(100))
+        assertEquals("COLUMN_NAME_TOO_LONG", code(101))
+    }
+
+    @Test
+    fun renamed_nombreDe101_fallaConMensajeQueNombraElLimite() {
+        val error = (column("c1", "A", 0).renamed("x".repeat(101), later) as DomainResult.Failure).error
+
+        assertTrue(error is DomainError.Validation)
+        assertEquals("COLUMN_NAME_TOO_LONG", error.code)
+        assertEquals("El nombre de la columna no puede superar los 100 caracteres", error.message)
+    }
+
+    @Test
+    fun withWipLimit_nuloYMayorOIgualAUno_sonValidos() {
+        val original = column("c1", "A", 0, wipLimit = 4)
+
+        val cleared = (original.withWipLimit(null, later) as DomainResult.Success).value
+        val one = (original.withWipLimit(1, later) as DomainResult.Success).value
+
+        assertNull(cleared.wipLimit)
+        assertEquals(1, one.wipLimit)
+        assertTrue(one.sync.pending)
+        assertEquals(later, one.sync.updatedAt)
+    }
+
+    @Test
+    fun withWipLimit_menorQueUno_fallaConValidation() {
+        listOf(0, -1).forEach { limit ->
+            val error = (column("c1", "A", 0).withWipLimit(limit, later) as DomainResult.Failure).error
+
+            assertTrue(error is DomainError.Validation)
+            assertEquals("COLUMN_WIP_LIMIT_INVALID", error.code)
+            assertEquals("El valor mínimo del límite WIP es 1", error.message)
+        }
+    }
+
+    @Test
+    fun createdAt_alCrear_esElNow() {
+        val created = (newColumn("tablero-1", "Nueva", 0, now) as DomainResult.Success).value
+        val seeded = defaultBoardColumns("tablero-1", now)
+
+        assertEquals(now, created.createdAt)
+        assertTrue(seeded.all { it.createdAt == now })
+    }
+
+    @Test
+    fun createdAt_sobreviveACualquierEdicionConOtroNow() {
+        val born = column("c1", "A", 0).copy(createdAt = now.minusSeconds(500))
+        val other = born.copy(sync = born.sync.copy(clientId = "c2"), position = 1)
+        val otherNow = later.plusSeconds(999)
+
+        val edited = listOf(
+            (born.renamed("B", otherNow) as DomainResult.Success).value,
+            (born.withWipLimit(3, otherNow) as DomainResult.Success).value,
+            born.softDeleted(otherNow),
+            listOf(born, other).renumbered(otherNow).first(),
+            (listOf(other, born).movedTo("c1", 0, otherNow) as DomainResult.Success).value.first { it.id == "c1" },
+        )
+
+        edited.forEach { assertEquals(born.createdAt, it.createdAt) }
+    }
+
     private fun column(
         id: String,
         name: String,
@@ -269,6 +340,7 @@ class ColumnRulesTest {
         position = position,
         wipLimit = wipLimit,
         isDoneColumn = isDoneColumn,
+        createdAt = Instant.EPOCH,
         sync = SyncMetadata(
             clientId = id,
             updatedAt = updatedAt,

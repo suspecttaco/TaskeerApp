@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [BoardEntity::class, ColumnEntity::class, TaskEntity::class, SubtaskEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -90,8 +90,23 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // El DEFAULT 0 lo exige SQLite para ADD COLUMN NOT NULL; updatedAt es la mejor
+        // aproximación disponible porque la creación real de datos previos no se guardó.
+        private val MIGRATION_5_6: Migration = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE subtasks ADD COLUMN assigneeId TEXT")
+                db.execSQL("ALTER TABLE subtasks ADD COLUMN dueAt INTEGER")
+                db.execSQL("ALTER TABLE columns ADD COLUMN createdAt INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE columns SET createdAt = updatedAt")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN createdAt INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE tasks SET createdAt = updatedAt")
+                db.execSQL("ALTER TABLE subtasks ADD COLUMN createdAt INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE subtasks SET createdAt = updatedAt")
+            }
+        }
+
         private val MIGRATIONS: List<Migration> =
-            listOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            listOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
 
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, DATABASE_NAME)

@@ -88,6 +88,7 @@ class AppContainerFactoryTest {
         dueAt = null,
         assigneeId = null,
         position = 0,
+        createdAt = 0L,
         updatedAt = 0L,
         pending = true,
         deletedAt = null,
