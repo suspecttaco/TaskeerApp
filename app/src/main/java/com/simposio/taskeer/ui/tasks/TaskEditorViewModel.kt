@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.model.DomainResult
+import com.simposio.taskeer.domain.model.LocalUser
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.model.TaskPriority
@@ -113,6 +114,6 @@ class TaskEditorViewModel(
         description = description.orEmpty(),
         priority = priority,
         dueAtLocal = dueAt?.let(dateTimeConverter::toLocalDateTime),
-        assigneeId = assigneeId,
+        assigneeId = assigneeId ?: LocalUser.ID,
     )
 }

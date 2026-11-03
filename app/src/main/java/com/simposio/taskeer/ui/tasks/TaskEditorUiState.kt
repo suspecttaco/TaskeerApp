@@ -1,6 +1,7 @@
 package com.simposio.taskeer.ui.tasks
 
 import com.simposio.taskeer.domain.model.DomainError
+import com.simposio.taskeer.domain.model.LocalUser
 import com.simposio.taskeer.domain.model.TaskPriority
 import java.time.LocalDateTime
 
@@ -12,7 +13,7 @@ data class TaskEditorUiState(
     val description: String = "",
     val priority: TaskPriority = TaskPriority.MEDIUM,
     val dueAtLocal: LocalDateTime? = null,
-    val assigneeId: String? = null,
+    val assigneeId: String? = LocalUser.ID,
     val error: DomainError? = null,
     val isSaving: Boolean = false,
 )

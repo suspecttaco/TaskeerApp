@@ -4,12 +4,14 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.simposio.taskeer.data.repository.ColumnRepository
+import com.simposio.taskeer.data.repository.MyDayRepository
 import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.LocalUser
 import com.simposio.taskeer.domain.model.Task
+import com.simposio.taskeer.domain.task.isOverdue
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +19,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -28,7 +29,8 @@ class BoardViewModel(
     private val taskRepository: TaskRepository,
     private val dateTimeConverter: DateTimeConverter,
     savedStateHandle: SavedStateHandle,
-    myDayTaskIds: Flow<Set<String>> = flowOf(emptySet()),
+    private val myDayRepository: MyDayRepository,
+    myDayTaskIds: Flow<Set<String>> = myDayRepository.observeMarkedTaskIds(),
     private val now: () -> Instant = Instant::now,
 ) : ViewModel() {
 
@@ -94,6 +96,16 @@ class BoardViewModel(
         }
     }
 
+    fun toggleMyDay(taskId: String) {
+        val inMyDay = uiState.value.columns.flatMap { it.cards }.firstOrNull { it.id == taskId }?.inMyDay ?: return
+        viewModelScope.launch {
+            when (val result = myDayRepository.setMarked(taskId, !inMyDay)) {
+                is DomainResult.Failure -> error.value = result.error
+                is DomainResult.Success -> error.value = null
+            }
+        }
+    }
+
     fun openNewColumn() {
         newColumn.value = NewColumnUiState(isOpen = true)
     }
@@ -125,7 +137,7 @@ class BoardViewModel(
         assigneeId = assigneeId,
         assigneeIsMe = assigneeId == LocalUser.ID,
         inMyDay = id in myDay,
-        isOverdue = !isDoneColumn && dueAt != null && dueAt < now,
+        isOverdue = isOverdue(dueAt, isDoneColumn, now),
     )
 
     private data class PendingMove(val taskId: String, val toColumnId: String, val toIndex: Int) {

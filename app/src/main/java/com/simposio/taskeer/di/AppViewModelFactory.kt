@@ -8,6 +8,7 @@ import com.simposio.taskeer.ui.app.AppViewModel
 import com.simposio.taskeer.ui.board.BoardViewModel
 import com.simposio.taskeer.ui.boards.BoardsViewModel
 import com.simposio.taskeer.ui.columns.ColumnsViewModel
+import com.simposio.taskeer.ui.myday.MyDayViewModel
 import com.simposio.taskeer.ui.tasks.SubtasksViewModel
 import com.simposio.taskeer.ui.tasks.TaskEditorViewModel
 import com.simposio.taskeer.ui.tasks.TasksViewModel
@@ -24,6 +25,8 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
             TaskEditorViewModel(container.taskRepository, container.dateTimeConverter) as T
         modelClass.isAssignableFrom(SubtasksViewModel::class.java) ->
             SubtasksViewModel(container.subtaskRepository, container.dateTimeConverter) as T
+        modelClass.isAssignableFrom(MyDayViewModel::class.java) ->
+            MyDayViewModel(container.myDayRepository, container.dateTimeConverter) as T
 
         else -> error("AppViewModelFactory no sabe construir ${modelClass.name}")
     }
@@ -39,6 +42,8 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 container.taskRepository,
                 container.dateTimeConverter,
                 extras.createSavedStateHandle(),
+                container.myDayRepository,
+                container.myDayRepository.observeMarkedTaskIds(),
             ) as T
 
         modelClass.isAssignableFrom(TasksViewModel::class.java) ->

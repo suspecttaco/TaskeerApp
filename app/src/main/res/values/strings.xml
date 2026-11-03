@@ -75,6 +75,23 @@
     <string name="board_add_column_title">Nueva columna</string>
     <string name="nav_back">Volver</string>
     <string name="task_assignee_me">Yo</string>
-    <string name="task_in_my_day">Marcada en Mi día</string>
+    <string name="task_in_my_day_add">Marcar en Mi día</string>
+    <string name="task_in_my_day_remove">Quitar de Mi día</string>
+    <string name="my_day_filter_label">Filtrar</string>
+    <string name="my_day_sort_label">Ordenar</string>
+    <string name="my_day_filter_all">Todas</string>
+    <string name="my_day_filter_marked">Marcadas</string>
+    <string name="my_day_filter_assigned">Asignadas</string>
+    <string name="my_day_filter_overdue">Vencidas (asignadas a mí)</string>
+    <string name="my_day_sort_due_date">Fecha límite</string>
+    <string name="my_day_sort_priority">Prioridad</string>
+    <string name="my_day_sort_marked_at">Marcado reciente</string>
+    <string name="my_day_assigned_tag">Asignada</string>
+    <string name="my_day_empty">Mi día está vacío</string>
+    <string name="my_day_filter_empty">No hay tareas con este filtro</string>
+    <plurals name="my_day_overdue_count">
+        <item quantity="one">%d vencida</item>
+        <item quantity="other">%d vencidas</item>
+    </plurals>
     <string name="menu_check" translatable="false">✓</string>
 </resources>
