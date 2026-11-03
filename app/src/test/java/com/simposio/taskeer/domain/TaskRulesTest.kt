@@ -7,6 +7,9 @@ import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.model.TaskPriority
+import com.simposio.taskeer.domain.model.Column
+import com.simposio.taskeer.domain.task.checkSameBoard
+import com.simposio.taskeer.domain.task.movedTask
 import com.simposio.taskeer.domain.task.newTask
 import com.simposio.taskeer.domain.task.softDeleted
 import com.simposio.taskeer.domain.task.updated
@@ -214,6 +217,129 @@ class TaskRulesTest {
         assertEquals(now, updated.createdAt)
         assertEquals(now, updated.softDeleted(otherNow).createdAt)
     }
+
+    @Test
+    fun movedTask_entreColumnas_renumeraOrigenYDestino() {
+        val a = tk("a", "col-1", 0); val b = tk("b", "col-1", 1); val c = tk("c", "col-1", 2)
+        val x = tk("x", "col-2", 0); val y = tk("y", "col-2", 1)
+
+        val changed = ok(movedTask(a, listOf(a, b, c), listOf(x, y), "col-2", 1, later))
+
+        assertEquals(
+            listOf("b" to 0, "c" to 1, "a" to 1, "y" to 2).sortedBy { it.first },
+            changed.map { it.id to it.position }.sortedBy { it.first },
+        )
+        assertEquals("col-2", changed.first { it.id == "a" }.columnId)
+        assertEquals("col-1", changed.first { it.id == "b" }.columnId)
+    }
+
+    @Test
+    fun movedTask_marcaPendingYUpdatedAtSoloEnLasCambiadas() {
+        val a = tk("a", "col-1", 0); val b = tk("b", "col-1", 1)
+        val x = tk("x", "col-2", 0)
+
+        val changed = ok(movedTask(b, listOf(a, b), listOf(x), "col-2", 1, later))
+
+        assertEquals(listOf("b"), changed.map { it.id })
+        assertEquals(later, changed.single().sync.updatedAt)
+        assertTrue(changed.single().sync.pending)
+    }
+
+    @Test
+    fun movedTask_dentroDeLaColumna_desplazaLasDemas() {
+        val a = tk("a", "col-1", 0); val b = tk("b", "col-1", 1); val c = tk("c", "col-1", 2)
+
+        val changed = ok(movedTask(c, listOf(a, b, c), listOf(a, b, c), "col-1", 0, later))
+
+        assertEquals(
+            mapOf("c" to 0, "a" to 1, "b" to 2),
+            changed.associate { it.id to it.position },
+        )
+    }
+
+    @Test
+    fun movedTask_mismoIndice_noCambiaNada() {
+        val a = tk("a", "col-1", 0); val b = tk("b", "col-1", 1)
+
+        assertTrue(ok(movedTask(b, listOf(a, b), listOf(a, b), "col-1", 1, later)).isEmpty())
+    }
+
+    @Test
+    fun movedTask_alFinalDeColumnaVacia_usaIndiceCero() {
+        val a = tk("a", "col-1", 0)
+
+        val changed = ok(movedTask(a, listOf(a), emptyList(), "col-2", 0, later))
+
+        assertEquals(listOf("a" to 0), changed.map { it.id to it.position })
+        assertEquals("col-2", changed.single().columnId)
+    }
+
+    @Test
+    fun movedTask_alFinalDeOtraColumna_aceptaIndiceIgualAlTamano() {
+        val a = tk("a", "col-1", 0)
+        val x = tk("x", "col-2", 0)
+
+        val changed = ok(movedTask(a, listOf(a), listOf(x), "col-2", 1, later))
+
+        assertEquals(1, changed.single().position)
+    }
+
+    @Test
+    fun movedTask_indiceFueraDeRango_fallaConValidation() {
+        val a = tk("a", "col-1", 0); val b = tk("b", "col-1", 1)
+        val x = tk("x", "col-2", 0)
+
+        val sameColumn = movedTask(a, listOf(a, b), listOf(a, b), "col-1", 2, later) as DomainResult.Failure
+        val otherColumn = movedTask(a, listOf(a, b), listOf(x), "col-2", 2, later) as DomainResult.Failure
+        val negative = movedTask(a, listOf(a, b), listOf(x), "col-2", -1, later) as DomainResult.Failure
+
+        listOf(sameColumn, otherColumn, negative).forEach {
+            assertTrue(it.error is DomainError.Validation)
+            assertEquals("TASK_INDEX_OUT_OF_BOUNDS", it.error.code)
+        }
+    }
+
+    @Test
+    fun movedTask_conHuecosYRepetidos_losNormalizaPorPositionEId() {
+        val a = tk("a", "col-1", 0); val b = tk("b", "col-1", 7); val c = tk("c", "col-1", 7)
+        val x = tk("x", "col-2", 4)
+
+        val changed = ok(movedTask(a, listOf(c, b, a), listOf(x), "col-2", 0, later))
+
+        assertEquals(
+            mapOf("b" to 0, "c" to 1, "a" to 0, "x" to 1),
+            changed.associate { it.id to it.position },
+        )
+    }
+
+    @Test
+    fun checkSameBoard_mismoTablero_devuelveNull() {
+        assertNull(checkSameBoard("tablero-1", columnOf("tablero-1")))
+    }
+
+    @Test
+    fun checkSameBoard_otroTablero_devuelveValidationColumnBoardMismatch() {
+        val error = checkSameBoard("tablero-1", columnOf("tablero-2"))
+
+        assertTrue(error is DomainError.Validation)
+        assertEquals("COLUMN_BOARD_MISMATCH", error?.code)
+        assertEquals("La columna destino pertenece a otro tablero", error?.message)
+    }
+
+    private fun tk(id: String, columnId: String, position: Int): Task =
+        task(columnId = columnId, position = position, sync = SyncMetadata(id, now, pending = false, deletedAt = null))
+
+    private fun ok(result: DomainResult<List<Task>>): List<Task> = (result as DomainResult.Success).value
+
+    private fun columnOf(boardId: String) = Column(
+        boardId = boardId,
+        name = "Columna",
+        position = 0,
+        wipLimit = null,
+        isDoneColumn = false,
+        createdAt = Instant.EPOCH,
+        sync = SyncMetadata("col-x", now, pending = false, deletedAt = null),
+    )
 
     private fun task(
         columnId: String = "columna-1",

@@ -8,6 +8,8 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.simposio.taskeer.ui.board.BoardScreen
+import com.simposio.taskeer.ui.board.BoardViewModel
 import com.simposio.taskeer.ui.boards.BoardsScreen
 import com.simposio.taskeer.ui.columns.ColumnsScreen
 import com.simposio.taskeer.ui.columns.ColumnsViewModel
@@ -32,11 +34,24 @@ fun AppNavHost(
             BoardsScreen(
                 viewModelFactory = viewModelFactory,
                 onOpen = { boardId ->
-                    navController.navigate(AppDestination.boardColumnsRoute(boardId))
+                    navController.navigate(AppDestination.boardRoute(boardId))
                 },
             )
         }
         composable(AppDestination.SETTINGS.route) { SettingsScreen() }
+        composable(
+            route = AppDestination.BOARD.route,
+            arguments = listOf(
+                navArgument(BoardViewModel.BOARD_ID_ARG) { type = NavType.StringType },
+            ),
+        ) {
+            BoardScreen(
+                viewModelFactory = viewModelFactory,
+                onManageColumns = { boardId ->
+                    navController.navigate(AppDestination.boardColumnsRoute(boardId))
+                },
+            )
+        }
         composable(
             route = AppDestination.BOARD_COLUMNS.route,
             arguments = listOf(

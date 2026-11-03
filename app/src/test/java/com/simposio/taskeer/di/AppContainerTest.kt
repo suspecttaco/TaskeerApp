@@ -154,6 +154,8 @@ class AppContainerTest {
 
         override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> = unused()
 
+        override suspend fun moveTask(id: String, toColumnId: String, toIndex: Int): DomainResult<Task> = unused()
+
         override suspend fun deleteTask(id: String): DomainResult<Unit> = unused()
 
         private fun unused(): DomainResult.Failure =

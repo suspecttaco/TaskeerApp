@@ -14,5 +14,7 @@ interface TaskRepository {
 
     suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task>
 
+    suspend fun moveTask(id: String, toColumnId: String, toIndex: Int): DomainResult<Task>
+
     suspend fun deleteTask(id: String): DomainResult<Unit>
 }

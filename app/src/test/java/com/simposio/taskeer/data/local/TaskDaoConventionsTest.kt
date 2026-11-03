@@ -76,6 +76,16 @@ class TaskDaoConventionsTest {
     }
 
     @Test
+    fun upsertAll_esUnaSolaSentenciaInsertReplace() {
+        assertTrue(method("upsertAll").isSuspend())
+        assertTrue(
+            "debe ser un único @Insert(REPLACE) para ser atómico",
+            Regex("@Insert\\(onConflict = OnConflictStrategy.REPLACE\\)\\s+abstract suspend fun upsertAll\\(tasks: List<TaskEntity>\\)")
+                .containsMatchIn(taskDaoSource()),
+        )
+    }
+
+    @Test
     fun upsertDeletedWithSubtasks_esTransaccional() {
         val method = method("upsertDeletedWithSubtasks")
 
@@ -154,6 +164,10 @@ class TaskDaoConventionsTest {
 
         override suspend fun upsert(task: TaskEntity) {
             rows.value = rows.value + (task.id to task)
+        }
+
+        override suspend fun upsertAll(tasks: List<TaskEntity>) {
+            rows.value = rows.value + tasks.associateBy { it.id }
         }
 
         override suspend fun softDeleteSubtasksOfTask(taskId: String, deletedAt: Long) = Unit

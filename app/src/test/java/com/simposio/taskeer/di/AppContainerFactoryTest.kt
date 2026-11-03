@@ -76,6 +76,10 @@ class AppContainerFactoryTest {
             rows.value = rows.value + (task.id to task)
         }
 
+        override suspend fun upsertAll(tasks: List<TaskEntity>) {
+            rows.value = rows.value + tasks.associateBy { it.id }
+        }
+
         override suspend fun softDeleteSubtasksOfTask(taskId: String, deletedAt: Long) = Unit
     }
 

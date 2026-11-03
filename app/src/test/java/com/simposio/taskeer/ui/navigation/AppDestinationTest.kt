@@ -51,4 +51,24 @@ class AppDestinationTest {
     fun boardColumnsRouteLlevaElTablero() {
         assertEquals("board_columns/tablero-1", AppDestination.boardColumnsRoute("tablero-1"))
     }
+
+    @Test
+    fun boardRoute_llevaElTableroYNoEsSeccionPrincipal() {
+        assertEquals("board/{boardId}", AppDestination.BOARD.route)
+        assertEquals("board/tablero-1", AppDestination.boardRoute("tablero-1"))
+        assertFalse(AppDestination.BOARD in AppDestination.topLevel)
+        assertEquals(AppDestination.BOARD, AppDestination.fromRoute("board/{boardId}"))
+    }
+
+    @Test
+    fun upRoute_boardColumns_returnsBoardRoute() {
+        assertEquals("board/tablero-1", AppDestination.BOARD_COLUMNS.upRoute("tablero-1"))
+    }
+
+    @Test
+    fun upRoute_otherDestinations_returnNull() {
+        val others = AppDestination.entries.filter { it != AppDestination.BOARD_COLUMNS }
+
+        assertTrue(others.all { it.upRoute("tablero-1") == null })
+    }
 }

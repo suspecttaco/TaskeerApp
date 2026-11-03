@@ -136,6 +136,9 @@ class TaskEditorViewModelTest {
         override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> =
             error("no se usa")
 
+        override suspend fun moveTask(id: String, toColumnId: String, toIndex: Int): DomainResult<Task> =
+            error("no se usa")
+
         override suspend fun deleteTask(id: String): DomainResult<Unit> {
             deleteCalls++
             deleteGate?.await()
