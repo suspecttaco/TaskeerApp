@@ -3,6 +3,7 @@ package com.simposio.taskeer.domain.task
 import com.simposio.taskeer.domain.model.Column
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
+import com.simposio.taskeer.domain.model.LocalUser
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.model.afterLocalChange
@@ -39,7 +40,7 @@ fun newTask(
             description = description,
             priority = draft.priority,
             dueAt = draft.dueAt,
-            assigneeId = draft.assigneeId.normalized(),
+            assigneeId = assigneeOrMe(draft.assigneeId),
             position = position,
             createdAt = now,
             sync = newSyncMetadata(now, clientId),
@@ -57,11 +58,14 @@ fun Task.updated(draft: TaskDraft, now: Instant): DomainResult<Task> {
             description = description,
             priority = draft.priority,
             dueAt = draft.dueAt,
-            assigneeId = draft.assigneeId.normalized(),
+            assigneeId = assigneeOrMe(draft.assigneeId),
             sync = sync.afterLocalChange(now),
         ),
     )
 }
+
+fun isOverdue(dueAt: Instant?, isDoneColumn: Boolean, now: Instant): Boolean =
+    !isDoneColumn && dueAt != null && dueAt < now
 
 fun Task.softDeleted(now: Instant): Task = copy(sync = sync.afterLocalDelete(now))
 
@@ -104,6 +108,8 @@ private fun List<Task>.renumbered(columnId: String, now: Instant): List<Task> = 
         task.copy(position = index, columnId = columnId, sync = task.sync.afterLocalChange(now))
     }
 }
+
+private fun assigneeOrMe(raw: String?): String = raw.normalized() ?: LocalUser.ID
 
 private fun String?.normalized(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
 
