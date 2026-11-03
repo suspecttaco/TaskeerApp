@@ -133,6 +133,29 @@ class TaskRepositoryImplTest {
     }
 
     @Test
+    fun createTask_sinAsignado_persisteLocalUser() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
+        val taskDao = FakeTaskDao(columnDao)
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+
+        val created = (repository.createTask("columna-1", TaskDraft(title = "Tarea")) as DomainResult.Success).value
+
+        assertEquals(LocalUser.ID, taskDao.stored.getValue(created.id).assigneeId)
+    }
+
+    @Test
+    fun updateTask_sinAsignado_persisteLocalUser() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
+        val taskDao = FakeTaskDao(columnDao)
+        taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0, updatedAt = now))
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+
+        repository.updateTask("t1", TaskDraft(title = "Tarea", assigneeId = null))
+
+        assertEquals(LocalUser.ID, taskDao.stored.getValue("t1").assigneeId)
+    }
+
+    @Test
     fun createTask_persisteElDueAtEnUtcSinDesplazarLaZona() = runTest {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
         val taskDao = FakeTaskDao(columnDao)

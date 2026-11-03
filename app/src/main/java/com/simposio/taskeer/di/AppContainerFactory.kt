@@ -7,6 +7,7 @@ import com.simposio.taskeer.data.local.AppDatabase
 import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.repository.BoardRepositoryImpl
 import com.simposio.taskeer.data.repository.ColumnRepositoryImpl
+import com.simposio.taskeer.data.repository.MyDayRepositoryImpl
 import com.simposio.taskeer.data.repository.PreferencesRepositoryImpl
 import com.simposio.taskeer.data.repository.SubtaskRepositoryImpl
 import com.simposio.taskeer.data.repository.TaskRepositoryImpl
@@ -33,6 +34,7 @@ fun createAppContainer(context: Context): AppContainer {
         ),
         taskRepository = TaskRepositoryImpl(database.taskDao(), database.columnDao()),
         subtaskRepository = SubtaskRepositoryImpl(database.subtaskDao(), database.taskDao()),
+        myDayRepository = MyDayRepositoryImpl(database.myDayDao(), database.taskDao()),
     )
 }
 

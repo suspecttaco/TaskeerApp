@@ -9,6 +9,7 @@ import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.domain.model.Column
 import com.simposio.taskeer.domain.task.checkSameBoard
+import com.simposio.taskeer.domain.task.isOverdue
 import com.simposio.taskeer.domain.task.movedTask
 import com.simposio.taskeer.domain.task.newTask
 import com.simposio.taskeer.domain.task.softDeleted
@@ -69,8 +70,40 @@ class TaskRulesTest {
 
         assertEquals("Escribir el informe", created.title)
         assertNull("una descripción en blanco se guarda como null", created.description)
-        assertNull("un asignado en blanco se guarda como null", created.assigneeId)
+        assertEquals("un asignado en blanco queda asignado a Yo", LocalUser.ID, created.assigneeId)
         assertEquals(TaskPriority.HIGH, created.priority)
+    }
+
+    @Test
+    fun newTask_sinAsignado_quedaAsignadoAYo() {
+        val created = (newTask("columna-1", TaskDraft(title = "Tarea"), 0, now) as DomainResult.Success).value
+
+        assertEquals(LocalUser.ID, created.assigneeId)
+    }
+
+    @Test
+    fun newTask_asignadoEnBlanco_quedaAsignadoAYo() {
+        val draft = TaskDraft(title = "Tarea", assigneeId = "   ")
+
+        val created = (newTask("columna-1", draft, 0, now) as DomainResult.Success).value
+
+        assertEquals(LocalUser.ID, created.assigneeId)
+    }
+
+    @Test
+    fun newTask_asignadoExplicito_seConserva() {
+        val draft = TaskDraft(title = "Tarea", assigneeId = " user-9 ")
+
+        val created = (newTask("columna-1", draft, 0, now) as DomainResult.Success).value
+
+        assertEquals("user-9", created.assigneeId)
+    }
+
+    @Test
+    fun updated_sinAsignado_quedaAsignadoAYo() {
+        val updated = (task().updated(TaskDraft(title = "Tarea", assigneeId = " "), later) as DomainResult.Success).value
+
+        assertEquals(LocalUser.ID, updated.assigneeId)
     }
 
     @Test
@@ -324,6 +357,31 @@ class TaskRulesTest {
         assertTrue(error is DomainError.Validation)
         assertEquals("COLUMN_BOARD_MISMATCH", error?.code)
         assertEquals("La columna destino pertenece a otro tablero", error?.message)
+    }
+
+    @Test
+    fun isOverdue_sinFecha_noEsVencida() {
+        assertFalse(isOverdue(dueAt = null, isDoneColumn = false, now = now))
+    }
+
+    @Test
+    fun isOverdue_fechaFutura_noEsVencida() {
+        assertFalse(isOverdue(dueAt = later, isDoneColumn = false, now = now))
+    }
+
+    @Test
+    fun isOverdue_fechaIgualAAhora_noEsVencida() {
+        assertFalse(isOverdue(dueAt = now, isDoneColumn = false, now = now))
+    }
+
+    @Test
+    fun isOverdue_fechaPasada_esVencida() {
+        assertTrue(isOverdue(dueAt = now.minusMillis(1), isDoneColumn = false, now = now))
+    }
+
+    @Test
+    fun isOverdue_columnaCompletada_nuncaEsVencida() {
+        assertFalse(isOverdue(dueAt = now.minusSeconds(3600), isDoneColumn = true, now = now))
     }
 
     private fun tk(id: String, columnId: String, position: Int): Task =

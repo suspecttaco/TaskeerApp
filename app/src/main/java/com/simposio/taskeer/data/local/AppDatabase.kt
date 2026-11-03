@@ -8,8 +8,14 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [BoardEntity::class, ColumnEntity::class, TaskEntity::class, SubtaskEntity::class],
-    version = 6,
+    entities = [
+        BoardEntity::class,
+        ColumnEntity::class,
+        TaskEntity::class,
+        SubtaskEntity::class,
+        MyDayEntryEntity::class,
+    ],
+    version = 8,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -17,6 +23,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun columnDao(): ColumnDao
     abstract fun taskDao(): TaskDao
     abstract fun subtaskDao(): SubtaskDao
+    abstract fun myDayDao(): MyDayDao
 
     companion object {
         const val DATABASE_NAME: String = "taskeer.db"
@@ -105,8 +112,40 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        private val MIGRATIONS: List<Migration> =
-            listOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+        private val MIGRATION_6_7: Migration = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `my_day_tasks` (" +
+                        "`id` TEXT NOT NULL, " +
+                        "`addedAt` INTEGER NOT NULL, " +
+                        "`updatedAt` INTEGER NOT NULL, " +
+                        "`pending` INTEGER NOT NULL, " +
+                        "`deletedAt` INTEGER, " +
+                        "PRIMARY KEY(`id`))",
+                )
+            }
+        }
+
+        private val MIGRATION_7_8: Migration = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Literal y no LocalUser.ID: una migración no debe cambiar si el código evoluciona.
+                db.execSQL(
+                    "UPDATE tasks SET assigneeId = 'local-user', pending = 1, " +
+                        "updatedAt = ${System.currentTimeMillis()} " +
+                        "WHERE assigneeId IS NULL AND deletedAt IS NULL",
+                )
+            }
+        }
+
+        private val MIGRATIONS: List<Migration> = listOf(
+            MIGRATION_1_2,
+            MIGRATION_2_3,
+            MIGRATION_3_4,
+            MIGRATION_4_5,
+            MIGRATION_5_6,
+            MIGRATION_6_7,
+            MIGRATION_7_8,
+        )
 
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, DATABASE_NAME)

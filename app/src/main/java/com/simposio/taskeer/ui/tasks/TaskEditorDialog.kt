@@ -131,12 +131,7 @@ fun TaskEditorDialog(
                     style = MaterialTheme.typography.labelLarge,
                 )
                 RadioOption(
-                    label = stringResource(R.string.task_assignee_none),
-                    selected = state.assigneeId == null,
-                    onSelect = { onAssigneeChange(null) },
-                )
-                RadioOption(
-                    label = stringResource(R.string.task_assignee_local),
+                    label = stringResource(R.string.task_assignee_me),
                     selected = state.assigneeId == LocalUser.ID,
                     onSelect = { onAssigneeChange(LocalUser.ID) },
                 )

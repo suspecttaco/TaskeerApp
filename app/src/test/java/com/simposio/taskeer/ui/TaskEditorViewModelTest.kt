@@ -4,6 +4,7 @@ import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
+import com.simposio.taskeer.domain.model.LocalUser
 import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskDraft
@@ -59,6 +60,36 @@ class TaskEditorViewModelTest {
 
         assertTrue(viewModel.uiState.value.isOpen)
         assertEquals("Informe", viewModel.uiState.value.title)
+    }
+
+    @Test
+    fun nuevaTarea_asignadoInicialEsYo() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+
+        viewModel.openForCreate("c1")
+
+        assertEquals(LocalUser.ID, viewModel.uiState.value.assigneeId)
+    }
+
+    @Test
+    fun abrirTareaSinAsignado_muestraYo() = runTest {
+        val viewModel = viewModel(FakeTaskRepository(task("t1", "Informe")))
+
+        viewModel.openForEdit("t1")
+
+        assertEquals(LocalUser.ID, viewModel.uiState.value.assigneeId)
+    }
+
+    @Test
+    fun guardarNueva_sinTocarAsignado_persisteYo() = runTest {
+        val repository = FakeTaskRepository()
+        val viewModel = viewModel(repository)
+        viewModel.openForCreate("c1")
+        viewModel.onTitleChange("Nueva")
+
+        viewModel.save()
+
+        assertEquals(LocalUser.ID, repository.lastCreated?.assigneeId)
     }
 
     @Test
@@ -139,6 +170,7 @@ class TaskEditorViewModelTest {
         var deleteError: DomainError? = null
         var deleteCalls = 0
         var createError: DomainError? = null
+        var lastCreated: Task? = null
 
         override fun observeTasks(boardId: String): Flow<List<Task>> = emptyFlow()
 
@@ -149,6 +181,7 @@ class TaskEditorViewModelTest {
         override suspend fun createTask(columnId: String, draft: TaskDraft): DomainResult<Task> =
             createError?.let { DomainResult.Failure(it) }
                 ?: newTask(columnId, draft, position = 0, now = Instant.EPOCH)
+                    .also { result -> lastCreated = (result as? DomainResult.Success)?.value }
 
         override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> =
             error("no se usa")

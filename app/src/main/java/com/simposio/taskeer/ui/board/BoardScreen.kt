@@ -27,7 +27,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,10 +55,7 @@ import com.simposio.taskeer.domain.model.Column as BoardColumn
 import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.ui.tasks.DUE_DATE_TIME_FORMATTER
-import com.simposio.taskeer.ui.tasks.SubtaskActions
-import com.simposio.taskeer.ui.tasks.SubtasksViewModel
-import com.simposio.taskeer.ui.tasks.TaskEditorDialog
-import com.simposio.taskeer.ui.tasks.TaskEditorViewModel
+import com.simposio.taskeer.ui.tasks.rememberTaskEditorHost
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 import java.time.Instant
 import java.time.LocalDateTime
@@ -76,57 +72,20 @@ fun BoardScreen(
     val viewModel: BoardViewModel = viewModel(factory = viewModelFactory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    val editorViewModel: TaskEditorViewModel = viewModel(factory = viewModelFactory)
-    val editorState by editorViewModel.uiState.collectAsStateWithLifecycle()
-
-    val subtasksViewModel: SubtasksViewModel = viewModel(factory = viewModelFactory)
-    val subtasksState by subtasksViewModel.uiState.collectAsStateWithLifecycle()
-
-    val openTaskId = editorState.taskId.takeIf { editorState.isOpen }
-    LaunchedEffect(openTaskId) {
-        if (openTaskId == null) {
-            subtasksViewModel.close()
-        } else {
-            subtasksViewModel.open(openTaskId)
-        }
-    }
+    val editorHost = rememberTaskEditorHost(viewModelFactory)
 
     BoardContent(
         state = state,
         onMove = viewModel::moveTask,
-        onCreateTask = editorViewModel::openForCreate,
-        onEditTask = editorViewModel::openForEdit,
+        onCreateTask = editorHost.openForCreate,
+        onEditTask = editorHost.openForEdit,
+        onToggleMyDay = viewModel::toggleMyDay,
         onManageColumns = { onManageColumns(viewModel.boardId) },
         onAddColumn = viewModel::openNewColumn,
         onNewColumnNameChange = viewModel::onNewColumnNameChange,
         onSaveNewColumn = viewModel::saveNewColumn,
         onDismissNewColumn = viewModel::dismissNewColumn,
         modifier = modifier,
-    )
-
-    TaskEditorDialog(
-        state = editorState,
-        onTitleChange = editorViewModel::onTitleChange,
-        onDescriptionChange = editorViewModel::onDescriptionChange,
-        onPriorityChange = editorViewModel::onPriorityChange,
-        onDueAtChange = editorViewModel::onDueAtChange,
-        onAssigneeChange = editorViewModel::onAssigneeChange,
-        subtasks = subtasksState,
-        subtaskActions = SubtaskActions(
-            onNewTitleChange = subtasksViewModel::onNewTitleChange,
-            onAdd = subtasksViewModel::add,
-            onToggle = subtasksViewModel::toggle,
-            onStartEdit = subtasksViewModel::startEdit,
-            onEditTitleChange = subtasksViewModel::onEditTitleChange,
-            onEditDueAtChange = subtasksViewModel::onEditDueAtChange,
-            onEditAssigneeChange = subtasksViewModel::onEditAssigneeChange,
-            onSaveEdit = subtasksViewModel::saveEdit,
-            onCancelEdit = subtasksViewModel::cancelEdit,
-            onDelete = subtasksViewModel::delete,
-        ),
-        onSave = editorViewModel::save,
-        onDelete = editorViewModel::delete,
-        onDismiss = editorViewModel::dismiss,
     )
 }
 
@@ -142,6 +101,7 @@ fun BoardContent(
     onMove: (String, String, Int) -> Unit,
     onCreateTask: (String) -> Unit,
     onEditTask: (String) -> Unit,
+    onToggleMyDay: (String) -> Unit,
     onManageColumns: () -> Unit,
     onAddColumn: () -> Unit,
     onNewColumnNameChange: (String) -> Unit,
@@ -234,6 +194,7 @@ fun BoardContent(
                         onDragCancel = { drag = null },
                         onCreateTask = { onCreateTask(column.id) },
                         onEditTask = onEditTask,
+                        onToggleMyDay = onToggleMyDay,
                     )
                 }
             }
@@ -283,6 +244,7 @@ private fun BoardColumnView(
     onDragCancel: () -> Unit,
     onCreateTask: () -> Unit,
     onEditTask: (String) -> Unit,
+    onToggleMyDay: (String) -> Unit,
 ) {
     DisposableEffect(column.id) { onDispose(onColumnDisposed) }
 
@@ -336,6 +298,7 @@ private fun BoardColumnView(
                     DisposableEffect(card.id) { onDispose { onCardDisposed(card.id) } }
                     TaskCard(
                         card = card,
+                        onToggleMyDay = onToggleMyDay,
                         modifier = Modifier
                             .alpha(if (card.id == draggedId) 0.3f else 1f)
                             .onGloballyPositioned { onCardPositioned(card.id, it.boundsInRoot().toBounds()) }
@@ -362,7 +325,12 @@ private fun BoardColumnView(
 }
 
 @Composable
-private fun TaskCard(card: TaskCardUi, modifier: Modifier = Modifier, elevated: Boolean = false) {
+private fun TaskCard(
+    card: TaskCardUi,
+    modifier: Modifier = Modifier,
+    elevated: Boolean = false,
+    onToggleMyDay: (String) -> Unit = {},
+) {
     Card(
         modifier = modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = if (elevated) 8.dp else 1.dp),
@@ -375,14 +343,17 @@ private fun TaskCard(card: TaskCardUi, modifier: Modifier = Modifier, elevated: 
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f),
                 )
-                if (card.inMyDay) {
-                    val description = stringResource(R.string.task_in_my_day)
-                    Text(
-                        text = "★",
-                        color = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.semantics { contentDescription = description },
-                    )
-                }
+                val description = stringResource(
+                    if (card.inMyDay) R.string.task_in_my_day_remove else R.string.task_in_my_day_add,
+                )
+                Text(
+                    text = if (card.inMyDay) "★" else "☆",
+                    color = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier
+                        .clickable { onToggleMyDay(card.id) }
+                        .padding(4.dp)
+                        .semantics { contentDescription = description },
+                )
             }
             Text(
                 text = stringResource(card.priority.labelRes()),
@@ -414,7 +385,7 @@ private fun TaskCard(card: TaskCardUi, modifier: Modifier = Modifier, elevated: 
 private fun androidx.compose.ui.geometry.Rect.toBounds(): Bounds = Bounds(left, top, right, bottom)
 
 @StringRes
-private fun TaskPriority.labelRes(): Int = when (this) {
+internal fun TaskPriority.labelRes(): Int = when (this) {
     TaskPriority.LOW -> R.string.task_priority_low
     TaskPriority.MEDIUM -> R.string.task_priority_medium
     TaskPriority.HIGH -> R.string.task_priority_high
@@ -475,6 +446,7 @@ private fun BoardContentPreview() {
             onMove = { _, _, _ -> },
             onCreateTask = {},
             onEditTask = {},
+            onToggleMyDay = {},
             onManageColumns = {},
             onAddColumn = {},
             onNewColumnNameChange = {},

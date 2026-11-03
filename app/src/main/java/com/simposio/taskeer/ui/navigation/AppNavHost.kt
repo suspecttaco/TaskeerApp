@@ -29,7 +29,7 @@ fun AppNavHost(
         modifier = modifier,
     ) {
         composable(AppDestination.HOME.route) { HomeScreen() }
-        composable(AppDestination.MY_DAY.route) { MyDayScreen() }
+        composable(AppDestination.MY_DAY.route) { MyDayScreen(viewModelFactory) }
         composable(AppDestination.WORKSPACES.route) {
             BoardsScreen(
                 viewModelFactory = viewModelFactory,

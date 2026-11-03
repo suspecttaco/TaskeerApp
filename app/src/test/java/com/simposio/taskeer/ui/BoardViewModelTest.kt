@@ -2,6 +2,7 @@ package com.simposio.taskeer.ui
 
 import androidx.lifecycle.SavedStateHandle
 import com.simposio.taskeer.data.repository.ColumnRepository
+import com.simposio.taskeer.data.repository.MyDayRepository
 import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.date.TimeZoneProvider
@@ -12,6 +13,7 @@ import com.simposio.taskeer.domain.model.Column
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.LocalUser
+import com.simposio.taskeer.domain.model.MyDay
 import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskDraft
@@ -405,6 +407,82 @@ class BoardViewModelTest {
         assertEquals(listOf(false, true), viewModel.uiState.value.columns.map { it.column.isDoneColumn })
     }
 
+    @Test
+    fun toggleMyDay_tarjetaSinMarca_delegaConMarcadoTrue() = runTest {
+        val myDayRepository = FakeMyDayRepository()
+        val viewModel = viewModel(
+            MutableStateFlow(listOf(column("c1", 0))),
+            MutableStateFlow(listOf(task("a", "c1", 0))),
+            myDay = MutableStateFlow(emptySet()),
+            myDayRepository = myDayRepository,
+        )
+        collect(viewModel)
+
+        viewModel.toggleMyDay("a")
+
+        assertEquals(listOf("a" to true), myDayRepository.calls)
+    }
+
+    @Test
+    fun toggleMyDay_tarjetaMarcada_delegaConMarcadoFalse() = runTest {
+        val myDayRepository = FakeMyDayRepository()
+        val viewModel = viewModel(
+            MutableStateFlow(listOf(column("c1", 0))),
+            MutableStateFlow(listOf(task("a", "c1", 0))),
+            myDay = MutableStateFlow(setOf("a")),
+            myDayRepository = myDayRepository,
+        )
+        collect(viewModel)
+
+        viewModel.toggleMyDay("a")
+
+        assertEquals(listOf("a" to false), myDayRepository.calls)
+    }
+
+    @Test
+    fun toggleMyDay_fallo_sePropagaAError() = runTest {
+        val failure = DomainError.NotFound("TASK_NOT_FOUND", "La tarea no existe")
+        val myDayRepository = FakeMyDayRepository().apply { this.failure = failure }
+        val viewModel = viewModel(
+            MutableStateFlow(listOf(column("c1", 0))),
+            MutableStateFlow(listOf(task("a", "c1", 0))),
+            myDayRepository = myDayRepository,
+        )
+        collect(viewModel)
+
+        viewModel.toggleMyDay("a")
+
+        assertEquals(failure, viewModel.uiState.value.error)
+    }
+
+    @Test
+    fun tarjeta_estrellaSigueElFlujoDelRepositorioDeMyDay() = runTest {
+        val myDayRepository = FakeMyDayRepository()
+        val viewModel = viewModel(
+            MutableStateFlow(listOf(column("c1", 0))),
+            MutableStateFlow(listOf(task("a", "c1", 0))),
+            myDayRepository = myDayRepository,
+        )
+        collect(viewModel)
+        assertFalse(viewModel.uiState.value.columns.single().cards.single().inMyDay)
+
+        myDayRepository.marked.value = setOf("a")
+
+        assertTrue(viewModel.uiState.value.columns.single().cards.single().inMyDay)
+    }
+
+    @Test
+    fun tarjeta_marcadaEnColumnaCompletada_conservaLaEstrella() = runTest {
+        val viewModel = viewModel(
+            MutableStateFlow(listOf(column("c1", 0, isDoneColumn = true))),
+            MutableStateFlow(listOf(task("a", "c1", 0))),
+            myDay = MutableStateFlow(setOf("a")),
+        )
+        collect(viewModel)
+
+        assertTrue(viewModel.uiState.value.columns.single().cards.single().inMyDay)
+    }
+
     private fun TestScope.overdueOf(dueAt: Instant?, isDone: Boolean): Boolean {
         val tasks = MutableStateFlow(listOf(task("a", "c1", 0, dueAt = dueAt)))
         val viewModel = viewModel(MutableStateFlow(listOf(column("c1", 0, isDone))), tasks)
@@ -421,14 +499,15 @@ class BoardViewModelTest {
         tasks: MutableStateFlow<List<Task>>,
         repository: FakeTaskRepository = FakeTaskRepository(tasks),
         myDay: Flow<Set<String>>? = null,
+        myDayRepository: FakeMyDayRepository = FakeMyDayRepository(),
         columnRepository: ColumnRepository = FakeColumnRepository(columns),
         now: () -> Instant = { NOW },
     ): BoardViewModel {
         val handle = SavedStateHandle(mapOf(BoardViewModel.BOARD_ID_ARG to "tablero-1"))
         return if (myDay == null) {
-            BoardViewModel(columnRepository, repository, madrid, handle, now = now)
+            BoardViewModel(columnRepository, repository, madrid, handle, myDayRepository, now = now)
         } else {
-            BoardViewModel(columnRepository, repository, madrid, handle, myDay, now)
+            BoardViewModel(columnRepository, repository, madrid, handle, myDayRepository, myDay, now)
         }
     }
 
@@ -537,5 +616,22 @@ class BoardViewModelTest {
         override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> = error("no se usa")
 
         override suspend fun deleteTask(id: String): DomainResult<Unit> = error("no se usa")
+    }
+
+    class FakeMyDayRepository : MyDayRepository {
+        val marked = MutableStateFlow<Set<String>>(emptySet())
+        val calls: MutableList<Pair<String, Boolean>> = mutableListOf()
+        var failure: DomainError? = null
+
+        override fun observeMyDay(): Flow<MyDay> = error("no se usa")
+
+        override fun observeMarkedTaskIds(): Flow<Set<String>> = marked
+
+        override fun observeOverdueCount(): Flow<Int> = error("no se usa")
+
+        override suspend fun setMarked(taskId: String, marked: Boolean): DomainResult<Unit> {
+            calls += taskId to marked
+            return failure?.let { DomainResult.Failure(it) } ?: DomainResult.Success(Unit)
+        }
     }
 }

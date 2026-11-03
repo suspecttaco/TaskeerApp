@@ -13,6 +13,7 @@ class AppDatabaseSchemaTest {
     private val schemaV4: String = resolveSchema(version = 4).readText()
     private val schemaV5: String = resolveSchema(version = 5).readText()
     private val schemaV6: String = resolveSchema(version = 6).readText()
+    private val schemaV8: String = resolveSchema(version = 8).readText()
 
     @Test
     fun esquemaVersion1_sigueExportado() {
@@ -239,6 +240,46 @@ class AppDatabaseSchemaTest {
                 column(tableV6(table), "createdAt"),
             )
         }
+    }
+
+    @Test
+    fun esquemaVersion8_estaExportadoYConservaDel1Al7() {
+        assertTrue(
+            "el esquema debe declarar la versión 8 de la base de datos",
+            Regex("\"version\"\\s*:\\s*8\\b").containsMatchIn(schemaV8),
+        )
+        (1..7).forEach { assertTrue(resolveSchema(version = it).isFile) }
+    }
+
+    @Test
+    fun v8_myDayTasks_tieneLasColumnasDelModelo() {
+        val table = tableV8("my_day_tasks")
+
+        assertEquals(ColumnSchema("TEXT", true), column(table, "id"))
+        assertEquals(ColumnSchema("INTEGER", true), column(table, "addedAt"))
+        assertEquals(ColumnSchema("INTEGER", true), column(table, "updatedAt"))
+        assertEquals(ColumnSchema("INTEGER", true), column(table, "pending"))
+        assertEquals(ColumnSchema("INTEGER", false), column(table, "deletedAt"))
+    }
+
+    @Test
+    fun v8_myDayTasks_usaElIdDeLaTareaComoClavePrimaria() {
+        val table = tableV8("my_day_tasks")
+
+        assertTrue(table.contains("\"autoGenerate\": false"))
+        assertTrue(Regex("\"columnNames\"\\s*:\\s*\\[\\s*\"id\"\\s*\\]").containsMatchIn(table))
+    }
+
+    @Test
+    fun v8_conservaLasCuatroTablasAnteriores() {
+        listOf("boards", "columns", "tasks", "subtasks").forEach { tableV8(it) }
+    }
+
+    private fun tableV8(name: String): String {
+        val start = schemaV8.indexOf("\"tableName\": \"$name\"")
+        assertTrue("el esquema v8 debe declarar la tabla $name", start >= 0)
+        val nextTable = schemaV8.indexOf("\"tableName\":", start + 1)
+        return schemaV8.substring(start, if (nextTable < 0) schemaV8.length else nextTable)
     }
 
     private fun tableV6(name: String): String {

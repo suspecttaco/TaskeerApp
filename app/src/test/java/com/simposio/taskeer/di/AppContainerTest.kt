@@ -2,6 +2,7 @@ package com.simposio.taskeer.di
 
 import com.simposio.taskeer.data.repository.BoardRepository
 import com.simposio.taskeer.data.repository.ColumnRepository
+import com.simposio.taskeer.data.repository.MyDayRepository
 import com.simposio.taskeer.data.repository.PreferencesRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskRepository
@@ -10,6 +11,7 @@ import com.simposio.taskeer.domain.model.Board
 import com.simposio.taskeer.domain.model.Column
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
+import com.simposio.taskeer.domain.model.MyDay
 import com.simposio.taskeer.domain.model.Subtask
 import com.simposio.taskeer.domain.model.SubtaskDraft
 import com.simposio.taskeer.domain.model.SubtaskProgress
@@ -76,6 +78,15 @@ class AppContainerTest {
     }
 
     @Test
+    fun container_exponeMyDayRepository() {
+        val myDay = FakeMyDayRepository()
+
+        val container = container(myDayRepository = myDay)
+
+        assertSame(myDay, container.myDayRepository)
+    }
+
+    @Test
     fun conversorUsaLaZonaEntregada() {
         val container = container()
 
@@ -90,6 +101,7 @@ class AppContainerTest {
         columnRepository: ColumnRepository = FakeColumnRepository(),
         taskRepository: TaskRepository = FakeTaskRepository(),
         subtaskRepository: SubtaskRepository = FakeSubtaskRepository(),
+        myDayRepository: MyDayRepository = FakeMyDayRepository(),
     ): AppContainer = AppContainer(
         preferencesRepository = preferencesRepository,
         timeZoneProvider = TimeZoneProvider { auckland },
@@ -97,6 +109,7 @@ class AppContainerTest {
         columnRepository = columnRepository,
         taskRepository = taskRepository,
         subtaskRepository = subtaskRepository,
+        myDayRepository = myDayRepository,
     )
 
     private class FakePreferencesRepository : PreferencesRepository {
@@ -160,6 +173,17 @@ class AppContainerTest {
 
         private fun unused(): DomainResult.Failure =
             DomainResult.Failure(DomainError.Unknown("UNUSED", "doble de test"))
+    }
+
+    private class FakeMyDayRepository : MyDayRepository {
+        override fun observeMyDay(): Flow<MyDay> = MutableStateFlow(MyDay(emptyList(), emptyList()))
+
+        override fun observeMarkedTaskIds(): Flow<Set<String>> = MutableStateFlow(emptySet())
+
+        override fun observeOverdueCount(): Flow<Int> = MutableStateFlow(0)
+
+        override suspend fun setMarked(taskId: String, marked: Boolean): DomainResult<Unit> =
+            DomainResult.Success(Unit)
     }
 
     private class FakeSubtaskRepository : SubtaskRepository {
