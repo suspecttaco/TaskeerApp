@@ -103,6 +103,21 @@ class TaskEditorViewModelTest {
         assertTrue(viewModel.uiState.value.isOpen)
     }
 
+    @Test
+    fun save_wipLimitReached_keepsEditorOpenWithError() = runTest {
+        val repository = FakeTaskRepository()
+        repository.createError = DomainError.Conflict("COLUMN_WIP_LIMIT_REACHED", "Límite alcanzado")
+        val viewModel = viewModel(repository)
+        viewModel.openForCreate("c1")
+        viewModel.onTitleChange("Nueva")
+
+        viewModel.save()
+
+        assertEquals("COLUMN_WIP_LIMIT_REACHED", viewModel.uiState.value.error?.code)
+        assertTrue(viewModel.uiState.value.isOpen)
+        assertFalse(viewModel.uiState.value.isSaving)
+    }
+
     private fun viewModel(repository: TaskRepository) =
         TaskEditorViewModel(repository, DateTimeConverter { ZoneOffset.UTC })
 
@@ -123,6 +138,7 @@ class TaskEditorViewModelTest {
         var deleteGate: CompletableDeferred<Unit>? = null
         var deleteError: DomainError? = null
         var deleteCalls = 0
+        var createError: DomainError? = null
 
         override fun observeTasks(boardId: String): Flow<List<Task>> = emptyFlow()
 
@@ -131,7 +147,8 @@ class TaskEditorViewModelTest {
                 ?: DomainResult.Failure(DomainError.NotFound("TASK_NOT_FOUND", "No existe"))
 
         override suspend fun createTask(columnId: String, draft: TaskDraft): DomainResult<Task> =
-            newTask(columnId, draft, position = 0, now = Instant.EPOCH)
+            createError?.let { DomainResult.Failure(it) }
+                ?: newTask(columnId, draft, position = 0, now = Instant.EPOCH)
 
         override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> =
             error("no se usa")
