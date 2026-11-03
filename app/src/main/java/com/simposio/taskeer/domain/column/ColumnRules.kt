@@ -17,6 +17,7 @@ const val COLUMN_WIP_LIMIT_MIN = 1
 const val COLUMN_NOT_EMPTY = "COLUMN_NOT_EMPTY"
 const val COLUMN_INDEX_OUT_OF_BOUNDS = "COLUMN_INDEX_OUT_OF_BOUNDS"
 const val COLUMN_NOT_FOUND = "COLUMN_NOT_FOUND"
+const val COLUMN_WIP_LIMIT_REACHED = "COLUMN_WIP_LIMIT_REACHED"
 
 fun defaultBoardColumns(
     boardId: String,
@@ -67,6 +68,16 @@ fun Column.withWipLimit(wipLimit: Int?, now: Instant): DomainResult<Column> {
     }
     return DomainResult.Success(copy(wipLimit = wipLimit, sync = sync.afterLocalChange(now)))
 }
+
+fun checkWipLimit(column: Column, activeTaskCount: Int): DomainError? =
+    if (column.wipLimit != null && activeTaskCount >= column.wipLimit) {
+        DomainError.Conflict(
+            COLUMN_WIP_LIMIT_REACHED,
+            "La columna «${column.name}» alcanzó su límite de ${column.wipLimit} tareas",
+        )
+    } else {
+        null
+    }
 
 fun Column.softDeleted(now: Instant): Column = copy(sync = sync.afterLocalDelete(now))
 
