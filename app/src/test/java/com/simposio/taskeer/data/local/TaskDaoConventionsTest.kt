@@ -3,6 +3,7 @@ package com.simposio.taskeer.data.local
 import java.io.File
 import java.lang.reflect.Method
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -129,6 +130,52 @@ class TaskDaoConventionsTest {
         assertEquals(2, dao.countByColumn("columna-1"))
     }
 
+    @Test
+    fun observeReminderCandidates_exigeFechaNoBorradaYColumnaNoCompletada() {
+        val query = querySource("observeReminderCandidates")
+
+        assertTrue(query.contains("INNER JOIN columns ON tasks.columnId = columns.id"))
+        assertTrue(query.contains("tasks.dueAt IS NOT NULL"))
+        assertTrue(query.contains("tasks.deletedAt IS NULL"))
+        assertTrue(query.contains("columns.isDoneColumn = 0"))
+        assertEquals(Flow::class.java, method("observeReminderCandidates").returnType)
+    }
+
+    @Test
+    fun countActive_cuentaConYSinFechaPeroNoBorradasNiCompletadas() {
+        val query = querySource("countActive")
+
+        assertTrue(query.contains("tasks.deletedAt IS NULL"))
+        assertTrue(query.contains("columns.isDoneColumn = 0"))
+        assertFalse("no debe filtrar por fecha límite", query.contains("dueAt"))
+        assertTrue(method("countActive").isSuspend())
+    }
+
+    @Test
+    fun findReminderState_leeBorradoYColumnaCompletadaConJoin() {
+        val query = querySource("findReminderState")
+
+        assertTrue(query.contains("JOIN columns ON tasks.columnId = columns.id"))
+        assertTrue(query.contains("tasks.deletedAt IS NOT NULL AS deleted"))
+        assertTrue(query.contains("columns.isDoneColumn"))
+        assertTrue(method("findReminderState").isSuspend())
+    }
+
+    @Test
+    fun dismissRemindersOfTask_vaDentroDeLaTransaccionDelBorrado() {
+        val source = taskDaoSource()
+        val body = source.substring(source.indexOf("open suspend fun upsertDeletedWithSubtasks"))
+
+        assertTrue(body.contains("dismissRemindersOfTask(task.id, deletedAt)"))
+    }
+
+    private fun querySource(name: String): String {
+        val source = taskDaoSource()
+        val start = source.indexOf("fun $name(")
+        assertTrue("falta $name", start >= 0)
+        return source.substring(source.lastIndexOf("@Query(", start), start)
+    }
+
     private fun taskDaoSource(): String = File(resolveLocalRoot(), "TaskDao.kt").readText()
 
     private fun method(name: String): Method =
@@ -171,6 +218,14 @@ class TaskDaoConventionsTest {
         }
 
         override suspend fun softDeleteSubtasksOfTask(taskId: String, deletedAt: Long) = Unit
+
+        override fun observeReminderCandidates(): Flow<List<ReminderCandidateRow>> = emptyFlow()
+
+        override suspend fun countActive(): Int = 0
+
+        override suspend fun findReminderState(taskId: String): ReminderTaskStateRow? = null
+
+        override suspend fun dismissRemindersOfTask(taskId: String, now: Long): Int = 0
     }
 
     private class FakeColumnDao : ColumnDao() {

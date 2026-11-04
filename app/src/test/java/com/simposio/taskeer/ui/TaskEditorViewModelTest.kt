@@ -6,6 +6,7 @@ import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.LocalUser
 import com.simposio.taskeer.domain.model.SyncMetadata
+import com.simposio.taskeer.domain.model.ReminderCandidate
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.model.TaskPriority
@@ -173,6 +174,12 @@ class TaskEditorViewModelTest {
         var lastCreated: Task? = null
 
         override fun observeTasks(boardId: String): Flow<List<Task>> = emptyFlow()
+
+        override fun observeReminderCandidates(): Flow<List<ReminderCandidate>> = emptyFlow()
+
+        override suspend fun reminderCandidates(): List<ReminderCandidate> = emptyList()
+
+        override suspend fun activeTaskCount(): Int = 0
 
         override suspend fun getTask(id: String): DomainResult<Task> =
             stored[id]?.let { DomainResult.Success(it) }

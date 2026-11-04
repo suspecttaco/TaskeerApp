@@ -15,6 +15,7 @@ import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.LocalUser
 import com.simposio.taskeer.domain.model.MyDay
 import com.simposio.taskeer.domain.model.SyncMetadata
+import com.simposio.taskeer.domain.model.ReminderCandidate
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.model.TaskPriority
@@ -27,6 +28,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -594,6 +596,12 @@ class BoardViewModelTest {
         var gate: CompletableDeferred<Unit>? = null
 
         override fun observeTasks(boardId: String): Flow<List<Task>> = tasks
+
+        override fun observeReminderCandidates(): Flow<List<ReminderCandidate>> = emptyFlow()
+
+        override suspend fun reminderCandidates(): List<ReminderCandidate> = emptyList()
+
+        override suspend fun activeTaskCount(): Int = 0
 
         override suspend fun moveTask(id: String, toColumnId: String, toIndex: Int): DomainResult<Task> {
             moves += Triple(id, toColumnId, toIndex)

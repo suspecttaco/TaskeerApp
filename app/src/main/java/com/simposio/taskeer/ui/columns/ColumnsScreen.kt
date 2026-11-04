@@ -17,7 +17,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -36,11 +35,8 @@ import com.simposio.taskeer.domain.model.Column as BoardColumn
 import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskPriority
-import com.simposio.taskeer.ui.tasks.SubtaskActions
-import com.simposio.taskeer.ui.tasks.SubtasksViewModel
-import com.simposio.taskeer.ui.tasks.TaskEditorDialog
-import com.simposio.taskeer.ui.tasks.TaskEditorViewModel
 import com.simposio.taskeer.ui.tasks.TasksViewModel
+import com.simposio.taskeer.ui.tasks.rememberTaskEditorHost
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 import java.time.Instant
 
@@ -52,20 +48,7 @@ fun ColumnsScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifie
     val tasksViewModel: TasksViewModel = viewModel(factory = viewModelFactory)
     val tasks by tasksViewModel.tasks.collectAsStateWithLifecycle()
 
-    val editorViewModel: TaskEditorViewModel = viewModel(factory = viewModelFactory)
-    val editorState by editorViewModel.uiState.collectAsStateWithLifecycle()
-
-    val subtasksViewModel: SubtasksViewModel = viewModel(factory = viewModelFactory)
-    val subtasksState by subtasksViewModel.uiState.collectAsStateWithLifecycle()
-
-    val openTaskId = editorState.taskId.takeIf { editorState.isOpen }
-    LaunchedEffect(openTaskId) {
-        if (openTaskId == null) {
-            subtasksViewModel.close()
-        } else {
-            subtasksViewModel.open(openTaskId)
-        }
-    }
+    val editorHost = rememberTaskEditorHost(viewModelFactory)
 
     ColumnsContent(
         state = state,
@@ -75,34 +58,9 @@ fun ColumnsScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifie
         onMove = viewModel::moveColumn,
         onDelete = viewModel::deleteColumn,
         onSetWipLimit = viewModel::setWipLimit,
-        onCreateTask = editorViewModel::openForCreate,
-        onEditTask = editorViewModel::openForEdit,
+        onCreateTask = editorHost.openForCreate,
+        onEditTask = editorHost.openForEdit,
         modifier = modifier,
-    )
-
-    TaskEditorDialog(
-        state = editorState,
-        onTitleChange = editorViewModel::onTitleChange,
-        onDescriptionChange = editorViewModel::onDescriptionChange,
-        onPriorityChange = editorViewModel::onPriorityChange,
-        onDueAtChange = editorViewModel::onDueAtChange,
-        onAssigneeChange = editorViewModel::onAssigneeChange,
-        subtasks = subtasksState,
-        subtaskActions = SubtaskActions(
-            onNewTitleChange = subtasksViewModel::onNewTitleChange,
-            onAdd = subtasksViewModel::add,
-            onToggle = subtasksViewModel::toggle,
-            onStartEdit = subtasksViewModel::startEdit,
-            onEditTitleChange = subtasksViewModel::onEditTitleChange,
-            onEditDueAtChange = subtasksViewModel::onEditDueAtChange,
-            onEditAssigneeChange = subtasksViewModel::onEditAssigneeChange,
-            onSaveEdit = subtasksViewModel::saveEdit,
-            onCancelEdit = subtasksViewModel::cancelEdit,
-            onDelete = subtasksViewModel::delete,
-        ),
-        onSave = editorViewModel::save,
-        onDelete = editorViewModel::delete,
-        onDismiss = editorViewModel::dismiss,
     )
 }
 

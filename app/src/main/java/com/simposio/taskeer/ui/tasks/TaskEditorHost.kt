@@ -7,6 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.simposio.taskeer.ui.permission.NotificationPermissionNotice
 
 class TaskEditorHost internal constructor(
     val openForEdit: (String) -> Unit,
@@ -21,12 +22,17 @@ fun rememberTaskEditorHost(viewModelFactory: ViewModelProvider.Factory): TaskEdi
     val subtasksViewModel: SubtasksViewModel = viewModel(factory = viewModelFactory)
     val subtasksState by subtasksViewModel.uiState.collectAsStateWithLifecycle()
 
+    val remindersViewModel: RemindersViewModel = viewModel(factory = viewModelFactory)
+    val remindersState by remindersViewModel.uiState.collectAsStateWithLifecycle()
+
     val openTaskId = editorState.taskId.takeIf { editorState.isOpen }
     LaunchedEffect(openTaskId) {
         if (openTaskId == null) {
             subtasksViewModel.close()
+            remindersViewModel.close()
         } else {
             subtasksViewModel.open(openTaskId)
+            remindersViewModel.open(openTaskId)
         }
     }
 
@@ -50,6 +56,15 @@ fun rememberTaskEditorHost(viewModelFactory: ViewModelProvider.Factory): TaskEdi
             onCancelEdit = subtasksViewModel::cancelEdit,
             onDelete = subtasksViewModel::delete,
         ),
+        reminders = remindersState,
+        reminderActions = ReminderActions(
+            onLaterToday = remindersViewModel::laterToday,
+            onTomorrow = remindersViewModel::tomorrow,
+            onNextWeek = remindersViewModel::nextWeek,
+            onCustom = remindersViewModel::custom,
+            onCancel = remindersViewModel::cancel,
+        ),
+        permissionNotice = { NotificationPermissionNotice(viewModelFactory) },
         onSave = editorViewModel::save,
         onDelete = editorViewModel::delete,
         onDismiss = editorViewModel::dismiss,
