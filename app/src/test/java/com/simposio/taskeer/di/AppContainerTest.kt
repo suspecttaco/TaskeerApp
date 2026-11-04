@@ -22,6 +22,7 @@ import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.testing.FakePreferencesRepository
 import com.simposio.taskeer.testing.FakeReminderRepository
+import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
 import com.simposio.taskeer.testing.InMemoryCheckpointStore
 import com.simposio.taskeer.testing.RecordingNotifier
 import com.simposio.taskeer.testing.RecordingReminderScheduler
@@ -136,6 +137,7 @@ class AppContainerTest {
         myDayRepository = myDayRepository,
         reminderRepository = reminderRepository,
         reminderReconciler = reminderReconciler,
+        notificationHistoryRepository = FakeNotificationHistoryRepository(),
     )
 
     private fun reconciler(

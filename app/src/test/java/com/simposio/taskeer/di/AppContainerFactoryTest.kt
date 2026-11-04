@@ -12,6 +12,7 @@ import com.simposio.taskeer.data.repository.PreferencesRepository
 import com.simposio.taskeer.data.repository.ReminderRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskRepository
+import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
 import com.simposio.taskeer.testing.InMemoryCheckpointStore
 import com.simposio.taskeer.testing.RecordingNotifier
 import com.simposio.taskeer.testing.RecordingReminderScheduler
@@ -53,6 +54,7 @@ class AppContainerFactoryTest {
             myDayRepository = stub<MyDayRepository>(),
             reminderRepository = stub<ReminderRepository>(),
             reminderReconciler = reconciler(),
+            notificationHistoryRepository = FakeNotificationHistoryRepository(),
         )
 
         val viewModel = AppViewModelFactory(container).create(SubtasksViewModel::class.java)
@@ -72,6 +74,7 @@ class AppContainerFactoryTest {
             myDayRepository = stub<MyDayRepository>(),
             reminderRepository = stub<ReminderRepository>(),
             reminderReconciler = reconciler(),
+            notificationHistoryRepository = FakeNotificationHistoryRepository(),
         )
 
         val viewModel = AppViewModelFactory(container).create(RemindersViewModel::class.java)
