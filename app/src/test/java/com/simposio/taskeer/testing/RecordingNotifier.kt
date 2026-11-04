@@ -9,7 +9,7 @@ class RecordingNotifier(var shown: Boolean = true) : ReminderNotifier {
 
     var onNotify: () -> Unit = {}
 
-    override fun notify(event: NotificationEvent): Boolean {
+    override suspend fun notify(event: NotificationEvent): Boolean {
         onNotify()
         events += event
         return shown

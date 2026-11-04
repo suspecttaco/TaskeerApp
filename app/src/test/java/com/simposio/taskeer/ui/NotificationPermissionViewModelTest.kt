@@ -107,11 +107,22 @@ class NotificationPermissionViewModelTest {
     }
 
     @Test
-    fun blocked_enAndroidAnterior33_nuncaEsVerdadero() = runTest {
+    fun blocked_enAndroidAnterior33ConNotificacionesDesactivadas_esVerdaderoSinDialogo() = runTest {
         val preferences = FakePreferencesRepository(digest = DigestSettings(enabled = true))
         val viewModel = viewModel(preferences, sdkInt = 32)
 
-        viewModel.onPermissionResult(false)
+        assertTrue(viewModel.blocked.value)
+        assertFalse(viewModel.takeRequest())
+    }
+
+    @Test
+    fun blocked_enAndroidAnterior33_desapareceAlActivarlasYRefrescar() = runTest {
+        val preferences = FakePreferencesRepository(digest = DigestSettings(enabled = true))
+        val viewModel = viewModel(preferences, sdkInt = 32)
+        assertTrue(viewModel.blocked.value)
+
+        granted = true
+        viewModel.refreshGranted()
 
         assertFalse(viewModel.blocked.value)
     }

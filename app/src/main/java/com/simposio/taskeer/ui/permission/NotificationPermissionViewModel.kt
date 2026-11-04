@@ -29,8 +29,12 @@ class NotificationPermissionViewModel(
     ) { deadline, digest, pending -> deadline.enabled || digest.enabled || pending.isNotEmpty() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    val blocked: StateFlow<Boolean> = combine(granted, answeredThisTransition) { isGranted, answered ->
-        NotificationPermissionPolicy.isRequired(sdkInt) && !isGranted && answered
+    val blocked: StateFlow<Boolean> = combine(
+        somethingToNotify,
+        granted,
+        answeredThisTransition,
+    ) { active, isGranted, answered ->
+        NotificationPermissionPolicy.isBlocked(active, isGranted, sdkInt, answered)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     init {

@@ -66,6 +66,9 @@ class LocalDataLayerRulesTest {
             "ReminderEntity",
             "ReminderDao",
             "ReminderMapping",
+            "AppNotificationEntity",
+            "AppNotificationDao",
+            "AppNotificationMapping",
             "SyncableEntity",
         )
 
@@ -124,6 +127,9 @@ class LocalDataLayerRulesTest {
             "ReminderEntity",
             "ReminderDao",
             "ReminderMapping",
+            "AppNotificationEntity",
+            "AppNotificationDao",
+            "AppNotificationMapping",
             "SyncableEntity",
         )
 

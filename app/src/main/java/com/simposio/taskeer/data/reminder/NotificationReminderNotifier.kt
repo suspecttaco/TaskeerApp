@@ -19,7 +19,7 @@ class NotificationReminderNotifier(private val context: Context) : ReminderNotif
     // El permiso se comprueba con areNotificationsEnabled(), que también cubre canal y ajustes
     // del sistema; el linter no lo reconoce como comprobación de POST_NOTIFICATIONS.
     @SuppressLint("MissingPermission")
-    override fun notify(event: NotificationEvent): Boolean {
+    override suspend fun notify(event: NotificationEvent): Boolean {
         val manager = NotificationManagerCompat.from(context)
         if (!manager.areNotificationsEnabled()) {
             return false
@@ -68,7 +68,8 @@ class NotificationReminderNotifier(private val context: Context) : ReminderNotif
         context,
         0,
         Intent(context, MainActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            .putExtra(NotificationLaunch.EXTRA_OPEN_VIEWER, true),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
 

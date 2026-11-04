@@ -11,10 +11,10 @@ class AppDatabaseMigrationTest {
     private val source: String = File(resolveLocalRoot(), "AppDatabase.kt").readText()
 
     @Test
-    fun versionActual_esNueve() {
+    fun versionActual_esDiez() {
         assertTrue(
-            "AppDatabase debe declarar la versión 9",
-            Regex("version\\s*=\\s*9\\b").containsMatchIn(source),
+            "AppDatabase debe declarar la versión 10",
+            Regex("version\\s*=\\s*10\\b").containsMatchIn(source),
         )
     }
 
@@ -146,12 +146,12 @@ class AppDatabaseMigrationTest {
     }
 
     @Test
-    fun migraciones_incluyenLasMigraciones1a2HastaLa8a9() {
+    fun migraciones_incluyenLasMigraciones1a2HastaLa9a10() {
         assertTrue(
-            "MIGRATIONS debe incluir de MIGRATION_1_2 a MIGRATION_8_9",
+            "MIGRATIONS debe incluir de MIGRATION_1_2 a MIGRATION_9_10",
             Regex(
                 "MIGRATIONS[^=]*=\\s*listOf\\(\\s*MIGRATION_1_2\\s*,\\s*MIGRATION_2_3\\s*,\\s*" +
-                    "MIGRATION_3_4\\s*,\\s*MIGRATION_4_5\\s*,\\s*MIGRATION_5_6\\s*,\\s*MIGRATION_6_7\\s*,\\s*MIGRATION_7_8\\s*,\\s*MIGRATION_8_9\\s*,?\\s*\\)",
+                    "MIGRATION_3_4\\s*,\\s*MIGRATION_4_5\\s*,\\s*MIGRATION_5_6\\s*,\\s*MIGRATION_6_7\\s*,\\s*MIGRATION_7_8\\s*,\\s*MIGRATION_8_9\\s*,\\s*MIGRATION_9_10\\s*,?\\s*\\)",
             ).containsMatchIn(source),
         )
         assertTrue("las migraciones se aplican con addMigrations", source.contains("addMigrations("))
@@ -256,6 +256,60 @@ class AppDatabaseMigrationTest {
         }
     }
 
+    @Test
+    fun migrate9To10_creaLaTablaAppNotificationsConLasColumnasDelModelo() {
+        val body = migration9to10()
+
+        assertTrue(body.contains("CREATE TABLE IF NOT EXISTS `app_notifications`"))
+        listOf(
+            "`id` TEXT NOT NULL",
+            "`kind` TEXT NOT NULL",
+            "`taskId` TEXT, ",
+            "`taskTitle` TEXT, ",
+            "`activeTaskCount` INTEGER, ",
+            "`delivered` INTEGER NOT NULL",
+            "`createdAt` INTEGER NOT NULL",
+            "`readAt` INTEGER, ",
+            "`updatedAt` INTEGER NOT NULL",
+            "`pending` INTEGER NOT NULL",
+            "`deletedAt` INTEGER, ",
+            "PRIMARY KEY(`id`)",
+        ).forEach { fragment ->
+            assertTrue("la tabla app_notifications debe declarar $fragment", body.contains(fragment))
+        }
+    }
+
+    @Test
+    fun migrate9To10_creaLosIndicesDelEsquemaExportado() {
+        val body = migration9to10().replace(Regex("\"\\s*\\+\\s*\""), "")
+
+        assertTrue(
+            body.contains(
+                "CREATE INDEX IF NOT EXISTS `index_app_notifications_deletedAt_createdAt` " +
+                    "ON `app_notifications` (`deletedAt`, `createdAt`)",
+            ),
+        )
+        assertTrue(
+            body.contains(
+                "CREATE INDEX IF NOT EXISTS `index_app_notifications_deletedAt_readAt` " +
+                    "ON `app_notifications` (`deletedAt`, `readAt`)",
+            ),
+        )
+    }
+
+    @Test
+    fun migrate9To10_soloCreaYNoTocaTablasExistentes() {
+        val body = migration9to10()
+
+        assertEquals("tabla y dos índices", 3, Regex("execSQL\\(").findAll(body).count())
+        listOf("DROP", "DELETE", "ALTER", "UPDATE", "INSERT").forEach { keyword ->
+            assertFalse(keyword, Regex("\\b$keyword\\b").containsMatchIn(body.uppercase()))
+        }
+        listOf("tasks", "my_day_tasks", "boards", "columns", "subtasks", "reminders").forEach { table ->
+            assertFalse("no debe tocar $table", body.contains("`$table`") || body.contains(" $table "))
+        }
+    }
+
     private fun migration6to7(): String {
         val start = source.indexOf("Migration(6, 7)")
         assertTrue("debe declarar una Migration(6, 7)", start >= 0)
@@ -273,6 +327,13 @@ class AppDatabaseMigrationTest {
     private fun migration8to9(): String {
         val start = source.indexOf("Migration(8, 9)")
         assertTrue("debe declarar una Migration(8, 9)", start >= 0)
+        val end = source.indexOf("private val MIGRATION_9_10", start)
+        return source.substring(start, end)
+    }
+
+    private fun migration9to10(): String {
+        val start = source.indexOf("Migration(9, 10)")
+        assertTrue("debe declarar una Migration(9, 10)", start >= 0)
         val end = source.indexOf("private val MIGRATIONS", start)
         return source.substring(start, end)
     }

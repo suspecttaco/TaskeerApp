@@ -71,4 +71,11 @@ class AppDestinationTest {
 
         assertTrue(others.all { it.upRoute("tablero-1") == null })
     }
+
+    @Test
+    fun notifications_noEsTopLevel() {
+        assertFalse(AppDestination.NOTIFICATIONS in AppDestination.topLevel)
+        assertEquals("notifications", AppDestination.NOTIFICATIONS.route)
+        assertEquals(AppDestination.NOTIFICATIONS, AppDestination.fromRoute("notifications"))
+    }
 }
