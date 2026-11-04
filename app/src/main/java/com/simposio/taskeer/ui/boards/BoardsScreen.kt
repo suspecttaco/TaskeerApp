@@ -4,17 +4,21 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,6 +34,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.Board
+import com.simposio.taskeer.ui.components.ActionIcon
+import com.simposio.taskeer.ui.components.AppDivider
+import com.simposio.taskeer.ui.components.InlineAddField
+import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 
 @Composable
@@ -67,33 +75,20 @@ fun BoardsContent(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(Spacing.ScreenPadding),
+        verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap),
     ) {
-        Text(
-            text = stringResource(R.string.boards_title),
-            style = MaterialTheme.typography.titleLarge,
+        InlineAddField(
+            value = newName,
+            onValueChange = { newName = it },
+            label = stringResource(R.string.board_name_label),
+            addDescription = stringResource(R.string.board_create),
+            onAdd = {
+                onCreate(newName)
+                newName = ""
+            },
+            enabled = newName.isNotBlank(),
         )
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = newName,
-                onValueChange = { newName = it },
-                label = { Text(stringResource(R.string.board_name_label)) },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.width(8.dp))
-            Button(
-                onClick = {
-                    onCreate(newName)
-                    newName = ""
-                },
-                enabled = newName.isNotBlank(),
-            ) {
-                Text(stringResource(R.string.board_create))
-            }
-        }
 
         state.error?.let { error ->
             Text(
@@ -111,26 +106,29 @@ fun BoardsContent(
         } else {
             LazyColumn(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap),
             ) {
                 items(state.boards, key = { it.id }) { board ->
-                    BoardRow(
-                        board = board,
-                        editing = editingId == board.id,
-                        editingName = editingName,
-                        onEditingNameChange = { editingName = it },
-                        onStartEditing = {
-                            editingId = board.id
-                            editingName = board.name
-                        },
-                        onCancelEditing = { editingId = null },
-                        onConfirmRename = {
-                            onRename(board.id, editingName)
-                            editingId = null
-                        },
-                        onDelete = { onDelete(board.id) },
-                        onOpen = { onOpen(board.id) },
-                    )
+                    Column {
+                        BoardRow(
+                            board = board,
+                            editing = editingId == board.id,
+                            editingName = editingName,
+                            onEditingNameChange = { editingName = it },
+                            onStartEditing = {
+                                editingId = board.id
+                                editingName = board.name
+                            },
+                            onCancelEditing = { editingId = null },
+                            onConfirmRename = {
+                                onRename(board.id, editingName)
+                                editingId = null
+                            },
+                            onDelete = { onDelete(board.id) },
+                            onOpen = { onOpen(board.id) },
+                        )
+                        AppDivider()
+                    }
                 }
             }
         }
@@ -150,37 +148,58 @@ private fun BoardRow(
     onOpen: () -> Unit,
 ) {
     if (editing) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.ItemGap),
+        ) {
             OutlinedTextField(
                 value = editingName,
                 onValueChange = onEditingNameChange,
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onConfirmRename, enabled = editingName.isNotBlank()) {
-                Text(stringResource(R.string.board_save))
-            }
-            TextButton(onClick = onCancelEditing) {
-                Text(stringResource(R.string.board_cancel))
-            }
+            ActionIcon(
+                icon = Icons.Filled.Check,
+                contentDescription = stringResource(R.string.board_save),
+                onClick = onConfirmRename,
+                enabled = editingName.isNotBlank(),
+            )
+            ActionIcon(
+                icon = Icons.Filled.Close,
+                contentDescription = stringResource(R.string.board_cancel),
+                onClick = onCancelEditing,
+            )
         }
     } else {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onOpen),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
                 text = board.name,
+                style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier
                     .weight(1f)
-                    .clickable(onClick = onOpen),
+                    .heightIn(min = MinTouchTarget)
+                    .wrapContentHeight(Alignment.CenterVertically),
             )
-            TextButton(onClick = onStartEditing) {
-                Text(stringResource(R.string.board_rename))
-            }
-            TextButton(onClick = onDelete) {
-                Text(stringResource(R.string.board_delete))
-            }
+            ActionIcon(
+                icon = Icons.Filled.Edit,
+                contentDescription = stringResource(R.string.board_rename),
+                onClick = onStartEditing,
+            )
+            ActionIcon(
+                icon = Icons.Filled.Delete,
+                contentDescription = stringResource(R.string.board_delete),
+                onClick = onDelete,
+            )
         }
     }
 }
+
+private val MinTouchTarget = 48.dp
 
 @Preview(showBackground = true)
 @Composable

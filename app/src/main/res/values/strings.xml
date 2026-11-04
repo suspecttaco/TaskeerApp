@@ -5,8 +5,6 @@
     <string name="nav_workspaces">Workspaces</string>
     <string name="nav_settings">Configuración</string>
     <string name="screen_home">Inicio</string>
-    <string name="screen_my_day">Mi día</string>
-    <string name="boards_title">Tableros</string>
     <string name="board_name_label">Nombre del tablero</string>
     <string name="board_create">Crear</string>
     <string name="board_rename">Renombrar</string>
@@ -33,6 +31,7 @@
     <string name="task_title_label">Título</string>
     <string name="task_description_label">Descripción</string>
     <string name="task_priority_label">Prioridad</string>
+    <string name="task_priority_description">Prioridad: %1$s</string>
     <string name="task_priority_low">Baja</string>
     <string name="task_priority_medium">Media</string>
     <string name="task_priority_high">Alta</string>

@@ -1,32 +1,25 @@
 package com.simposio.taskeer.ui.board
 
-import androidx.annotation.StringRes
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ViewColumn
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,15 +28,10 @@ import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -53,15 +41,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.Column as BoardColumn
 import com.simposio.taskeer.domain.model.SyncMetadata
-import com.simposio.taskeer.domain.model.TaskPriority
-import com.simposio.taskeer.ui.tasks.DUE_DATE_TIME_FORMATTER
+import com.simposio.taskeer.ui.components.ActionIcon
 import com.simposio.taskeer.ui.tasks.rememberTaskEditorHost
+import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 import java.time.Instant
-import java.time.LocalDateTime
 import kotlin.math.roundToInt
 
-private val ColumnWidth = 280.dp
+internal val ColumnWidth = 280.dp
 
 @Composable
 fun BoardScreen(
@@ -124,16 +111,20 @@ fun BoardContent(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = Spacing.ScreenPadding),
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(onClick = onAddColumn) {
-                    Text(stringResource(R.string.board_add_column))
-                }
-                TextButton(onClick = onManageColumns) {
-                    Text(stringResource(R.string.board_manage_columns))
-                }
+                ActionIcon(
+                    icon = Icons.Filled.Add,
+                    contentDescription = stringResource(R.string.board_add_column),
+                    onClick = onAddColumn,
+                )
+                ActionIcon(
+                    icon = Icons.Filled.ViewColumn,
+                    contentDescription = stringResource(R.string.board_manage_columns),
+                    onClick = onManageColumns,
+                )
             }
 
             state.error?.let { error ->
@@ -141,7 +132,7 @@ fun BoardContent(
                     text = error.message,
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(horizontal = 16.dp),
+                    modifier = Modifier.padding(horizontal = Spacing.ScreenPadding),
                 )
             }
 
@@ -149,8 +140,8 @@ fun BoardContent(
                 modifier = Modifier
                     .weight(1f)
                     .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    .padding(horizontal = Spacing.ScreenPadding, vertical = Spacing.InlineGap),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.SectionGap),
             ) {
                 state.columns.forEach { column ->
                     BoardColumnView(
@@ -230,206 +221,8 @@ private fun cardsByColumn(
         .groupBy { cardColumn[it.id].orEmpty() }
         .mapValues { (_, list) -> list.sortedBy { it.bounds.top } }
 
-@Composable
-private fun BoardColumnView(
-    column: BoardColumnUi,
-    draggedId: String?,
-    onColumnPositioned: (Bounds) -> Unit,
-    onColumnDisposed: () -> Unit,
-    onCardPositioned: (String, Bounds) -> Unit,
-    onCardDisposed: (String) -> Unit,
-    onDragStart: (TaskCardUi, Offset) -> Unit,
-    onDrag: (Offset) -> Unit,
-    onDragEnd: () -> Unit,
-    onDragCancel: () -> Unit,
-    onCreateTask: () -> Unit,
-    onEditTask: (String) -> Unit,
-    onToggleMyDay: (String) -> Unit,
-) {
-    DisposableEffect(column.id) { onDispose(onColumnDisposed) }
 
-    Card(
-        modifier = Modifier
-            .width(ColumnWidth)
-            .fillMaxHeight()
-            .onGloballyPositioned { onColumnPositioned(it.boundsInRoot().toBounds()) },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Column(modifier = Modifier.padding(8.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-            ) {
-                Text(
-                    text = column.column.name,
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                if (column.column.isDoneColumn) {
-                    val doneDescription = stringResource(R.string.column_done_description)
-                    Text(
-                        text = "✓",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .padding(start = 6.dp)
-                            .semantics { contentDescription = doneDescription },
-                    )
-                }
-                Spacer(Modifier.weight(1f))
-                wipCounterLabel(column.cards.size, column.column.wipLimit)?.let { label ->
-                    Text(text = label, style = MaterialTheme.typography.labelLarge)
-                }
-            }
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (column.cards.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.board_column_empty),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                column.cards.forEach { card ->
-                    DisposableEffect(card.id) { onDispose { onCardDisposed(card.id) } }
-                    TaskCard(
-                        card = card,
-                        onToggleMyDay = onToggleMyDay,
-                        modifier = Modifier
-                            .alpha(if (card.id == draggedId) 0.3f else 1f)
-                            .onGloballyPositioned { onCardPositioned(card.id, it.boundsInRoot().toBounds()) }
-                            .pointerInput(card.id) {
-                                detectDragGesturesAfterLongPress(
-                                    onDragStart = { onDragStart(card, it) },
-                                    onDrag = { change, amount ->
-                                        change.consume()
-                                        onDrag(amount)
-                                    },
-                                    onDragEnd = onDragEnd,
-                                    onDragCancel = onDragCancel,
-                                )
-                            }
-                            .clickable { onEditTask(card.id) },
-                    )
-                }
-            }
-            TextButton(onClick = onCreateTask) {
-                Text(stringResource(R.string.task_add))
-            }
-        }
-    }
-}
-
-@Composable
-private fun TaskCard(
-    card: TaskCardUi,
-    modifier: Modifier = Modifier,
-    elevated: Boolean = false,
-    onToggleMyDay: (String) -> Unit = {},
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (elevated) 8.dp else 1.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-    ) {
-        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = card.title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.weight(1f),
-                )
-                val description = stringResource(
-                    if (card.inMyDay) R.string.task_in_my_day_remove else R.string.task_in_my_day_add,
-                )
-                Text(
-                    text = if (card.inMyDay) "★" else "☆",
-                    color = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier
-                        .clickable { onToggleMyDay(card.id) }
-                        .padding(4.dp)
-                        .semantics { contentDescription = description },
-                )
-            }
-            Text(
-                text = stringResource(card.priority.labelRes()),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            card.dueAtLocal?.let {
-                val formatted = it.format(DUE_DATE_TIME_FORMATTER)
-                if (card.isOverdue) {
-                    val overdueDescription = stringResource(R.string.task_overdue_description, formatted)
-                    Text(
-                        text = formatted,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.semantics { contentDescription = overdueDescription },
-                    )
-                } else {
-                    Text(text = formatted, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-            card.assigneeId?.let { id ->
-                val label = if (card.assigneeIsMe) stringResource(R.string.task_assignee_me) else id
-                Text(text = label, style = MaterialTheme.typography.bodySmall)
-            }
-        }
-    }
-}
-
-private fun androidx.compose.ui.geometry.Rect.toBounds(): Bounds = Bounds(left, top, right, bottom)
-
-@StringRes
-internal fun TaskPriority.labelRes(): Int = when (this) {
-    TaskPriority.LOW -> R.string.task_priority_low
-    TaskPriority.MEDIUM -> R.string.task_priority_medium
-    TaskPriority.HIGH -> R.string.task_priority_high
-    TaskPriority.URGENT -> R.string.task_priority_urgent
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun TaskCardPreview() {
-    TaskeerTheme {
-        TaskCard(
-            card = TaskCardUi(
-                id = "t1",
-                title = "Escribir el informe",
-                priority = TaskPriority.HIGH,
-                dueAt = Instant.EPOCH,
-                dueAtLocal = LocalDateTime.of(2026, 10, 22, 12, 30),
-                assigneeId = "local-user",
-                assigneeIsMe = true,
-                inMyDay = true,
-            ),
-        )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun OverdueTaskCardPreview() {
-    TaskeerTheme {
-        TaskCard(
-            card = TaskCardUi(
-                id = "t2",
-                title = "Entregar la memoria",
-                priority = TaskPriority.URGENT,
-                dueAt = Instant.EPOCH,
-                dueAtLocal = LocalDateTime.of(2026, 10, 1, 9, 0),
-                assigneeId = null,
-                assigneeIsMe = false,
-                inMyDay = false,
-                isOverdue = true,
-            ),
-        )
-    }
-}
+internal fun androidx.compose.ui.geometry.Rect.toBounds(): Bounds = Bounds(left, top, right, bottom)
 
 @Preview(showBackground = true, heightDp = 400)
 @Composable

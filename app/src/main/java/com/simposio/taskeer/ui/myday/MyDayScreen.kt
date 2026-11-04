@@ -2,7 +2,6 @@ package com.simposio.taskeer.ui.myday
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,6 +12,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -22,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -35,8 +43,13 @@ import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.domain.myday.MyDayFilter
 import com.simposio.taskeer.domain.myday.MyDaySort
+import com.simposio.taskeer.ui.board.color
 import com.simposio.taskeer.ui.board.labelRes
+import com.simposio.taskeer.ui.components.DecorativeIcon
+import com.simposio.taskeer.ui.components.IconLabel
+import com.simposio.taskeer.ui.components.MyDayToggle
 import com.simposio.taskeer.ui.tasks.rememberTaskEditorHost
+import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 
 @Composable
@@ -66,26 +79,28 @@ fun MyDayContent(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(Spacing.ScreenPadding),
+        verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap),
     ) {
-        Text(
-            text = stringResource(R.string.screen_my_day),
-            style = MaterialTheme.typography.headlineSmall,
+        val overdueText = pluralStringResource(
+            R.plurals.my_day_overdue_count,
+            state.overdueCount,
+            state.overdueCount,
         )
-        Text(
-            text = pluralStringResource(
-                R.plurals.my_day_overdue_count,
-                state.overdueCount,
-                state.overdueCount,
-            ),
-            style = MaterialTheme.typography.titleMedium,
-            color = if (state.overdueCount > 0) {
-                MaterialTheme.colorScheme.error
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-        )
+        if (state.overdueCount > 0) {
+            IconLabel(
+                icon = Icons.Filled.Warning,
+                text = overdueText,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.titleMedium,
+            )
+        } else {
+            Text(
+                text = overdueText,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         state.error?.let { error ->
             Text(
                 text = error.message,
@@ -93,7 +108,7 @@ fun MyDayContent(
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
-        ChipRow(label = R.string.my_day_filter_label) {
+        ChipRow(icon = Icons.Filled.FilterList, label = R.string.my_day_filter_label) {
             MyDayFilter.entries.forEach { filter ->
                 FilterChip(
                     selected = state.filter == filter,
@@ -102,7 +117,7 @@ fun MyDayContent(
                 )
             }
         }
-        ChipRow(label = R.string.my_day_sort_label) {
+        ChipRow(icon = Icons.Filled.SwapVert, label = R.string.my_day_sort_label) {
             MyDaySort.entries.forEach { sort ->
                 FilterChip(
                     selected = state.sort == sort,
@@ -119,7 +134,7 @@ fun MyDayContent(
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap)) {
             items(state.items, key = { it.id }) { task ->
                 MyDayTaskCard(task = task, onOpen = onOpenTask, onToggleMarked = onToggleMarked)
             }
@@ -128,13 +143,16 @@ fun MyDayContent(
 }
 
 @Composable
-private fun ChipRow(@StringRes label: Int, chips: @Composable () -> Unit) {
+private fun ChipRow(icon: ImageVector, @StringRes label: Int, chips: @Composable () -> Unit) {
+    val description = stringResource(label)
     Row(
-        modifier = Modifier.horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier
+            .horizontalScroll(rememberScrollState())
+            .semantics { contentDescription = description },
+        horizontalArrangement = Arrangement.spacedBy(Spacing.InlineGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = stringResource(label), style = MaterialTheme.typography.labelLarge)
+        DecorativeIcon(icon = icon, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         chips()
     }
 }
@@ -166,48 +184,42 @@ private fun MyDayTaskCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
-        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(
+            modifier = Modifier.padding(horizontal = Spacing.CardPadding, vertical = Spacing.ItemGap),
+            verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = task.title,
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f),
                 )
-                val description = stringResource(
-                    if (task.isMarked) R.string.task_in_my_day_remove else R.string.task_in_my_day_add,
-                )
-                Text(
-                    text = if (task.isMarked) "★" else "☆",
-                    color = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier
-                        .clickable { onToggleMarked(task.id) }
-                        .padding(4.dp)
-                        .semantics { contentDescription = description },
-                )
+                MyDayToggle(inMyDay = task.isMarked, onToggle = { onToggleMarked(task.id) })
             }
-            Text(
+            IconLabel(
+                icon = Icons.Filled.Flag,
                 text = stringResource(task.priority.labelRes()),
+                color = task.priority.color(),
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
             )
-            Text(text = task.boardName, style = MaterialTheme.typography.bodySmall)
+            IconLabel(icon = Icons.Filled.Dashboard, text = task.boardName)
             if (task.isAssigned) {
-                Text(
+                IconLabel(
+                    icon = Icons.Filled.Person,
                     text = stringResource(R.string.my_day_assigned_tag),
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
             task.due?.let { due ->
                 if (task.isOverdue) {
-                    val overdueDescription = stringResource(R.string.task_overdue_description, due)
-                    Text(
+                    IconLabel(
+                        icon = Icons.Filled.Warning,
                         text = due,
-                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.semantics { contentDescription = overdueDescription },
+                        contentDescription = stringResource(R.string.task_overdue_description, due),
                     )
                 } else {
-                    Text(text = due, style = MaterialTheme.typography.bodySmall)
+                    IconLabel(icon = Icons.Filled.Schedule, text = due)
                 }
             }
         }

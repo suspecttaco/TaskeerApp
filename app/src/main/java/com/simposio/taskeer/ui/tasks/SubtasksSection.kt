@@ -5,12 +5,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,11 +25,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.LocalUser
 import com.simposio.taskeer.domain.model.Subtask
 import com.simposio.taskeer.domain.model.SyncMetadata
+import com.simposio.taskeer.ui.components.ActionIcon
+import com.simposio.taskeer.ui.components.AppDivider
+import com.simposio.taskeer.ui.components.InlineAddField
+import com.simposio.taskeer.ui.components.SectionHeader
+import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 import java.time.Instant
 import java.time.LocalDate
@@ -47,10 +56,10 @@ fun SubtasksSection(
     onDelete: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap)) {
+        SectionHeader(
             text = stringResource(R.string.subtasks_title),
-            style = MaterialTheme.typography.labelLarge,
+            icon = Icons.Filled.Checklist,
         )
         if (!taskExists) {
             Text(
@@ -78,19 +87,16 @@ fun SubtasksSection(
             } else {
                 SubtaskRow(subtask, onToggle, onStartEdit, onDelete)
             }
+            AppDivider()
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = state.newTitle,
-                onValueChange = onNewTitleChange,
-                label = { Text(stringResource(R.string.subtask_add_label)) },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(onClick = onAdd, enabled = state.newTitle.isNotBlank()) {
-                Text(stringResource(R.string.subtask_add))
-            }
-        }
+        InlineAddField(
+            value = state.newTitle,
+            onValueChange = onNewTitleChange,
+            label = stringResource(R.string.subtask_add_label),
+            addDescription = stringResource(R.string.subtask_add),
+            onAdd = onAdd,
+            enabled = state.newTitle.isNotBlank(),
+        )
         state.error?.let { error ->
             Text(
                 text = error.message,
@@ -114,12 +120,16 @@ private fun SubtaskRow(
             onCheckedChange = { onToggle(subtask.id, it) },
         )
         Text(text = subtask.title, modifier = Modifier.weight(1f))
-        TextButton(onClick = { onStartEdit(subtask.id) }) {
-            Text(stringResource(R.string.subtask_edit))
-        }
-        TextButton(onClick = { onDelete(subtask.id) }) {
-            Text(stringResource(R.string.subtask_delete))
-        }
+        ActionIcon(
+            icon = Icons.Filled.Edit,
+            contentDescription = stringResource(R.string.subtask_edit),
+            onClick = { onStartEdit(subtask.id) },
+        )
+        ActionIcon(
+            icon = Icons.Filled.Delete,
+            contentDescription = stringResource(R.string.subtask_delete),
+            onClick = { onDelete(subtask.id) },
+        )
     }
 }
 
@@ -136,7 +146,7 @@ private fun SubtaskEditRow(
     var showTimePicker by rememberSaveable { mutableStateOf(false) }
     var pickedEpochDay by rememberSaveable { mutableStateOf<Long?>(null) }
 
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap)) {
         OutlinedTextField(
             value = state.editingTitle,
             onValueChange = onEditTitleChange,
@@ -155,9 +165,11 @@ private fun SubtaskEditRow(
                 )
             }
             if (state.editingDueAtLocal != null) {
-                TextButton(onClick = { onEditDueAtChange(null) }) {
-                    Text(stringResource(R.string.task_due_at_clear))
-                }
+                ActionIcon(
+                    icon = Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.task_due_at_clear),
+                    onClick = { onEditDueAtChange(null) },
+                )
             }
         }
         Text(
@@ -176,12 +188,17 @@ private fun SubtaskEditRow(
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = onCancelEdit) {
-                Text(stringResource(R.string.subtask_cancel))
-            }
-            TextButton(onClick = onSaveEdit, enabled = state.editingTitle.isNotBlank()) {
-                Text(stringResource(R.string.subtask_save))
-            }
+            ActionIcon(
+                icon = Icons.Filled.Close,
+                contentDescription = stringResource(R.string.subtask_cancel),
+                onClick = onCancelEdit,
+            )
+            ActionIcon(
+                icon = Icons.Filled.Check,
+                contentDescription = stringResource(R.string.subtask_save),
+                onClick = onSaveEdit,
+                enabled = state.editingTitle.isNotBlank(),
+            )
         }
     }
 

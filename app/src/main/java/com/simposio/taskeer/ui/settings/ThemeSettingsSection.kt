@@ -4,21 +4,19 @@ import android.os.Build
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ColorLens
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.ThemeMode
 import com.simposio.taskeer.domain.theme.isDynamicColorAvailable
+import com.simposio.taskeer.ui.components.SectionHeader
 import com.simposio.taskeer.ui.tasks.SelectField
+import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 
 @Composable
@@ -29,10 +27,10 @@ internal fun ThemeSettingsSection(
     onDynamicColorChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap)) {
+        SectionHeader(
             text = stringResource(R.string.settings_theme_title),
-            style = MaterialTheme.typography.titleMedium,
+            icon = Icons.Filled.Palette,
         )
         SelectField(
             label = stringResource(R.string.settings_theme_mode_label),
@@ -43,14 +41,12 @@ internal fun ThemeSettingsSection(
         )
         // En API < 31 no hay color dinámico: la opción no se ofrece para no dejar un ajuste muerto.
         if (isDynamicColorAvailable(Build.VERSION.SDK_INT)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(stringResource(R.string.color_origin_dynamic), modifier = Modifier.weight(1f))
-                Switch(checked = dynamicColor, onCheckedChange = onDynamicColorChange)
-            }
+            SwitchRow(
+                icon = Icons.Filled.ColorLens,
+                label = stringResource(R.string.color_origin_dynamic),
+                checked = dynamicColor,
+                onCheckedChange = onDynamicColorChange,
+            )
         }
     }
 }

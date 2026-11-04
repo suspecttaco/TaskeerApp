@@ -11,7 +11,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -26,7 +33,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -35,8 +41,13 @@ import com.simposio.taskeer.domain.model.Column as BoardColumn
 import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskPriority
+import com.simposio.taskeer.ui.components.ActionIcon
+import com.simposio.taskeer.ui.components.AppDivider
+import com.simposio.taskeer.ui.components.DecorativeIcon
+import com.simposio.taskeer.ui.components.InlineAddField
 import com.simposio.taskeer.ui.tasks.TasksViewModel
 import com.simposio.taskeer.ui.tasks.rememberTaskEditorHost
+import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 import java.time.Instant
 
@@ -86,33 +97,20 @@ fun ColumnsContent(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(Spacing.ScreenPadding),
+        verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap),
     ) {
-        Text(
-            text = stringResource(R.string.columns_title),
-            style = MaterialTheme.typography.titleLarge,
+        InlineAddField(
+            value = newName,
+            onValueChange = { newName = it },
+            label = stringResource(R.string.column_name_label),
+            addDescription = stringResource(R.string.column_create),
+            onAdd = {
+                onCreate(newName)
+                newName = ""
+            },
+            enabled = newName.isNotBlank(),
         )
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = newName,
-                onValueChange = { newName = it },
-                label = { Text(stringResource(R.string.column_name_label)) },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.width(8.dp))
-            Button(
-                onClick = {
-                    onCreate(newName)
-                    newName = ""
-                },
-                enabled = newName.isNotBlank(),
-            ) {
-                Text(stringResource(R.string.column_create))
-            }
-        }
 
         state.error?.let { error ->
             Text(
@@ -130,33 +128,36 @@ fun ColumnsContent(
         } else {
             LazyColumn(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap),
             ) {
                 itemsIndexed(state.columns, key = { _, column -> column.id }) { index, column ->
-                    ColumnRow(
-                        column = column,
-                        position = index,
-                        lastPosition = state.columns.lastIndex,
-                        tasks = tasksByColumn[column.id].orEmpty(),
-                        editing = editingId == column.id,
-                        editingName = editingName,
-                        onEditingNameChange = { editingName = it },
-                        onStartEditing = {
-                            editingId = column.id
-                            editingName = column.name
-                        },
-                        onCancelEditing = { editingId = null },
-                        onConfirmRename = {
-                            onRename(column.id, editingName)
-                            editingId = null
-                        },
-                        onMoveUp = { onMove(column.id, index - 1) },
-                        onMoveDown = { onMove(column.id, index + 1) },
-                        onDelete = { onDelete(column.id) },
-                        onSetWipLimit = { onSetWipLimit(column.id, it) },
-                        onCreateTask = { onCreateTask(column.id) },
-                        onEditTask = onEditTask,
-                    )
+                    Column {
+                        ColumnRow(
+                            column = column,
+                            position = index,
+                            lastPosition = state.columns.lastIndex,
+                            tasks = tasksByColumn[column.id].orEmpty(),
+                            editing = editingId == column.id,
+                            editingName = editingName,
+                            onEditingNameChange = { editingName = it },
+                            onStartEditing = {
+                                editingId = column.id
+                                editingName = column.name
+                            },
+                            onCancelEditing = { editingId = null },
+                            onConfirmRename = {
+                                onRename(column.id, editingName)
+                                editingId = null
+                            },
+                            onMoveUp = { onMove(column.id, index - 1) },
+                            onMoveDown = { onMove(column.id, index + 1) },
+                            onDelete = { onDelete(column.id) },
+                            onSetWipLimit = { onSetWipLimit(column.id, it) },
+                            onCreateTask = { onCreateTask(column.id) },
+                            onEditTask = onEditTask,
+                        )
+                        AppDivider()
+                    }
                 }
             }
         }
@@ -184,40 +185,65 @@ private fun ColumnRow(
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         if (editing) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.ItemGap),
+            ) {
                 OutlinedTextField(
                     value = editingName,
                     onValueChange = onEditingNameChange,
                     singleLine = true,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = onConfirmRename, enabled = editingName.isNotBlank()) {
-                    Text(stringResource(R.string.column_save))
-                }
-                TextButton(onClick = onCancelEditing) {
-                    Text(stringResource(R.string.column_cancel))
-                }
+                ActionIcon(
+                    icon = Icons.Filled.Check,
+                    contentDescription = stringResource(R.string.column_save),
+                    onClick = onConfirmRename,
+                    enabled = editingName.isNotBlank(),
+                )
+                ActionIcon(
+                    icon = Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.column_cancel),
+                    onClick = onCancelEditing,
+                )
             }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = column.name, modifier = Modifier.weight(1f))
-                TextButton(onClick = onMoveUp, enabled = position > 0) {
-                    Text(stringResource(R.string.column_move_up))
-                }
-                TextButton(onClick = onMoveDown, enabled = position < lastPosition) {
-                    Text(stringResource(R.string.column_move_down))
-                }
-                TextButton(onClick = onStartEditing) {
-                    Text(stringResource(R.string.column_rename))
-                }
-                TextButton(onClick = onDelete) {
-                    Text(stringResource(R.string.column_delete))
-                }
+                Text(
+                    text = column.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.weight(1f),
+                )
+                ActionIcon(
+                    icon = Icons.Filled.KeyboardArrowUp,
+                    contentDescription = stringResource(R.string.column_move_up),
+                    onClick = onMoveUp,
+                    enabled = position > 0,
+                )
+                ActionIcon(
+                    icon = Icons.Filled.KeyboardArrowDown,
+                    contentDescription = stringResource(R.string.column_move_down),
+                    onClick = onMoveDown,
+                    enabled = position < lastPosition,
+                )
+                ActionIcon(
+                    icon = Icons.Filled.Edit,
+                    contentDescription = stringResource(R.string.column_rename),
+                    onClick = onStartEditing,
+                )
+                ActionIcon(
+                    icon = Icons.Filled.Delete,
+                    contentDescription = stringResource(R.string.column_delete),
+                    onClick = onDelete,
+                )
             }
         }
 
         var limitText by rememberSaveable(column.id) { mutableStateOf(column.wipLimit?.toString().orEmpty()) }
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.InlineGap),
+        ) {
             OutlinedTextField(
                 value = limitText,
                 onValueChange = { limitText = it },
@@ -226,7 +252,9 @@ private fun ColumnRow(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.weight(1f),
             )
-            TextButton(
+            ActionIcon(
+                icon = Icons.Filled.Check,
+                contentDescription = stringResource(R.string.column_wip_limit_set),
                 onClick = {
                     when (val input = parseWipLimitInput(limitText)) {
                         WipLimitInput.Empty -> onSetWipLimit(null)
@@ -235,21 +263,27 @@ private fun ColumnRow(
                     }
                 },
                 enabled = parseWipLimitInput(limitText) != WipLimitInput.Invalid,
-            ) {
-                Text(stringResource(R.string.column_wip_limit_set))
-            }
+            )
         }
 
         tasks.forEach { task ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = task.title, modifier = Modifier.weight(1f))
-                TextButton(onClick = { onEditTask(task.id) }) {
-                    Text(stringResource(R.string.task_edit))
-                }
+                Text(
+                    text = task.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                ActionIcon(
+                    icon = Icons.Filled.Edit,
+                    contentDescription = stringResource(R.string.task_edit),
+                    onClick = { onEditTask(task.id) },
+                )
             }
         }
 
         TextButton(onClick = onCreateTask) {
+            DecorativeIcon(Icons.Filled.Add)
+            Spacer(Modifier.width(Spacing.InlineGap))
             Text(stringResource(R.string.task_add))
         }
     }

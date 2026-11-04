@@ -20,7 +20,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
@@ -28,6 +27,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.simposio.taskeer.R
+import com.simposio.taskeer.ui.theme.Spacing
 
 // El estado vive en la actividad, no en cada destino de navegación: la compuerta, Configuración y
 // el editor deben ver el mismo «ya se intentó pedir».
@@ -76,7 +76,7 @@ fun NotificationPermissionNotice(
         return
     }
     val context = LocalContext.current
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap)) {
         Text(
             text = stringResource(R.string.notifications_blocked),
             style = MaterialTheme.typography.bodyMedium,

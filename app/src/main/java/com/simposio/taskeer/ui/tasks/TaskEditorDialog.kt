@@ -9,8 +9,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -25,12 +29,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.LocalUser
 import com.simposio.taskeer.domain.model.TaskPriority
+import com.simposio.taskeer.ui.components.ActionIcon
+import com.simposio.taskeer.ui.components.AppDivider
+import com.simposio.taskeer.ui.components.SectionHeader
+import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -69,9 +79,9 @@ fun TaskEditorDialog(
         ) {
             Column(
                 modifier = Modifier
-                    .padding(16.dp)
+                    .padding(Spacing.ScreenPadding)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(Spacing.SectionGap),
             ) {
                 Text(
                     text = stringResource(
@@ -100,23 +110,27 @@ fun TaskEditorDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
 
-                HorizontalDivider()
-                Text(
-                    text = stringResource(R.string.task_priority_label),
-                    style = MaterialTheme.typography.labelLarge,
+                AppDivider()
+                val priorityDescription = stringResource(
+                    R.string.task_priority_description,
+                    stringResource(state.priority.labelRes()),
                 )
-                TaskPriority.entries.forEach { priority ->
-                    RadioOption(
-                        label = stringResource(priority.labelRes()),
-                        selected = state.priority == priority,
-                        onSelect = { onPriorityChange(priority) },
-                    )
-                }
+                SelectField(
+                    label = stringResource(R.string.task_priority_label),
+                    options = TaskPriority.entries,
+                    selected = state.priority,
+                    optionLabel = { stringResource(it.labelRes()) },
+                    onSelect = onPriorityChange,
+                    leadingIcon = Icons.Filled.Flag,
+                    modifier = Modifier.semantics(mergeDescendants = true) {
+                        contentDescription = priorityDescription
+                    },
+                )
 
-                HorizontalDivider()
-                Text(
+                AppDivider()
+                SectionHeader(
                     text = stringResource(R.string.task_due_at_label),
-                    style = MaterialTheme.typography.labelLarge,
+                    icon = Icons.Filled.Schedule,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedButton(onClick = { showDatePicker = true }) {
@@ -126,16 +140,18 @@ fun TaskEditorDialog(
                         )
                     }
                     if (state.dueAtLocal != null) {
-                        TextButton(onClick = { onDueAtChange(null) }) {
-                            Text(stringResource(R.string.task_due_at_clear))
-                        }
+                        ActionIcon(
+                            icon = Icons.Filled.Close,
+                            contentDescription = stringResource(R.string.task_due_at_clear),
+                            onClick = { onDueAtChange(null) },
+                        )
                     }
                 }
 
-                HorizontalDivider()
-                Text(
+                AppDivider()
+                SectionHeader(
                     text = stringResource(R.string.task_assignee_label),
-                    style = MaterialTheme.typography.labelLarge,
+                    icon = Icons.Filled.Person,
                 )
                 RadioOption(
                     label = stringResource(R.string.task_assignee_me),
@@ -143,7 +159,7 @@ fun TaskEditorDialog(
                     onSelect = { onAssigneeChange(LocalUser.ID) },
                 )
 
-                HorizontalDivider()
+                AppDivider()
                 SubtasksSection(
                     taskExists = state.taskId != null,
                     state = subtasks,
@@ -160,7 +176,7 @@ fun TaskEditorDialog(
                 )
 
                 if (state.taskId != null) {
-                    HorizontalDivider()
+                    AppDivider()
                     RemindersSection(
                         state = reminders,
                         actions = reminderActions,
@@ -176,7 +192,7 @@ fun TaskEditorDialog(
                     )
                 }
 
-                HorizontalDivider()
+                AppDivider()
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (state.taskId != null) {
                         TextButton(onClick = onDelete, enabled = !state.isSaving) {

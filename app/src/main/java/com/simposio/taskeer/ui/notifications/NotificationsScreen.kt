@@ -5,9 +5,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -22,13 +26,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.simposio.taskeer.R
+import com.simposio.taskeer.ui.components.ActionIcon
+import com.simposio.taskeer.ui.components.AppDivider
 import com.simposio.taskeer.ui.permission.NotificationPermissionNotice
 import com.simposio.taskeer.ui.tasks.rememberTaskEditorHost
+import com.simposio.taskeer.ui.theme.Spacing
 
 @Composable
 fun NotificationsScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifier = Modifier) {
@@ -88,17 +94,26 @@ fun NotificationsContent(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(Spacing.ScreenPadding),
+        verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap),
     ) {
         permissionNotice()
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = onMarkAllRead, enabled = state.unreadCount > 0) {
-                Text(stringResource(R.string.notifications_mark_all_read))
-            }
-            TextButton(onClick = onDeleteAll, enabled = state.rows.isNotEmpty()) {
-                Text(stringResource(R.string.notifications_delete_all))
-            }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            ActionIcon(
+                icon = Icons.Filled.DoneAll,
+                contentDescription = stringResource(R.string.notifications_mark_all_read),
+                onClick = onMarkAllRead,
+                enabled = state.unreadCount > 0,
+            )
+            ActionIcon(
+                icon = Icons.Filled.DeleteSweep,
+                contentDescription = stringResource(R.string.notifications_delete_all),
+                onClick = onDeleteAll,
+                enabled = state.rows.isNotEmpty(),
+            )
         }
         if (state.rows.isEmpty()) {
             Text(
@@ -106,7 +121,7 @@ fun NotificationsContent(
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn {
             items(state.rows, key = { it.id }) { row ->
                 NotificationRow(
                     row = row,
@@ -114,6 +129,7 @@ fun NotificationsContent(
                     onMarkRead = onMarkRead,
                     onDelete = onDelete,
                 )
+                AppDivider()
             }
         }
     }

@@ -6,11 +6,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Summarize
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,11 +26,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.ReminderLead
+import com.simposio.taskeer.ui.components.DecorativeIcon
+import com.simposio.taskeer.ui.components.SectionHeader
 import com.simposio.taskeer.ui.tasks.DueTimePickerDialog
 import com.simposio.taskeer.ui.tasks.SelectField
+import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 import java.time.DayOfWeek
 import java.time.LocalTime
@@ -62,13 +68,14 @@ internal fun ReminderSettingsSection(
     var pickerTarget by rememberSaveable { mutableStateOf<TimeTarget?>(null) }
     val locale = LocalConfiguration.current.locales[0]
 
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap)) {
+        SectionHeader(
             text = stringResource(R.string.settings_reminders_title),
-            style = MaterialTheme.typography.titleMedium,
+            icon = Icons.Filled.Notifications,
         )
 
         SwitchRow(
+            icon = Icons.Filled.Event,
             label = stringResource(R.string.settings_deadline_switch),
             checked = state.deadline.enabled,
             onCheckedChange = actions.onDeadlineEnabledChange,
@@ -84,6 +91,7 @@ internal fun ReminderSettingsSection(
         }
 
         SwitchRow(
+            icon = Icons.Filled.Summarize,
             label = stringResource(R.string.settings_digest_switch),
             checked = state.digest.enabled,
             onCheckedChange = actions.onDigestEnabledChange,
@@ -93,7 +101,7 @@ internal fun ReminderSettingsSection(
                 text = stringResource(R.string.settings_digest_days_title),
                 style = MaterialTheme.typography.labelLarge,
             )
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.InlineGap)) {
                 DayOfWeek.entries.forEach { day ->
                     val selected = day in state.digest.days
                     FilterChip(
@@ -142,24 +150,13 @@ internal fun ReminderSettingsSection(
 }
 
 @Composable
-private fun SwitchRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(label, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
-    }
-}
-
-@Composable
 private fun TimeRow(label: String, time: LocalTime, onClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.InlineGap),
     ) {
+        DecorativeIcon(icon = Icons.Filled.Schedule, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(label, modifier = Modifier.weight(1f))
         OutlinedButton(onClick = onClick) { Text(time.format(TIME_FORMATTER)) }
     }
