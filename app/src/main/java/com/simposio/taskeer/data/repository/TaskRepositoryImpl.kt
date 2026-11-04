@@ -5,10 +5,12 @@ import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.toEntity
 import com.simposio.taskeer.data.local.toColumn
 import com.simposio.taskeer.data.local.toTask
+import com.simposio.taskeer.data.local.toCandidate
 import com.simposio.taskeer.domain.column.COLUMN_NOT_FOUND
 import com.simposio.taskeer.domain.column.checkWipLimit
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
+import com.simposio.taskeer.domain.model.ReminderCandidate
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.task.TASK_NOT_FOUND
@@ -19,6 +21,7 @@ import com.simposio.taskeer.domain.task.softDeleted
 import com.simposio.taskeer.domain.task.updated
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 class TaskRepositoryImpl(
@@ -29,6 +32,14 @@ class TaskRepositoryImpl(
 
     override fun observeTasks(boardId: String): Flow<List<Task>> =
         dao.observeByBoard(boardId).map { entities -> entities.map { it.toTask() } }
+
+    override fun observeReminderCandidates(): Flow<List<ReminderCandidate>> =
+        dao.observeReminderCandidates().map { rows -> rows.map { it.toCandidate() } }
+
+    override suspend fun reminderCandidates(): List<ReminderCandidate> =
+        observeReminderCandidates().first()
+
+    override suspend fun activeTaskCount(): Int = dao.countActive()
 
     override suspend fun getTask(id: String): DomainResult<Task> {
         val task = activeTask(id) ?: return taskNotFound()

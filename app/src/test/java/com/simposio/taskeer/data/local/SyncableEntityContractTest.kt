@@ -29,6 +29,12 @@ class SyncableEntityContractTest {
     }
 
     @Test
+    fun reminderEntity_implementaLaConvencion() {
+        assertTrue(declaredEntities().contains(ReminderEntity::class.java))
+        assertTrue(SyncableEntity::class.java.isAssignableFrom(ReminderEntity::class.java))
+    }
+
+    @Test
     fun entidades_exponenLosCuatroAccesoresConElTipoEsperado() {
         declaredEntities().forEach { entityClass ->
             assertEquals(String::class.java, entityClass.getMethod("getId").returnType)

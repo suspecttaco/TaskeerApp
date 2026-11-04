@@ -11,10 +11,10 @@ class AppDatabaseMigrationTest {
     private val source: String = File(resolveLocalRoot(), "AppDatabase.kt").readText()
 
     @Test
-    fun versionActual_esOcho() {
+    fun versionActual_esNueve() {
         assertTrue(
-            "AppDatabase debe declarar la versión 8",
-            Regex("version\\s*=\\s*8\\b").containsMatchIn(source),
+            "AppDatabase debe declarar la versión 9",
+            Regex("version\\s*=\\s*9\\b").containsMatchIn(source),
         )
     }
 
@@ -146,12 +146,12 @@ class AppDatabaseMigrationTest {
     }
 
     @Test
-    fun migraciones_incluyenLasMigraciones1a2HastaLa7a8() {
+    fun migraciones_incluyenLasMigraciones1a2HastaLa8a9() {
         assertTrue(
-            "MIGRATIONS debe incluir de MIGRATION_1_2 a MIGRATION_7_8",
+            "MIGRATIONS debe incluir de MIGRATION_1_2 a MIGRATION_8_9",
             Regex(
                 "MIGRATIONS[^=]*=\\s*listOf\\(\\s*MIGRATION_1_2\\s*,\\s*MIGRATION_2_3\\s*,\\s*" +
-                    "MIGRATION_3_4\\s*,\\s*MIGRATION_4_5\\s*,\\s*MIGRATION_5_6\\s*,\\s*MIGRATION_6_7\\s*,\\s*MIGRATION_7_8\\s*,?\\s*\\)",
+                    "MIGRATION_3_4\\s*,\\s*MIGRATION_4_5\\s*,\\s*MIGRATION_5_6\\s*,\\s*MIGRATION_6_7\\s*,\\s*MIGRATION_7_8\\s*,\\s*MIGRATION_8_9\\s*,?\\s*\\)",
             ).containsMatchIn(source),
         )
         assertTrue("las migraciones se aplican con addMigrations", source.contains("addMigrations("))
@@ -212,6 +212,50 @@ class AppDatabaseMigrationTest {
         assertFalse(migration7to8().contains("my_day_tasks"))
     }
 
+    @Test
+    fun migrate8To9_creaLaTablaRemindersConLasColumnasDelModelo() {
+        val body = migration8to9()
+
+        assertTrue(body.contains("CREATE TABLE IF NOT EXISTS `reminders`"))
+        listOf(
+            "`id` TEXT NOT NULL",
+            "`taskId` TEXT NOT NULL",
+            "`remindAt` INTEGER NOT NULL",
+            "`status` TEXT NOT NULL",
+            "`sentAt` INTEGER, ",
+            "`createdAt` INTEGER NOT NULL",
+            "`updatedAt` INTEGER NOT NULL",
+            "`pending` INTEGER NOT NULL",
+            "`deletedAt` INTEGER, ",
+            "PRIMARY KEY(`id`)",
+        ).forEach { fragment ->
+            assertTrue("la tabla reminders debe declarar $fragment", body.contains(fragment))
+        }
+    }
+
+    @Test
+    fun migrate8To9_creaLosIndicesDelEsquemaExportado() {
+        val body = migration8to9().replace(Regex("\"\\s*\\+\\s*\""), "")
+
+        assertTrue(
+            body.contains("CREATE INDEX IF NOT EXISTS `index_reminders_status_remindAt` ON `reminders` (`status`, `remindAt`)"),
+        )
+        assertTrue(body.contains("CREATE INDEX IF NOT EXISTS `index_reminders_taskId` ON `reminders` (`taskId`)"))
+    }
+
+    @Test
+    fun migrate8To9_soloCreaYNoTocaTablasExistentes() {
+        val body = migration8to9()
+
+        assertEquals("tabla y dos índices", 3, Regex("execSQL\\(").findAll(body).count())
+        listOf("DROP", "DELETE", "ALTER", "UPDATE", "INSERT").forEach { keyword ->
+            assertFalse(keyword, Regex("\\b$keyword\\b").containsMatchIn(body.uppercase()))
+        }
+        listOf("tasks", "my_day_tasks", "boards", "columns", "subtasks").forEach { table ->
+            assertFalse("no debe tocar $table", body.contains("`$table`") || body.contains(" $table "))
+        }
+    }
+
     private fun migration6to7(): String {
         val start = source.indexOf("Migration(6, 7)")
         assertTrue("debe declarar una Migration(6, 7)", start >= 0)
@@ -222,6 +266,13 @@ class AppDatabaseMigrationTest {
     private fun migration7to8(): String {
         val start = source.indexOf("Migration(7, 8)")
         assertTrue("debe declarar una Migration(7, 8)", start >= 0)
+        val end = source.indexOf("private val MIGRATION_8_9", start)
+        return source.substring(start, end)
+    }
+
+    private fun migration8to9(): String {
+        val start = source.indexOf("Migration(8, 9)")
+        assertTrue("debe declarar una Migration(8, 9)", start >= 0)
         val end = source.indexOf("private val MIGRATIONS", start)
         return source.substring(start, end)
     }

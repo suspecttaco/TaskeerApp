@@ -3,6 +3,9 @@ package com.simposio.taskeer.data.repository
 import com.simposio.taskeer.data.local.BoardEntity
 import com.simposio.taskeer.data.local.ColumnDao
 import com.simposio.taskeer.data.local.ColumnEntity
+import com.simposio.taskeer.data.local.ReminderCandidateRow
+import com.simposio.taskeer.data.local.ReminderEntity
+import com.simposio.taskeer.data.local.ReminderTaskStateRow
 import com.simposio.taskeer.data.local.SubtaskEntity
 import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.TaskEntity
@@ -21,6 +24,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -350,6 +355,107 @@ class TaskRepositoryImplTest {
 
         assertEquals(1, taskDao.transactionalCalls)
         assertEquals(writesBefore, taskDao.writeCalls)
+    }
+
+    @Test
+    fun deleteTask_descartaLosRecordatoriosPendientesDeLaTareaEnLaMismaTransaccion() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
+        val taskDao = FakeTaskDao(columnDao)
+        taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
+        taskDao.putReminder(reminderEntity("r1", taskId = "t1", status = "PENDING"))
+        taskDao.putReminder(reminderEntity("r2", taskId = "t1", status = "SENT"))
+        taskDao.putReminder(reminderEntity("r3", taskId = "t2", status = "PENDING"))
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+
+        repository.deleteTask("t1")
+
+        assertEquals("DISMISSED", taskDao.reminders.getValue("r1").status)
+        assertEquals(later.toEpochMilli(), taskDao.reminders.getValue("r1").updatedAt)
+        assertEquals("SENT", taskDao.reminders.getValue("r2").status)
+        assertEquals("PENDING", taskDao.reminders.getValue("r3").status)
+        assertEquals(1, taskDao.transactionalCalls)
+    }
+
+    @Test
+    fun deleteTask_tareaInexistente_noTocaRecordatorios() = runTest {
+        val columnDao = FakeColumnDao()
+        val taskDao = FakeTaskDao(columnDao)
+        taskDao.putReminder(reminderEntity("r1", taskId = "t1", status = "PENDING"))
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+
+        repository.deleteTask("t1")
+
+        assertEquals("PENDING", taskDao.reminders.getValue("r1").status)
+    }
+
+    @Test
+    fun reminderCandidates_excluyeSinFechaBorradasYCompletadas() = runTest {
+        val repository = repositoryWithCandidateTasks()
+
+        val ids = repository.reminderCandidates().map { it.taskId }
+
+        assertEquals(listOf("con-fecha"), ids)
+    }
+
+    @Test
+    fun reminderCandidates_devuelveTituloYFechaLimiteEnUtc() = runTest {
+        val repository = repositoryWithCandidateTasks()
+
+        val candidate = repository.reminderCandidates().single()
+
+        assertEquals("Tarea con-fecha", candidate.title)
+        assertEquals(DUE, candidate.dueAt)
+    }
+
+    @Test
+    fun reminderCandidates_reapareceAlSacarLaTareaDeLaColumnaCompletada() = runTest {
+        val repository = repositoryWithCandidateTasks()
+
+        repository.moveTask("completada", "columna-1", 0)
+
+        assertEquals(
+            listOf("completada", "con-fecha"),
+            repository.reminderCandidates().map { it.taskId }.sorted(),
+        )
+    }
+
+    @Test
+    fun observeReminderCandidates_reemiteAlEditarLaFechaMoverYBorrar() = runTest {
+        val repository = repositoryWithCandidateTasks()
+        val emissions = mutableListOf<List<String>>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.observeReminderCandidates().collect { rows -> emissions += rows.map { it.taskId } }
+        }
+
+        repository.updateTask("sin-fecha", TaskDraft(title = "T", dueAt = DUE))
+        assertEquals(listOf("con-fecha", "sin-fecha"), emissions.last().sorted())
+
+        repository.moveTask("con-fecha", "columna-hecha", 0)
+        assertEquals(listOf("sin-fecha"), emissions.last())
+
+        repository.deleteTask("sin-fecha")
+        assertTrue(emissions.last().isEmpty())
+    }
+
+    @Test
+    fun activeTaskCount_cuentaConYSinFechaSinBorradasNiCompletadas() = runTest {
+        val repository = repositoryWithCandidateTasks()
+
+        assertEquals(2, repository.activeTaskCount())
+    }
+
+    private fun repositoryWithCandidateTasks(): TaskRepositoryImpl {
+        val columnDao = FakeColumnDao().apply {
+            put(columnEntity("columna-1"))
+            put(columnEntity("columna-hecha", isDone = true))
+        }
+        val taskDao = FakeTaskDao(columnDao).apply {
+            put(taskEntity("con-fecha", columnId = "columna-1", position = 0, dueAt = DUE))
+            put(taskEntity("sin-fecha", columnId = "columna-1", position = 1))
+            put(taskEntity("borrada", columnId = "columna-1", position = 2, dueAt = DUE, deletedAt = now))
+            put(taskEntity("completada", columnId = "columna-hecha", position = 0, dueAt = DUE))
+        }
+        return TaskRepositoryImpl(taskDao, columnDao, now = { later })
     }
 
     @Test
@@ -731,13 +837,14 @@ class TaskRepositoryImplTest {
         deleted: Boolean = false,
         boardId: String = BOARD_ID,
         wipLimit: Int? = null,
+        isDone: Boolean = false,
     ): ColumnEntity = ColumnEntity(
         id = id,
         boardId = boardId,
         name = "Por hacer",
         position = 0,
         wipLimit = wipLimit,
-        isDoneColumn = false,
+        isDoneColumn = isDone,
         createdAt = 0L,
         updatedAt = now.toEpochMilli(),
         pending = true,
@@ -817,19 +924,32 @@ class TaskRepositoryImplTest {
             deletedAt = deletedAt,
         )
 
+    private fun reminderEntity(id: String, taskId: String, status: String): ReminderEntity = ReminderEntity(
+        id = id,
+        taskId = taskId,
+        remindAt = later.toEpochMilli(),
+        status = status,
+        sentAt = null,
+        createdAt = 0L,
+        updatedAt = now.toEpochMilli(),
+        pending = false,
+        deletedAt = null,
+    )
+
     private fun taskEntity(
         id: String,
         columnId: String,
         position: Int,
         updatedAt: Instant = now,
         deletedAt: Instant? = null,
+        dueAt: Instant? = null,
     ): TaskEntity = TaskEntity(
         id = id,
         columnId = columnId,
         title = "Tarea $id",
         description = null,
         priority = "MEDIUM",
-        dueAt = null,
+        dueAt = dueAt?.toEpochMilli(),
         assigneeId = null,
         position = position,
         createdAt = 0L,
@@ -900,6 +1020,35 @@ class TaskRepositoryImplTest {
             }
         }
 
+        val reminders: MutableMap<String, ReminderEntity> = mutableMapOf()
+
+        fun putReminder(reminder: ReminderEntity) {
+            reminders[reminder.id] = reminder
+        }
+
+        override fun observeReminderCandidates(): Flow<List<ReminderCandidateRow>> = rows.map {
+            activeTasks().filter { task -> task.dueAt != null }
+                .map { task -> ReminderCandidateRow(task.id, task.title, requireNotNull(task.dueAt)) }
+        }
+
+        override suspend fun countActive(): Int = activeTasks().size
+
+        override suspend fun findReminderState(taskId: String): ReminderTaskStateRow? =
+            rows.value[taskId]?.let {
+                ReminderTaskStateRow(it.title, it.deletedAt != null, columnDao.isDone(it.columnId))
+            }
+
+        private fun activeTasks(): List<TaskEntity> =
+            rows.value.values.filter { it.deletedAt == null && !columnDao.isDone(it.columnId) }
+
+        override suspend fun dismissRemindersOfTask(taskId: String, now: Long): Int {
+            val pendingIds = reminders.values.filter { it.taskId == taskId && it.status == "PENDING" }.map { it.id }
+            pendingIds.forEach { id ->
+                reminders[id] = reminders.getValue(id).copy(status = "DISMISSED", updatedAt = now, pending = true)
+            }
+            return pendingIds.size
+        }
+
         override suspend fun upsertDeletedWithSubtasks(task: TaskEntity, deletedAt: Long) {
             transactionalCalls++
             inTransaction = true
@@ -917,6 +1066,8 @@ class TaskRepositoryImplTest {
         fun put(column: ColumnEntity) {
             rows.value = rows.value + (column.id to column)
         }
+
+        fun isDone(columnId: String): Boolean = rows.value[columnId]?.isDoneColumn ?: false
 
         fun activeColumnIds(boardId: String): Set<String> =
             rows.value.values
@@ -946,5 +1097,6 @@ class TaskRepositoryImplTest {
 
     private companion object {
         const val BOARD_ID = "tablero-1"
+        val DUE: Instant = Instant.parse("2026-11-01T12:00:00Z")
     }
 }

@@ -1,16 +1,25 @@
 package com.simposio.taskeer.di
 
+import com.simposio.taskeer.data.local.ReminderCandidateRow
+import com.simposio.taskeer.data.local.ReminderTaskStateRow
 import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.TaskEntity
+import com.simposio.taskeer.data.reminder.ReminderReconciler
 import com.simposio.taskeer.data.repository.BoardRepository
 import com.simposio.taskeer.data.repository.ColumnRepository
 import com.simposio.taskeer.data.repository.MyDayRepository
 import com.simposio.taskeer.data.repository.PreferencesRepository
+import com.simposio.taskeer.data.repository.ReminderRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskRepository
+import com.simposio.taskeer.testing.InMemoryCheckpointStore
+import com.simposio.taskeer.testing.RecordingNotifier
+import com.simposio.taskeer.testing.RecordingReminderScheduler
+import com.simposio.taskeer.ui.tasks.RemindersViewModel
 import com.simposio.taskeer.ui.tasks.SubtasksViewModel
 import java.lang.reflect.Proxy
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -42,12 +51,44 @@ class AppContainerFactoryTest {
             taskRepository = stub<TaskRepository>(),
             subtaskRepository = stub<SubtaskRepository>(),
             myDayRepository = stub<MyDayRepository>(),
+            reminderRepository = stub<ReminderRepository>(),
+            reminderReconciler = reconciler(),
         )
 
         val viewModel = AppViewModelFactory(container).create(SubtasksViewModel::class.java)
 
         assertEquals(SubtasksViewModel::class.java, viewModel.javaClass)
     }
+
+    @Test
+    fun factory_construyeRemindersViewModel() {
+        val container = AppContainer(
+            preferencesRepository = stub<PreferencesRepository>(),
+            timeZoneProvider = { java.time.ZoneOffset.UTC },
+            boardRepository = stub<BoardRepository>(),
+            columnRepository = stub<ColumnRepository>(),
+            taskRepository = stub<TaskRepository>(),
+            subtaskRepository = stub<SubtaskRepository>(),
+            myDayRepository = stub<MyDayRepository>(),
+            reminderRepository = stub<ReminderRepository>(),
+            reminderReconciler = reconciler(),
+        )
+
+        val viewModel = AppViewModelFactory(container).create(RemindersViewModel::class.java)
+
+        assertEquals(RemindersViewModel::class.java, viewModel.javaClass)
+    }
+
+    private fun reconciler() = ReminderReconciler(
+        tasks = stub<TaskRepository>(),
+        reminders = stub<ReminderRepository>(),
+        preferences = stub<PreferencesRepository>(),
+        checkpoints = InMemoryCheckpointStore(),
+        scheduler = RecordingReminderScheduler(),
+        notifier = RecordingNotifier(),
+        timeZone = { java.time.ZoneOffset.UTC },
+        clock = { java.time.Instant.EPOCH },
+    )
 
     private inline fun <reified T : Any> stub(): T = Proxy.newProxyInstance(
         T::class.java.classLoader,
@@ -83,6 +124,14 @@ class AppContainerFactoryTest {
         }
 
         override suspend fun softDeleteSubtasksOfTask(taskId: String, deletedAt: Long) = Unit
+
+        override fun observeReminderCandidates(): Flow<List<ReminderCandidateRow>> = emptyFlow()
+
+        override suspend fun countActive(): Int = 0
+
+        override suspend fun findReminderState(taskId: String): ReminderTaskStateRow? = null
+
+        override suspend fun dismissRemindersOfTask(taskId: String, now: Long): Int = 0
     }
 
     private fun taskEntity(id: String, columnId: String): TaskEntity = TaskEntity(

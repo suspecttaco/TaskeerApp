@@ -6,6 +6,8 @@ import com.simposio.taskeer.data.local.ColumnEntity
 import com.simposio.taskeer.data.local.MyDayDao
 import com.simposio.taskeer.data.local.MyDayEntryEntity
 import com.simposio.taskeer.data.local.MyDayRow
+import com.simposio.taskeer.data.local.ReminderCandidateRow
+import com.simposio.taskeer.data.local.ReminderTaskStateRow
 import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.TaskEntity
 import com.simposio.taskeer.domain.model.DomainError
@@ -15,6 +17,7 @@ import com.simposio.taskeer.domain.model.TaskDraft
 import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -474,6 +477,14 @@ class MyDayRepositoryImplTest {
         }
         override suspend fun upsertAll(tasks: List<TaskEntity>) = Unit
         override suspend fun softDeleteSubtasksOfTask(taskId: String, deletedAt: Long) = Unit
+
+        override fun observeReminderCandidates(): Flow<List<ReminderCandidateRow>> = emptyFlow()
+
+        override suspend fun countActive(): Int = 0
+
+        override suspend fun findReminderState(taskId: String): ReminderTaskStateRow? = null
+
+        override suspend fun dismissRemindersOfTask(taskId: String, now: Long): Int = 0
     }
 
     private class FakeTaskDao(private val myDayDao: FakeMyDayDao) : TaskDao() {
@@ -490,5 +501,13 @@ class MyDayRepositoryImplTest {
         override suspend fun upsertAll(tasks: List<TaskEntity>) = Unit
 
         override suspend fun softDeleteSubtasksOfTask(taskId: String, deletedAt: Long) = Unit
+
+        override fun observeReminderCandidates(): Flow<List<ReminderCandidateRow>> = emptyFlow()
+
+        override suspend fun countActive(): Int = 0
+
+        override suspend fun findReminderState(taskId: String): ReminderTaskStateRow? = null
+
+        override suspend fun dismissRemindersOfTask(taskId: String, now: Long): Int = 0
     }
 }

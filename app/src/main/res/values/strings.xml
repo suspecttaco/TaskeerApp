@@ -6,7 +6,6 @@
     <string name="nav_settings">Configuración</string>
     <string name="screen_home">Inicio</string>
     <string name="screen_my_day">Mi día</string>
-    <string name="screen_settings">Configuración</string>
     <string name="boards_title">Tableros</string>
     <string name="board_name_label">Nombre del tablero</string>
     <string name="board_create">Crear</string>
@@ -62,7 +61,37 @@
     <string name="subtask_assignee_label">Asignado a la subtarea</string>
     <string name="subtasks_empty">Sin subtareas</string>
     <string name="subtasks_create_hint">Guarda la tarea para poder añadir subtareas</string>
-    <string name="theme_action">Tema</string>
+    <string name="reminder_title">Recordatorio</string>
+    <string name="reminder_later_today">Más tarde hoy</string>
+    <string name="reminder_tomorrow">Mañana</string>
+    <string name="reminder_next_week">Próxima semana</string>
+    <string name="reminder_add">Añadir recordatorio</string>
+    <string name="reminder_custom">Personalizado…</string>
+    <string name="reminder_cancel">Cancelar recordatorio</string>
+    <string name="reminder_channel_name">Recordatorios</string>
+    <string name="reminder_notification_text">Recordatorio de tarea</string>
+    <string name="deadline_notification_text">Tarea próxima a vencer</string>
+    <string name="digest_notification_title">Resumen de tareas</string>
+    <string name="digest_notification_none">No tienes tareas activas</string>
+    <plurals name="digest_notification_count">
+        <item quantity="one">Tienes %d tarea activa</item>
+        <item quantity="other">Tienes %d tareas activas</item>
+    </plurals>
+    <string name="notifications_blocked">Las notificaciones están desactivadas en el sistema; no verás los avisos</string>
+    <string name="notifications_open_settings">Abrir ajustes</string>
+    <string name="settings_theme_title">Tema</string>
+    <string name="settings_theme_mode_label">Modo</string>
+    <string name="settings_reminders_title">Recordatorios</string>
+    <string name="settings_deadline_switch">Avisar de la fecha límite de las tareas</string>
+    <string name="settings_deadline_lead_title">Antelación del aviso</string>
+    <string name="reminder_lead_at_due">A la hora</string>
+    <string name="reminder_lead_fifteen_minutes">15 minutos antes</string>
+    <string name="reminder_lead_one_hour">1 hora antes</string>
+    <string name="reminder_lead_one_day">1 día antes</string>
+    <string name="settings_digest_switch">Resumen programado de tareas activas</string>
+    <string name="settings_digest_days_title">Días del resumen</string>
+    <string name="settings_digest_time_label">Hora del resumen</string>
+    <string name="settings_default_time_label">Hora por defecto de recordatorios</string>
     <string name="theme_mode_light">Claro</string>
     <string name="theme_mode_dark">Oscuro</string>
     <string name="theme_mode_auto">Automático</string>
@@ -93,5 +122,4 @@
         <item quantity="one">%d vencida</item>
         <item quantity="other">%d vencidas</item>
     </plurals>
-    <string name="menu_check" translatable="false">✓</string>
 </resources>

@@ -34,8 +34,6 @@ class MainActivity : ComponentActivity() {
             TaskeerApp(
                 themeMode = themeMode,
                 dynamicColor = dynamicColor,
-                onThemeModeChange = appViewModel::setThemeMode,
-                onDynamicColorChange = appViewModel::setDynamicColor,
                 viewModelFactory = viewModelFactory,
             )
         }

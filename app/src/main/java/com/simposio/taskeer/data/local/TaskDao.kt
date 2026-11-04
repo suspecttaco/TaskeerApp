@@ -40,10 +40,38 @@ abstract class TaskDao {
     )
     abstract suspend fun softDeleteSubtasksOfTask(taskId: String, deletedAt: Long)
 
+    @Query(
+        "UPDATE reminders SET status = 'DISMISSED', updatedAt = :now, pending = 1 " +
+            "WHERE taskId = :taskId AND status = 'PENDING'",
+    )
+    abstract suspend fun dismissRemindersOfTask(taskId: String, now: Long): Int
+
+    @Query(
+        "SELECT tasks.id AS id, tasks.title AS title, tasks.dueAt AS dueAt FROM tasks " +
+            "INNER JOIN columns ON tasks.columnId = columns.id " +
+            "WHERE tasks.dueAt IS NOT NULL AND tasks.deletedAt IS NULL " +
+            "AND columns.isDoneColumn = 0 ORDER BY tasks.dueAt ASC, tasks.id ASC",
+    )
+    abstract fun observeReminderCandidates(): Flow<List<ReminderCandidateRow>>
+
+    @Query(
+        "SELECT COUNT(*) FROM tasks INNER JOIN columns ON tasks.columnId = columns.id " +
+            "WHERE tasks.deletedAt IS NULL AND columns.isDoneColumn = 0",
+    )
+    abstract suspend fun countActive(): Int
+
+    @Query(
+        "SELECT tasks.title AS title, tasks.deletedAt IS NOT NULL AS deleted, " +
+            "COALESCE(columns.isDoneColumn, 0) AS completed FROM tasks " +
+            "LEFT JOIN columns ON tasks.columnId = columns.id WHERE tasks.id = :taskId",
+    )
+    abstract suspend fun findReminderState(taskId: String): ReminderTaskStateRow?
+
     // Room solo envuelve en una transacción sentencias del mismo DAO: por eso la cascada vive aquí.
     @Transaction
     open suspend fun upsertDeletedWithSubtasks(task: TaskEntity, deletedAt: Long) {
         upsert(task)
         softDeleteSubtasksOfTask(task.id, deletedAt)
+        dismissRemindersOfTask(task.id, deletedAt)
     }
 }

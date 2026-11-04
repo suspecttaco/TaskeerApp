@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -45,6 +46,9 @@ fun TaskEditorDialog(
     onAssigneeChange: (String?) -> Unit,
     subtasks: SubtasksUiState,
     subtaskActions: SubtaskActions,
+    reminders: RemindersUiState,
+    reminderActions: ReminderActions,
+    permissionNotice: @Composable () -> Unit,
     onSave: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
@@ -96,6 +100,7 @@ fun TaskEditorDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
 
+                HorizontalDivider()
                 Text(
                     text = stringResource(R.string.task_priority_label),
                     style = MaterialTheme.typography.labelLarge,
@@ -108,6 +113,7 @@ fun TaskEditorDialog(
                     )
                 }
 
+                HorizontalDivider()
                 Text(
                     text = stringResource(R.string.task_due_at_label),
                     style = MaterialTheme.typography.labelLarge,
@@ -126,6 +132,7 @@ fun TaskEditorDialog(
                     }
                 }
 
+                HorizontalDivider()
                 Text(
                     text = stringResource(R.string.task_assignee_label),
                     style = MaterialTheme.typography.labelLarge,
@@ -136,6 +143,7 @@ fun TaskEditorDialog(
                     onSelect = { onAssigneeChange(LocalUser.ID) },
                 )
 
+                HorizontalDivider()
                 SubtasksSection(
                     taskExists = state.taskId != null,
                     state = subtasks,
@@ -151,6 +159,15 @@ fun TaskEditorDialog(
                     onDelete = subtaskActions.onDelete,
                 )
 
+                if (state.taskId != null) {
+                    HorizontalDivider()
+                    RemindersSection(
+                        state = reminders,
+                        actions = reminderActions,
+                        permissionNotice = permissionNotice,
+                    )
+                }
+
                 state.error?.let { error ->
                     Text(
                         text = error.message,
@@ -159,6 +176,7 @@ fun TaskEditorDialog(
                     )
                 }
 
+                HorizontalDivider()
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (state.taskId != null) {
                         TextButton(onClick = onDelete, enabled = !state.isSaving) {
@@ -234,6 +252,9 @@ private fun TaskEditorDialogPreview() {
             onAssigneeChange = {},
             subtasks = SubtasksUiState(),
             subtaskActions = SubtaskActions.None,
+            reminders = RemindersUiState(),
+            reminderActions = ReminderActions.None,
+            permissionNotice = {},
             onSave = {},
             onDelete = {},
             onDismiss = {},

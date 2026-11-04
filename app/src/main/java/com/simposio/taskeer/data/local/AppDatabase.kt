@@ -14,8 +14,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TaskEntity::class,
         SubtaskEntity::class,
         MyDayEntryEntity::class,
+        ReminderEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -24,6 +25,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
     abstract fun subtaskDao(): SubtaskDao
     abstract fun myDayDao(): MyDayDao
+    abstract fun reminderDao(): ReminderDao
 
     companion object {
         const val DATABASE_NAME: String = "taskeer.db"
@@ -137,6 +139,32 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_8_9: Migration = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `reminders` (" +
+                        "`id` TEXT NOT NULL, " +
+                        "`taskId` TEXT NOT NULL, " +
+                        "`remindAt` INTEGER NOT NULL, " +
+                        "`status` TEXT NOT NULL, " +
+                        "`sentAt` INTEGER, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "`updatedAt` INTEGER NOT NULL, " +
+                        "`pending` INTEGER NOT NULL, " +
+                        "`deletedAt` INTEGER, " +
+                        "PRIMARY KEY(`id`))",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_reminders_status_remindAt` " +
+                        "ON `reminders` (`status`, `remindAt`)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_reminders_taskId` " +
+                        "ON `reminders` (`taskId`)",
+                )
+            }
+        }
+
         private val MIGRATIONS: List<Migration> = listOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -145,6 +173,7 @@ abstract class AppDatabase : RoomDatabase() {
             MIGRATION_5_6,
             MIGRATION_6_7,
             MIGRATION_7_8,
+            MIGRATION_8_9,
         )
 
         fun create(context: Context): AppDatabase =

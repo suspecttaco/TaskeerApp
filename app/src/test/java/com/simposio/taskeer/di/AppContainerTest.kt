@@ -1,9 +1,11 @@
 package com.simposio.taskeer.di
 
+import com.simposio.taskeer.data.reminder.ReminderReconciler
 import com.simposio.taskeer.data.repository.BoardRepository
 import com.simposio.taskeer.data.repository.ColumnRepository
 import com.simposio.taskeer.data.repository.MyDayRepository
 import com.simposio.taskeer.data.repository.PreferencesRepository
+import com.simposio.taskeer.data.repository.ReminderRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.date.TimeZoneProvider
@@ -15,9 +17,14 @@ import com.simposio.taskeer.domain.model.MyDay
 import com.simposio.taskeer.domain.model.Subtask
 import com.simposio.taskeer.domain.model.SubtaskDraft
 import com.simposio.taskeer.domain.model.SubtaskProgress
+import com.simposio.taskeer.domain.model.ReminderCandidate
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskDraft
-import com.simposio.taskeer.domain.model.ThemeMode
+import com.simposio.taskeer.testing.FakePreferencesRepository
+import com.simposio.taskeer.testing.FakeReminderRepository
+import com.simposio.taskeer.testing.InMemoryCheckpointStore
+import com.simposio.taskeer.testing.RecordingNotifier
+import com.simposio.taskeer.testing.RecordingReminderScheduler
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -95,6 +102,20 @@ class AppContainerTest {
         assertEquals(LocalDateTime.of(2026, 10, 13, 12, 30), local)
     }
 
+    @Test
+    fun entregaElReminderReconcilerRecibido() {
+        val reconciler = reconciler(FakePreferencesRepository(), FakeTaskRepository(), FakeReminderRepository())
+
+        assertSame(reconciler, container(reminderReconciler = reconciler).reminderReconciler)
+    }
+
+    @Test
+    fun entregaElReminderRepositoryRecibido() {
+        val reminders = FakeReminderRepository()
+
+        assertSame(reminders, container(reminderRepository = reminders).reminderRepository)
+    }
+
     private fun container(
         preferencesRepository: PreferencesRepository = FakePreferencesRepository(),
         boardRepository: BoardRepository = FakeBoardRepository(),
@@ -102,6 +123,9 @@ class AppContainerTest {
         taskRepository: TaskRepository = FakeTaskRepository(),
         subtaskRepository: SubtaskRepository = FakeSubtaskRepository(),
         myDayRepository: MyDayRepository = FakeMyDayRepository(),
+        reminderRepository: ReminderRepository = FakeReminderRepository(),
+        reminderReconciler: ReminderReconciler =
+            reconciler(preferencesRepository, taskRepository, reminderRepository),
     ): AppContainer = AppContainer(
         preferencesRepository = preferencesRepository,
         timeZoneProvider = TimeZoneProvider { auckland },
@@ -110,23 +134,24 @@ class AppContainerTest {
         taskRepository = taskRepository,
         subtaskRepository = subtaskRepository,
         myDayRepository = myDayRepository,
+        reminderRepository = reminderRepository,
+        reminderReconciler = reminderReconciler,
     )
 
-    private class FakePreferencesRepository : PreferencesRepository {
-        private val mode = MutableStateFlow(ThemeMode.AUTO)
-        private val dynamic = MutableStateFlow(true)
-
-        override val themeMode: Flow<ThemeMode> = mode
-        override val dynamicColor: Flow<Boolean> = dynamic
-
-        override suspend fun setThemeMode(mode: ThemeMode) {
-            this.mode.value = mode
-        }
-
-        override suspend fun setDynamicColor(enabled: Boolean) {
-            dynamic.value = enabled
-        }
-    }
+    private fun reconciler(
+        preferences: PreferencesRepository,
+        tasks: TaskRepository,
+        reminders: ReminderRepository,
+    ) = ReminderReconciler(
+        tasks = tasks,
+        reminders = reminders,
+        preferences = preferences,
+        checkpoints = InMemoryCheckpointStore(),
+        scheduler = RecordingReminderScheduler(),
+        notifier = RecordingNotifier(),
+        timeZone = TimeZoneProvider { ZoneId.of("UTC") },
+        clock = { Instant.EPOCH },
+    )
 
     private class FakeBoardRepository : BoardRepository {
         override fun observeBoards(): Flow<List<Board>> = MutableStateFlow(emptyList())
@@ -160,6 +185,12 @@ class AppContainerTest {
 
     private class FakeTaskRepository : TaskRepository {
         override fun observeTasks(boardId: String): Flow<List<Task>> = MutableStateFlow(emptyList())
+
+        override fun observeReminderCandidates(): Flow<List<ReminderCandidate>> = MutableStateFlow(emptyList())
+
+        override suspend fun reminderCandidates(): List<ReminderCandidate> = emptyList()
+
+        override suspend fun activeTaskCount(): Int = 0
 
         override suspend fun getTask(id: String): DomainResult<Task> = unused()
 

@@ -9,6 +9,9 @@ import com.simposio.taskeer.ui.board.BoardViewModel
 import com.simposio.taskeer.ui.boards.BoardsViewModel
 import com.simposio.taskeer.ui.columns.ColumnsViewModel
 import com.simposio.taskeer.ui.myday.MyDayViewModel
+import com.simposio.taskeer.ui.permission.NotificationPermissionViewModel
+import com.simposio.taskeer.ui.settings.SettingsViewModel
+import com.simposio.taskeer.ui.tasks.RemindersViewModel
 import com.simposio.taskeer.ui.tasks.SubtasksViewModel
 import com.simposio.taskeer.ui.tasks.TaskEditorViewModel
 import com.simposio.taskeer.ui.tasks.TasksViewModel
@@ -25,6 +28,25 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
             TaskEditorViewModel(container.taskRepository, container.dateTimeConverter) as T
         modelClass.isAssignableFrom(SubtasksViewModel::class.java) ->
             SubtasksViewModel(container.subtaskRepository, container.dateTimeConverter) as T
+        modelClass.isAssignableFrom(RemindersViewModel::class.java) ->
+            RemindersViewModel(
+                container.reminderRepository,
+                container.preferencesRepository,
+                container.timeZoneProvider,
+                container.dateTimeConverter,
+            ) as T
+        modelClass.isAssignableFrom(SettingsViewModel::class.java) ->
+            SettingsViewModel(
+                container.preferencesRepository,
+                container.reminderReconciler::onEnabled,
+            ) as T
+        modelClass.isAssignableFrom(NotificationPermissionViewModel::class.java) ->
+            NotificationPermissionViewModel(
+                container.preferencesRepository,
+                container.reminderRepository,
+                container.notificationsEnabled,
+                container.sdkInt,
+            ) as T
         modelClass.isAssignableFrom(MyDayViewModel::class.java) ->
             MyDayViewModel(container.myDayRepository, container.dateTimeConverter) as T
 
