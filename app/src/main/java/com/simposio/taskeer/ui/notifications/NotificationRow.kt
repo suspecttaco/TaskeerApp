@@ -1,26 +1,40 @@
 package com.simposio.taskeer.ui.notifications
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.Summarize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.AppNotificationKind
+import com.simposio.taskeer.ui.components.ActionIcon
+import com.simposio.taskeer.ui.components.DecorativeIcon
+import com.simposio.taskeer.ui.components.IconLabel
+import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 
 @Composable
@@ -31,28 +45,21 @@ fun NotificationRow(
     onDelete: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(
-        onClick = { onOpen(row) },
-        modifier = modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onOpen(row) }
+            .padding(vertical = Spacing.ItemGap),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.InlineGap),
     ) {
-        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = row.title(),
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = if (row.unread) FontWeight.Bold else FontWeight.Normal,
-                    modifier = Modifier.weight(1f),
-                )
-                if (row.unread) {
-                    Text(
-                        text = stringResource(R.string.notifications_unread_mark),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
+        DecorativeIcon(icon = row.kind.icon(), tint = MaterialTheme.colorScheme.primary)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap)) {
+            Text(
+                text = row.title(),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (row.unread) FontWeight.Bold else FontWeight.Normal,
+            )
             Text(text = row.text(), style = MaterialTheme.typography.bodyMedium)
             Text(
                 text = row.createdAtText,
@@ -60,24 +67,40 @@ fun NotificationRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (!row.delivered) {
-                Text(
+                IconLabel(
+                    icon = Icons.Filled.NotificationsOff,
                     text = stringResource(R.string.notifications_not_delivered),
-                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.labelMedium,
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (row.unread) {
-                    TextButton(onClick = { onMarkRead(row.id) }) {
-                        Text(stringResource(R.string.notifications_mark_read))
-                    }
-                }
-                TextButton(onClick = { onDelete(row.id) }) {
-                    Text(stringResource(R.string.notifications_delete))
-                }
-            }
         }
+        if (row.unread) {
+            val unreadDescription = stringResource(R.string.notifications_unread_mark)
+            Box(
+                modifier = Modifier
+                    .size(Spacing.DotSize)
+                    .background(MaterialTheme.colorScheme.primary, CircleShape)
+                    .semantics { contentDescription = unreadDescription },
+            )
+            ActionIcon(
+                icon = Icons.Filled.Done,
+                contentDescription = stringResource(R.string.notifications_mark_read),
+                onClick = { onMarkRead(row.id) },
+            )
+        }
+        ActionIcon(
+            icon = Icons.Filled.Delete,
+            contentDescription = stringResource(R.string.notifications_delete),
+            onClick = { onDelete(row.id) },
+        )
     }
+}
+
+private fun AppNotificationKind.icon(): ImageVector = when (this) {
+    AppNotificationKind.DEADLINE -> Icons.Filled.Event
+    AppNotificationKind.DIGEST -> Icons.Filled.Summarize
+    AppNotificationKind.REMINDER -> Icons.Filled.Alarm
 }
 
 @Composable
