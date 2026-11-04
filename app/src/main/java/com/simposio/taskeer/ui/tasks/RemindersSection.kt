@@ -4,12 +4,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,9 +22,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.DEFAULT_REMINDER_TIME
+import com.simposio.taskeer.ui.components.ActionIcon
+import com.simposio.taskeer.ui.components.SectionHeader
+import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -39,10 +43,10 @@ fun RemindersSection(
     var showTimePicker by rememberSaveable { mutableStateOf(false) }
     var pickedEpochDay by rememberSaveable { mutableStateOf<Long?>(null) }
 
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap)) {
+        SectionHeader(
             text = stringResource(R.string.reminder_title),
-            style = MaterialTheme.typography.labelLarge,
+            icon = Icons.Filled.Alarm,
         )
         if (state.reminderAtLocal != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -50,9 +54,11 @@ fun RemindersSection(
                     text = state.reminderAtLocal.format(DUE_DATE_TIME_FORMATTER),
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                TextButton(onClick = actions.onCancel) {
-                    Text(stringResource(R.string.reminder_cancel))
-                }
+                ActionIcon(
+                    icon = Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.reminder_cancel),
+                    onClick = actions.onCancel,
+                )
             }
         } else {
             Box {
