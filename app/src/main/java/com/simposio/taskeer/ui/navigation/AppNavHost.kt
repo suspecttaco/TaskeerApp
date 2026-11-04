@@ -38,7 +38,7 @@ fun AppNavHost(
                 },
             )
         }
-        composable(AppDestination.SETTINGS.route) { SettingsScreen() }
+        composable(AppDestination.SETTINGS.route) { SettingsScreen(viewModelFactory) }
         composable(
             route = AppDestination.BOARD.route,
             arguments = listOf(

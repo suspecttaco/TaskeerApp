@@ -6,7 +6,6 @@
     <string name="nav_settings">Configuración</string>
     <string name="screen_home">Inicio</string>
     <string name="screen_my_day">Mi día</string>
-    <string name="screen_settings">Configuración</string>
     <string name="boards_title">Tableros</string>
     <string name="board_name_label">Nombre del tablero</string>
     <string name="board_create">Crear</string>
@@ -62,7 +61,6 @@
     <string name="subtask_assignee_label">Asignado a la subtarea</string>
     <string name="subtasks_empty">Sin subtareas</string>
     <string name="subtasks_create_hint">Guarda la tarea para poder añadir subtareas</string>
-    <string name="theme_action">Tema</string>
     <string name="reminder_title">Recordatorio</string>
     <string name="reminder_later_today">Más tarde hoy</string>
     <string name="reminder_tomorrow">Mañana</string>
@@ -124,5 +122,4 @@
         <item quantity="one">%d vencida</item>
         <item quantity="other">%d vencidas</item>
     </plurals>
-    <string name="menu_check" translatable="false">✓</string>
 </resources>
