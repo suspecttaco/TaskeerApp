@@ -11,4 +11,12 @@ object NotificationPermissionPolicy {
         sdkInt: Int,
         alreadyAskedThisTransition: Boolean,
     ): Boolean = somethingToNotify && !granted && isRequired(sdkInt) && !alreadyAskedThisTransition
+
+    // Antes de Android 13 no hay diálogo que esperar: basta con que el sistema no deje mostrar.
+    fun isBlocked(
+        somethingToNotify: Boolean,
+        granted: Boolean,
+        sdkInt: Int,
+        answeredThisTransition: Boolean,
+    ): Boolean = somethingToNotify && !granted && (!isRequired(sdkInt) || answeredThisTransition)
 }

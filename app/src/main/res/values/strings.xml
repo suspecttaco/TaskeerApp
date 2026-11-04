@@ -122,4 +122,20 @@
         <item quantity="one">%d vencida</item>
         <item quantity="other">%d vencidas</item>
     </plurals>
+    <string name="nav_notifications">Avisos</string>
+    <string name="notifications_title">Avisos</string>
+    <string name="notifications_empty">No hay avisos todavía</string>
+    <string name="notifications_unread_mark">Nuevo</string>
+    <string name="notifications_not_delivered">No se mostró en el sistema</string>
+    <string name="notifications_mark_read">Marcar como leída</string>
+    <string name="notifications_mark_all_read">Marcar todas como leídas</string>
+    <string name="notifications_delete">Borrar</string>
+    <string name="notifications_delete_all">Borrar todo</string>
+    <string name="notifications_delete_all_title">Borrar todos los avisos</string>
+    <string name="notifications_delete_all_cancel">Cancelar</string>
+    <string name="notifications_task_gone">La tarea ya no existe</string>
+    <plurals name="notifications_delete_all_message">
+        <item quantity="one">Se borrará %1$d aviso (%2$d sin leer).</item>
+        <item quantity="other">Se borrarán %1$d avisos (%2$d sin leer).</item>
+    </plurals>
 </resources>
