@@ -15,6 +15,7 @@ class AppDatabaseSchemaTest {
     private val schemaV6: String = resolveSchema(version = 6).readText()
     private val schemaV8: String = resolveSchema(version = 8).readText()
     private val schemaV9: String = resolveSchema(version = 9).readText()
+    private val schemaV10: String = resolveSchema(version = 10).readText()
 
     @Test
     fun esquemaVersion1_sigueExportado() {
@@ -312,6 +313,62 @@ class AppDatabaseSchemaTest {
     @Test
     fun v9_conservaLasCincoTablasAnteriores() {
         listOf("boards", "columns", "tasks", "subtasks", "my_day_tasks").forEach { tableV9(it) }
+    }
+
+    @Test
+    fun esquemaVersion10_estaExportadoYConservaDel1Al9() {
+        assertTrue(
+            "el esquema debe declarar la versión 10 de la base de datos",
+            Regex("\"version\"\\s*:\\s*10\\b").containsMatchIn(schemaV10),
+        )
+        (1..9).forEach { assertTrue(resolveSchema(version = it).isFile) }
+    }
+
+    @Test
+    fun v10_appNotifications_tieneLasColumnasDelModelo() {
+        val table = tableV10("app_notifications")
+
+        assertEquals(ColumnSchema("TEXT", true), column(table, "id"))
+        assertEquals(ColumnSchema("TEXT", true), column(table, "kind"))
+        assertEquals(ColumnSchema("TEXT", false), column(table, "taskId"))
+        assertEquals(ColumnSchema("TEXT", false), column(table, "taskTitle"))
+        assertEquals(ColumnSchema("INTEGER", false), column(table, "activeTaskCount"))
+        assertEquals(ColumnSchema("INTEGER", true), column(table, "delivered"))
+        assertEquals(ColumnSchema("INTEGER", true), column(table, "createdAt"))
+        assertEquals(ColumnSchema("INTEGER", false), column(table, "readAt"))
+        assertEquals(ColumnSchema("INTEGER", true), column(table, "updatedAt"))
+        assertEquals(ColumnSchema("INTEGER", true), column(table, "pending"))
+        assertEquals(ColumnSchema("INTEGER", false), column(table, "deletedAt"))
+        assertTrue(table.contains("\"autoGenerate\": false"))
+    }
+
+    @Test
+    fun v10_appNotifications_declaraLosIndicesDeConsulta() {
+        val table = tableV10("app_notifications")
+
+        assertTrue(table.contains("index_app_notifications_deletedAt_createdAt"))
+        assertTrue(table.contains("index_app_notifications_deletedAt_readAt"))
+    }
+
+    @Test
+    fun v10_conservaLasSeisTablasAnteriores() {
+        listOf("boards", "columns", "tasks", "subtasks", "my_day_tasks", "reminders").forEach { tableV10(it) }
+    }
+
+    @Test
+    fun v10_soloAnadeLaTablaAppNotificationsRespectoAv9() {
+        val tablesV9 = Regex("\"tableName\": \"(\\w+)\"").findAll(schemaV9).map { it.groupValues[1] }.toSet()
+        val tablesV10 = Regex("\"tableName\": \"(\\w+)\"").findAll(schemaV10).map { it.groupValues[1] }.toSet()
+
+        assertEquals(setOf("app_notifications"), tablesV10 - tablesV9)
+        assertTrue(tablesV9.all { it in tablesV10 })
+    }
+
+    private fun tableV10(name: String): String {
+        val start = schemaV10.indexOf("\"tableName\": \"$name\"")
+        assertTrue("el esquema v10 debe declarar la tabla $name", start >= 0)
+        val nextTable = schemaV10.indexOf("\"tableName\":", start + 1)
+        return schemaV10.substring(start, if (nextTable < 0) schemaV10.length else nextTable)
     }
 
     private fun tableV9(name: String): String {

@@ -35,6 +35,12 @@ class SyncableEntityContractTest {
     }
 
     @Test
+    fun appNotificationEntity_implementaLaConvencion() {
+        assertTrue(declaredEntities().contains(AppNotificationEntity::class.java))
+        assertTrue(SyncableEntity::class.java.isAssignableFrom(AppNotificationEntity::class.java))
+    }
+
+    @Test
     fun entidades_exponenLosCuatroAccesoresConElTipoEsperado() {
         declaredEntities().forEach { entityClass ->
             assertEquals(String::class.java, entityClass.getMethod("getId").returnType)

@@ -15,8 +15,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SubtaskEntity::class,
         MyDayEntryEntity::class,
         ReminderEntity::class,
+        AppNotificationEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -26,6 +27,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun subtaskDao(): SubtaskDao
     abstract fun myDayDao(): MyDayDao
     abstract fun reminderDao(): ReminderDao
+    abstract fun appNotificationDao(): AppNotificationDao
 
     companion object {
         const val DATABASE_NAME: String = "taskeer.db"
@@ -165,6 +167,34 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_9_10: Migration = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `app_notifications` (" +
+                        "`id` TEXT NOT NULL, " +
+                        "`kind` TEXT NOT NULL, " +
+                        "`taskId` TEXT, " +
+                        "`taskTitle` TEXT, " +
+                        "`activeTaskCount` INTEGER, " +
+                        "`delivered` INTEGER NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "`readAt` INTEGER, " +
+                        "`updatedAt` INTEGER NOT NULL, " +
+                        "`pending` INTEGER NOT NULL, " +
+                        "`deletedAt` INTEGER, " +
+                        "PRIMARY KEY(`id`))",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_app_notifications_deletedAt_createdAt` " +
+                        "ON `app_notifications` (`deletedAt`, `createdAt`)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_app_notifications_deletedAt_readAt` " +
+                        "ON `app_notifications` (`deletedAt`, `readAt`)",
+                )
+            }
+        }
+
         private val MIGRATIONS: List<Migration> = listOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -174,6 +204,7 @@ abstract class AppDatabase : RoomDatabase() {
             MIGRATION_6_7,
             MIGRATION_7_8,
             MIGRATION_8_9,
+            MIGRATION_9_10,
         )
 
         fun create(context: Context): AppDatabase =
