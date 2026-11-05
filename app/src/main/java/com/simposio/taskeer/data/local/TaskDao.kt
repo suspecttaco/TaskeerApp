@@ -74,4 +74,21 @@ abstract class TaskDao {
         softDeleteSubtasksOfTask(task.id, deletedAt)
         dismissRemindersOfTask(task.id, deletedAt)
     }
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE, entity = SubtaskEntity::class)
+    abstract suspend fun insertSubtasks(subtasks: List<SubtaskEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE, entity = ReminderEntity::class)
+    abstract suspend fun insertReminder(reminder: ReminderEntity)
+
+    @Transaction
+    open suspend fun insertTaskWithExtras(
+        task: TaskEntity,
+        subtasks: List<SubtaskEntity>,
+        reminder: ReminderEntity?,
+    ) {
+        upsert(task)
+        if (subtasks.isNotEmpty()) insertSubtasks(subtasks)
+        reminder?.let { insertReminder(it) }
+    }
 }

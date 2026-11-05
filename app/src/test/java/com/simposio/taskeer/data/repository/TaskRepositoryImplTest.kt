@@ -9,12 +9,16 @@ import com.simposio.taskeer.data.local.ReminderTaskStateRow
 import com.simposio.taskeer.data.local.SubtaskEntity
 import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.TaskEntity
+import com.simposio.taskeer.data.local.toReminder
 import com.simposio.taskeer.data.local.toTask
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.date.TimeZoneProvider
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.LocalUser
+import com.simposio.taskeer.domain.model.ReminderStatus
+import com.simposio.taskeer.domain.model.SubtaskDraft
+import com.simposio.taskeer.domain.model.TaskCreation
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.model.TaskPriority
 import java.time.Instant
@@ -178,6 +182,179 @@ class TaskRepositoryImplTest {
 
         val reread = (repository.getTask(created.id) as DomainResult.Success).value
         assertEquals(local, madrid.toLocalDateTime(reread.dueAt!!))
+    }
+
+    @Test
+    fun createTaskWithExtras_persisteTareaSubtareasYRecordatorioEnUnaLlamada() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
+        val taskDao = FakeTaskDao(columnDao)
+        taskDao.put(taskEntity("t0", columnId = "columna-1", position = 0))
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val dueAt = now.plusSeconds(7200)
+
+        val result = repository.createTaskWithExtras(
+            "columna-1",
+            TaskCreation(
+                task = TaskDraft(title = "Informe"),
+                subtasks = listOf(
+                    SubtaskDraft("Datos", assigneeId = LocalUser.ID, dueAt = dueAt),
+                    SubtaskDraft("Borrador"),
+                ),
+                remindAt = now.plusSeconds(3600),
+            ),
+        )
+
+        val created = (result as DomainResult.Success).value
+        assertEquals(1, taskDao.extrasCalls)
+        assertEquals(1, created.position)
+        assertTrue(taskDao.stored.getValue(created.id).pending)
+        val children = taskDao.subtasks.values.sortedBy { it.position }
+        assertEquals(listOf("Datos", "Borrador"), children.map { it.title })
+        assertEquals(listOf(0, 1), children.map { it.position })
+        assertEquals(listOf(created.id, created.id), children.map { it.taskId })
+        assertEquals(listOf(false, false), children.map { it.completed })
+        assertEquals(listOf(LocalUser.ID, null), children.map { it.assigneeId })
+        assertEquals(dueAt.toEpochMilli(), children[0].dueAt)
+        assertTrue(children.all { it.pending && it.deletedAt == null })
+        assertEquals(listOf(created.id), taskDao.reminders.values.map { it.taskId })
+    }
+
+    @Test
+    fun createTaskWithExtras_conTituloInvalido_noEscribeNada() = runTest {
+        val (repository, taskDao) = extrasRepository()
+
+        val error = failureOf(
+            repository.createTaskWithExtras(
+                "columna-1",
+                TaskCreation(TaskDraft(title = " "), listOf(SubtaskDraft("Datos")), now.plusSeconds(60)),
+            ),
+        )
+
+        assertEquals("TASK_TITLE_REQUIRED", error.code)
+        assertNothingWritten(taskDao)
+    }
+
+    @Test
+    fun createTaskWithExtras_conSubtareaInvalida_noEscribeNada() = runTest {
+        val (repository, taskDao) = extrasRepository()
+
+        val error = failureOf(
+            repository.createTaskWithExtras(
+                "columna-1",
+                TaskCreation(
+                    TaskDraft(title = "Informe"),
+                    listOf(SubtaskDraft("Bien"), SubtaskDraft("x".repeat(201))),
+                    now.plusSeconds(60),
+                ),
+            ),
+        )
+
+        assertEquals("SUBTASK_TITLE_TOO_LONG", error.code)
+        assertNothingWritten(taskDao)
+    }
+
+    @Test
+    fun createTaskWithExtras_conRecordatorioPasado_noEscribeNada() = runTest {
+        val (repository, taskDao) = extrasRepository()
+
+        val error = failureOf(
+            repository.createTaskWithExtras(
+                "columna-1",
+                TaskCreation(TaskDraft(title = "Informe"), listOf(SubtaskDraft("Datos")), now),
+            ),
+        )
+
+        assertEquals("VALIDATION_ERROR", error.code)
+        assertNothingWritten(taskDao)
+    }
+
+    @Test
+    fun createTaskWithExtras_conColumnaLlena_noEscribeNada() = runTest {
+        val (repository, taskDao) = extrasRepository(wipLimit = 1)
+        taskDao.put(taskEntity("t0", columnId = "columna-1", position = 0))
+
+        val error = failureOf(
+            repository.createTaskWithExtras(
+                "columna-1",
+                TaskCreation(TaskDraft(title = "Informe"), listOf(SubtaskDraft("Datos")), now.plusSeconds(60)),
+            ),
+        )
+
+        assertEquals("COLUMN_WIP_LIMIT_REACHED", error.code)
+        assertEquals(0, taskDao.extrasCalls)
+        assertEquals(setOf("t0"), taskDao.stored.keys)
+        assertTrue(taskDao.subtasks.isEmpty())
+        assertTrue(taskDao.reminders.isEmpty())
+    }
+
+    @Test
+    fun createTaskWithExtras_conColumnaInexistente_devuelveNotFoundSinEscribir() = runTest {
+        val columnDao = FakeColumnDao()
+        val taskDao = FakeTaskDao(columnDao)
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+
+        val error = failureOf(
+            repository.createTaskWithExtras(
+                "columna-x",
+                TaskCreation(TaskDraft(title = "Informe"), listOf(SubtaskDraft("Datos")), now.plusSeconds(60)),
+            ),
+        )
+
+        assertTrue(error is DomainError.NotFound)
+        assertEquals("COLUMN_NOT_FOUND", error.code)
+        assertNothingWritten(taskDao)
+    }
+
+    @Test
+    fun createTaskWithExtras_recordatorioEscritoMapeaAPendingConSuRemindAt() = runTest {
+        val (repository, taskDao) = extrasRepository()
+        val remindAt = now.plusSeconds(3600)
+
+        val created = (
+            repository.createTaskWithExtras(
+                "columna-1",
+                TaskCreation(TaskDraft(title = "Informe"), remindAt = remindAt),
+            ) as DomainResult.Success
+            ).value
+
+        val reminder = taskDao.reminders.values.single().toReminder()
+        assertEquals(ReminderStatus.PENDING, reminder.status)
+        assertEquals(remindAt, reminder.remindAt)
+        assertEquals(created.id, reminder.taskId)
+        assertNull(reminder.sentAt)
+    }
+
+    @Test
+    fun createTaskWithExtras_sinExtras_seComportaComoCreateTask() = runTest {
+        val (repository, taskDao) = extrasRepository()
+
+        val created = (
+            repository.createTaskWithExtras("columna-1", TaskCreation(TaskDraft(title = "  Sola  ")))
+                as DomainResult.Success
+            ).value
+
+        assertEquals("Sola", created.title)
+        assertEquals(0, created.position)
+        assertEquals(LocalUser.ID, created.assigneeId)
+        assertEquals(listOf(created.id), taskDao.stored.keys.toList())
+        assertTrue(taskDao.subtasks.isEmpty())
+        assertTrue(taskDao.reminders.isEmpty())
+    }
+
+    private fun extrasRepository(wipLimit: Int? = null): Pair<TaskRepositoryImpl, FakeTaskDao> {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1", wipLimit = wipLimit)) }
+        val taskDao = FakeTaskDao(columnDao)
+        return TaskRepositoryImpl(taskDao, columnDao, now = { now }) to taskDao
+    }
+
+    private fun failureOf(result: DomainResult<*>): DomainError = (result as DomainResult.Failure).error
+
+    private fun assertNothingWritten(taskDao: FakeTaskDao) {
+        assertEquals(0, taskDao.extrasCalls)
+        assertEquals(0, taskDao.writeCalls)
+        assertTrue(taskDao.stored.isEmpty())
+        assertTrue(taskDao.subtasks.isEmpty())
+        assertTrue(taskDao.reminders.isEmpty())
     }
 
     @Test
@@ -1047,6 +1224,31 @@ class TaskRepositoryImplTest {
                 reminders[id] = reminders.getValue(id).copy(status = "DISMISSED", updatedAt = now, pending = true)
             }
             return pendingIds.size
+        }
+
+        override suspend fun insertSubtasks(subtasks: List<SubtaskEntity>) {
+            subtasks.forEach { this.subtasks[it.id] = it }
+        }
+
+        override suspend fun insertReminder(reminder: ReminderEntity) {
+            reminders[reminder.id] = reminder
+        }
+
+        var extrasCalls: Int = 0
+            private set
+
+        override suspend fun insertTaskWithExtras(
+            task: TaskEntity,
+            subtasks: List<SubtaskEntity>,
+            reminder: ReminderEntity?,
+        ) {
+            extrasCalls++
+            inTransaction = true
+            try {
+                super.insertTaskWithExtras(task, subtasks, reminder)
+            } finally {
+                inTransaction = false
+            }
         }
 
         override suspend fun upsertDeletedWithSubtasks(task: TaskEntity, deletedAt: Long) {

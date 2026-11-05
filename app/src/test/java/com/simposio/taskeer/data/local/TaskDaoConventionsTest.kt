@@ -98,6 +98,41 @@ class TaskDaoConventionsTest {
     }
 
     @Test
+    fun insertTaskWithExtras_esTransaccionalYUsaLosInsertsDeHijos() {
+        val source = taskDaoSource()
+        val body = source.substring(source.indexOf("open suspend fun insertTaskWithExtras"))
+
+        assertTrue(
+            "la creación completa debe ejecutarse en una única transacción de Room",
+            Regex("@Transaction\\s+open suspend fun insertTaskWithExtras").containsMatchIn(source),
+        )
+        assertTrue(body.contains("upsert(task)"))
+        assertTrue(body.contains("insertSubtasks(subtasks)"))
+        assertTrue(body.contains("insertReminder(it)"))
+        assertTrue(method("insertTaskWithExtras").isSuspend())
+    }
+
+    @Test
+    fun insertsDeHijos_usanReplaceYNoBorranFisicamente() {
+        val source = taskDaoSource()
+
+        assertTrue(
+            Regex(
+                "@Insert\\(onConflict = OnConflictStrategy.REPLACE, entity = SubtaskEntity::class\\)" +
+                    "\\s+abstract suspend fun insertSubtasks\\(subtasks: List<SubtaskEntity>\\)",
+            ).containsMatchIn(source),
+        )
+        assertTrue(
+            Regex(
+                "@Insert\\(onConflict = OnConflictStrategy.REPLACE, entity = ReminderEntity::class\\)" +
+                    "\\s+abstract suspend fun insertReminder\\(reminder: ReminderEntity\\)",
+            ).containsMatchIn(source),
+        )
+        assertFalse("no debe haber borrado físico", source.contains("@Delete"))
+        assertFalse("no debe haber borrado físico", source.contains("DELETE FROM"))
+    }
+
+    @Test
     fun softDeleteSubtasksOfTask_soloActualizaLasActivasDeLaTarea() {
         val source = taskDaoSource()
 
@@ -226,6 +261,10 @@ class TaskDaoConventionsTest {
         override suspend fun findReminderState(taskId: String): ReminderTaskStateRow? = null
 
         override suspend fun dismissRemindersOfTask(taskId: String, now: Long): Int = 0
+
+        override suspend fun insertSubtasks(subtasks: List<SubtaskEntity>) = Unit
+
+        override suspend fun insertReminder(reminder: ReminderEntity) = Unit
     }
 
     private class FakeColumnDao : ColumnDao() {

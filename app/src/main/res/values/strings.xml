@@ -59,7 +59,6 @@
     <string name="subtask_due_at_label">Fecha límite de la subtarea</string>
     <string name="subtask_assignee_label">Asignado a la subtarea</string>
     <string name="subtasks_empty">Sin subtareas</string>
-    <string name="subtasks_create_hint">Guarda la tarea para poder añadir subtareas</string>
     <string name="reminder_title">Recordatorio</string>
     <string name="reminder_later_today">Más tarde hoy</string>
     <string name="reminder_tomorrow">Mañana</string>

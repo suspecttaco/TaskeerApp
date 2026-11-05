@@ -27,7 +27,12 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
         modelClass.isAssignableFrom(BoardsViewModel::class.java) ->
             BoardsViewModel(container.boardRepository) as T
         modelClass.isAssignableFrom(TaskEditorViewModel::class.java) ->
-            TaskEditorViewModel(container.taskRepository, container.dateTimeConverter) as T
+            TaskEditorViewModel(
+                container.taskRepository,
+                container.dateTimeConverter,
+                container.preferencesRepository,
+                container.timeZoneProvider,
+            ) as T
         modelClass.isAssignableFrom(SubtasksViewModel::class.java) ->
             SubtasksViewModel(container.subtaskRepository, container.dateTimeConverter) as T
         modelClass.isAssignableFrom(RemindersViewModel::class.java) ->
