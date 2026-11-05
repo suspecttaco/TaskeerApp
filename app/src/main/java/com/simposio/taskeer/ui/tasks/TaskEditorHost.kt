@@ -56,14 +56,42 @@ fun rememberTaskEditorHost(viewModelFactory: ViewModelProvider.Factory): TaskEdi
             onCancelEdit = subtasksViewModel::cancelEdit,
             onDelete = subtasksViewModel::delete,
         ),
-        reminders = remindersState,
-        reminderActions = ReminderActions(
-            onLaterToday = remindersViewModel::laterToday,
-            onTomorrow = remindersViewModel::tomorrow,
-            onNextWeek = remindersViewModel::nextWeek,
-            onCustom = remindersViewModel::custom,
-            onCancel = remindersViewModel::cancel,
+        subtaskDraftActions = SubtaskDraftActions(
+            onNewTitleChange = editorViewModel::onNewSubtaskTitleChange,
+            onAdd = editorViewModel::addSubtaskDraft,
+            onStartEdit = editorViewModel::startEditSubtaskDraft,
+            onEditTitleChange = editorViewModel::onEditSubtaskTitleChange,
+            onEditDueAtChange = editorViewModel::onEditSubtaskDueAtChange,
+            onEditAssigneeChange = editorViewModel::onEditSubtaskAssigneeChange,
+            onSaveEdit = editorViewModel::saveSubtaskDraftEdit,
+            onCancelEdit = editorViewModel::cancelSubtaskDraftEdit,
+            onDelete = editorViewModel::removeSubtaskDraft,
         ),
+        reminders = if (editorState.taskId == null) {
+            RemindersUiState(
+                reminderAtLocal = editorState.reminderDraftLocal,
+                error = editorState.reminderError,
+            )
+        } else {
+            remindersState
+        },
+        reminderActions = if (editorState.taskId == null) {
+            ReminderActions(
+                onLaterToday = editorViewModel::reminderLaterToday,
+                onTomorrow = editorViewModel::reminderTomorrow,
+                onNextWeek = editorViewModel::reminderNextWeek,
+                onCustom = editorViewModel::reminderCustom,
+                onCancel = editorViewModel::clearReminderDraft,
+            )
+        } else {
+            ReminderActions(
+                onLaterToday = remindersViewModel::laterToday,
+                onTomorrow = remindersViewModel::tomorrow,
+                onNextWeek = remindersViewModel::nextWeek,
+                onCustom = remindersViewModel::custom,
+                onCancel = remindersViewModel::cancel,
+            )
+        },
         permissionNotice = { NotificationPermissionNotice(viewModelFactory) },
         onSave = editorViewModel::save,
         onDelete = editorViewModel::delete,

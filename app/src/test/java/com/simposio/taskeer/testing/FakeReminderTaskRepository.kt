@@ -4,6 +4,7 @@ import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.ReminderCandidate
 import com.simposio.taskeer.domain.model.Task
+import com.simposio.taskeer.domain.model.TaskCreation
 import com.simposio.taskeer.domain.model.TaskDraft
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,6 +28,11 @@ class FakeReminderTaskRepository(
     override suspend fun getTask(id: String): DomainResult<Task> = unused()
 
     override suspend fun createTask(columnId: String, draft: TaskDraft): DomainResult<Task> = unused()
+
+    override suspend fun createTaskWithExtras(
+        columnId: String,
+        creation: TaskCreation,
+    ): DomainResult<Task> = unused()
 
     override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> = unused()
 

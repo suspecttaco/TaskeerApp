@@ -56,6 +56,7 @@ fun TaskEditorDialog(
     onAssigneeChange: (String?) -> Unit,
     subtasks: SubtasksUiState,
     subtaskActions: SubtaskActions,
+    subtaskDraftActions: SubtaskDraftActions,
     reminders: RemindersUiState,
     reminderActions: ReminderActions,
     permissionNotice: @Composable () -> Unit,
@@ -160,29 +161,30 @@ fun TaskEditorDialog(
                 )
 
                 AppDivider()
-                SubtasksSection(
-                    taskExists = state.taskId != null,
-                    state = subtasks,
-                    onNewTitleChange = subtaskActions.onNewTitleChange,
-                    onAdd = subtaskActions.onAdd,
-                    onToggle = subtaskActions.onToggle,
-                    onStartEdit = subtaskActions.onStartEdit,
-                    onEditTitleChange = subtaskActions.onEditTitleChange,
-                    onEditDueAtChange = subtaskActions.onEditDueAtChange,
-                    onEditAssigneeChange = subtaskActions.onEditAssigneeChange,
-                    onSaveEdit = subtaskActions.onSaveEdit,
-                    onCancelEdit = subtaskActions.onCancelEdit,
-                    onDelete = subtaskActions.onDelete,
-                )
-
-                if (state.taskId != null) {
-                    AppDivider()
-                    RemindersSection(
-                        state = reminders,
-                        actions = reminderActions,
-                        permissionNotice = permissionNotice,
+                if (state.taskId == null) {
+                    SubtaskDraftsSection(state = state, actions = subtaskDraftActions)
+                } else {
+                    SubtasksSection(
+                        state = subtasks,
+                        onNewTitleChange = subtaskActions.onNewTitleChange,
+                        onAdd = subtaskActions.onAdd,
+                        onToggle = subtaskActions.onToggle,
+                        onStartEdit = subtaskActions.onStartEdit,
+                        onEditTitleChange = subtaskActions.onEditTitleChange,
+                        onEditDueAtChange = subtaskActions.onEditDueAtChange,
+                        onEditAssigneeChange = subtaskActions.onEditAssigneeChange,
+                        onSaveEdit = subtaskActions.onSaveEdit,
+                        onCancelEdit = subtaskActions.onCancelEdit,
+                        onDelete = subtaskActions.onDelete,
                     )
                 }
+
+                AppDivider()
+                RemindersSection(
+                    state = reminders,
+                    actions = reminderActions,
+                    permissionNotice = permissionNotice,
+                )
 
                 state.error?.let { error ->
                     Text(
@@ -268,6 +270,7 @@ private fun TaskEditorDialogPreview() {
             onAssigneeChange = {},
             subtasks = SubtasksUiState(),
             subtaskActions = SubtaskActions.None,
+            subtaskDraftActions = SubtaskDraftActions.None,
             reminders = RemindersUiState(),
             reminderActions = ReminderActions.None,
             permissionNotice = {},

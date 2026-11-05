@@ -17,6 +17,7 @@ import com.simposio.taskeer.domain.model.MyDay
 import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.domain.model.ReminderCandidate
 import com.simposio.taskeer.domain.model.Task
+import com.simposio.taskeer.domain.model.TaskCreation
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.ui.board.BoardViewModel
@@ -620,6 +621,11 @@ class BoardViewModelTest {
         override suspend fun getTask(id: String): DomainResult<Task> = error("no se usa")
 
         override suspend fun createTask(columnId: String, draft: TaskDraft): DomainResult<Task> = error("no se usa")
+
+        override suspend fun createTaskWithExtras(
+            columnId: String,
+            creation: TaskCreation,
+        ): DomainResult<Task> = error("no se usa")
 
         override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> = error("no se usa")
 

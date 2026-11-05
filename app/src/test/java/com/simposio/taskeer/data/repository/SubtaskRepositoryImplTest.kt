@@ -3,6 +3,7 @@ package com.simposio.taskeer.data.repository
 import com.simposio.taskeer.data.local.SubtaskDao
 import com.simposio.taskeer.data.local.SubtaskEntity
 import com.simposio.taskeer.data.local.ReminderCandidateRow
+import com.simposio.taskeer.data.local.ReminderEntity
 import com.simposio.taskeer.data.local.ReminderTaskStateRow
 import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.TaskEntity
@@ -349,5 +350,9 @@ class SubtaskRepositoryImplTest {
         override suspend fun findReminderState(taskId: String): ReminderTaskStateRow? = null
 
         override suspend fun dismissRemindersOfTask(taskId: String, now: Long): Int = 0
+
+        override suspend fun insertSubtasks(subtasks: List<SubtaskEntity>) = Unit
+
+        override suspend fun insertReminder(reminder: ReminderEntity) = Unit
     }
 }

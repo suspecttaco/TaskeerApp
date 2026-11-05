@@ -12,11 +12,13 @@ import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.ReminderCandidate
 import com.simposio.taskeer.domain.model.Task
+import com.simposio.taskeer.domain.model.TaskCreation
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.task.TASK_NOT_FOUND
 import com.simposio.taskeer.domain.task.checkSameBoard
 import com.simposio.taskeer.domain.task.movedTask
 import com.simposio.taskeer.domain.task.newTask
+import com.simposio.taskeer.domain.task.newTaskWithExtras
 import com.simposio.taskeer.domain.task.softDeleted
 import com.simposio.taskeer.domain.task.updated
 import java.time.Instant
@@ -58,6 +60,26 @@ class TaskRepositoryImpl(
                 DomainResult.Success(result.value)
             }
         }
+    }
+
+    override suspend fun createTaskWithExtras(
+        columnId: String,
+        creation: TaskCreation,
+    ): DomainResult<Task> {
+        val column = columnDao.findById(columnId)?.takeIf { it.deletedAt == null }?.toColumn()
+            ?: return columnNotFound()
+        val position = dao.findActiveByColumn(columnId).size
+        val bundle = when (val result = newTaskWithExtras(columnId, creation, position, now())) {
+            is DomainResult.Failure -> return result
+            is DomainResult.Success -> result.value
+        }
+        checkWipLimit(column, position)?.let { return DomainResult.Failure(it) }
+        dao.insertTaskWithExtras(
+            bundle.task.toEntity(),
+            bundle.subtasks.map { it.toEntity() },
+            bundle.reminder?.toEntity(),
+        )
+        return DomainResult.Success(bundle.task)
     }
 
     override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> {

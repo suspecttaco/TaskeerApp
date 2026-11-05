@@ -3,6 +3,7 @@ package com.simposio.taskeer.ui.tasks
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.LocalUser
 import com.simposio.taskeer.domain.model.TaskPriority
+import java.time.Instant
 import java.time.LocalDateTime
 
 data class TaskEditorUiState(
@@ -16,4 +17,13 @@ data class TaskEditorUiState(
     val assigneeId: String? = LocalUser.ID,
     val error: DomainError? = null,
     val isSaving: Boolean = false,
+    val subtaskDrafts: List<SubtaskDraftItem> = emptyList(),
+    val newSubtaskTitle: String = "",
+    val editingDraftId: String? = null,
+    val editingDraftTitle: String = "",
+    val editingDraftDueAtLocal: LocalDateTime? = null,
+    val editingDraftAssigneeId: String? = null,
+    val reminderDraft: Instant? = null,
+    val reminderDraftLocal: LocalDateTime? = null,
+    val reminderError: String? = null,
 )

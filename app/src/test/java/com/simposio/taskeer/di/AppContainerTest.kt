@@ -19,6 +19,7 @@ import com.simposio.taskeer.domain.model.SubtaskDraft
 import com.simposio.taskeer.domain.model.SubtaskProgress
 import com.simposio.taskeer.domain.model.ReminderCandidate
 import com.simposio.taskeer.domain.model.Task
+import com.simposio.taskeer.domain.model.TaskCreation
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.testing.FakePreferencesRepository
 import com.simposio.taskeer.testing.FakeReminderRepository
@@ -197,6 +198,11 @@ class AppContainerTest {
         override suspend fun getTask(id: String): DomainResult<Task> = unused()
 
         override suspend fun createTask(columnId: String, draft: TaskDraft): DomainResult<Task> = unused()
+
+        override suspend fun createTaskWithExtras(
+            columnId: String,
+            creation: TaskCreation,
+        ): DomainResult<Task> = unused()
 
         override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> = unused()
 

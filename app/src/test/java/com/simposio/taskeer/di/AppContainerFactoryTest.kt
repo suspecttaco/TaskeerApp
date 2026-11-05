@@ -1,7 +1,9 @@
 package com.simposio.taskeer.di
 
 import com.simposio.taskeer.data.local.ReminderCandidateRow
+import com.simposio.taskeer.data.local.ReminderEntity
 import com.simposio.taskeer.data.local.ReminderTaskStateRow
+import com.simposio.taskeer.data.local.SubtaskEntity
 import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.TaskEntity
 import com.simposio.taskeer.data.reminder.ReminderReconciler
@@ -135,6 +137,10 @@ class AppContainerFactoryTest {
         override suspend fun findReminderState(taskId: String): ReminderTaskStateRow? = null
 
         override suspend fun dismissRemindersOfTask(taskId: String, now: Long): Int = 0
+
+        override suspend fun insertSubtasks(subtasks: List<SubtaskEntity>) = Unit
+
+        override suspend fun insertReminder(reminder: ReminderEntity) = Unit
     }
 
     private fun taskEntity(id: String, columnId: String): TaskEntity = TaskEntity(
