@@ -15,6 +15,7 @@ import com.simposio.taskeer.domain.myday.sortMyDay
 import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -164,6 +165,16 @@ class MyDayRulesTest {
             listOf("ALL", "MARKED", "ASSIGNED", "OVERDUE"),
             MyDayFilter.entries.map { it.name },
         )
+    }
+
+    @Test
+    fun tareaDeBandeja_conservaBoardNameNulo() {
+        val inbox = MyDayTask(item("pan").task.copy(columnId = null), boardId = null, boardName = null, addedAt = Instant.EPOCH)
+
+        val merged = mergeMyDay(MyDay(pinned = listOf(inbox), assigned = emptyList()))
+
+        assertNull(merged.single().boardName)
+        assertNull(merged.single().boardId)
     }
 
     private fun List<MyDayItem>.ids(): List<String> = map { it.task.id }

@@ -77,6 +77,26 @@ class TaskMappingTest {
     }
 
     @Test
+    fun columnIdNulo_hacePasoIdaYVuelta() {
+        val task = Task(
+            columnId = null,
+            title = "Comprar pan",
+            description = null,
+            priority = TaskPriority.MEDIUM,
+            dueAt = null,
+            assigneeId = "local-user",
+            position = 0,
+            createdAt = Instant.EPOCH,
+            sync = SyncMetadata("tarea-1", dueAt, pending = true, deletedAt = null),
+        )
+
+        val entity = task.toEntity()
+
+        assertNull(entity.columnId)
+        assertEquals(task, entity.toTask())
+    }
+
+    @Test
     fun idaYVuelta_preservaElInstanteYLosMetadatos() {
         val task = Task(
             columnId = "columna-1",

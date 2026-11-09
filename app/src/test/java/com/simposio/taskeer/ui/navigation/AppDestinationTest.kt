@@ -9,9 +9,14 @@ import org.junit.Test
 class AppDestinationTest {
 
     @Test
-    fun startEsHome() {
-        assertEquals(AppDestination.HOME, AppDestination.START)
-        assertEquals("home", AppDestination.START.route)
+    fun startEsMiDia() {
+        assertEquals(AppDestination.MY_DAY, AppDestination.START)
+        assertEquals("my_day", AppDestination.START.route)
+    }
+
+    @Test
+    fun homeYaNoExiste() {
+        assertTrue(AppDestination.entries.none { it.name == "HOME" || it.route == "home" })
     }
 
     @Test
@@ -25,8 +30,8 @@ class AppDestinationTest {
     fun seccionesPrincipalesPresentes() {
         assertEquals(
             listOf(
-                AppDestination.HOME,
                 AppDestination.MY_DAY,
+                AppDestination.INBOX,
                 AppDestination.WORKSPACES,
                 AppDestination.SETTINGS,
             ),

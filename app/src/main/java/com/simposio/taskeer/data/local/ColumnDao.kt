@@ -12,6 +12,9 @@ abstract class ColumnDao {
     @Query("SELECT * FROM columns WHERE boardId = :boardId AND deletedAt IS NULL ORDER BY position ASC, id ASC")
     abstract fun observeByBoard(boardId: String): Flow<List<ColumnEntity>>
 
+    @Query("SELECT * FROM columns WHERE deletedAt IS NULL ORDER BY boardId ASC, position ASC, id ASC")
+    abstract fun observeAllActive(): Flow<List<ColumnEntity>>
+
     @Query("SELECT * FROM columns WHERE boardId = :boardId AND deletedAt IS NULL ORDER BY position ASC, id ASC")
     abstract suspend fun findActiveByBoard(boardId: String): List<ColumnEntity>
 

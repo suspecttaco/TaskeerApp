@@ -113,6 +113,22 @@ class TaskDaoConventionsTest {
     }
 
     @Test
+    fun insertTaskWithExtras_incluyeLaEntradaDeMiDia() {
+        val source = taskDaoSource()
+        val body = source.substring(source.indexOf("open suspend fun insertTaskWithExtras"))
+
+        assertTrue(Regex("@Transaction\\s+open suspend fun insertTaskWithExtras").containsMatchIn(source))
+        assertTrue(body.contains("myDayEntry: MyDayEntryEntity?"))
+        assertTrue(body.contains("insertMyDayEntry(it)"))
+        assertTrue(
+            Regex(
+                "@Insert\\(onConflict = OnConflictStrategy.REPLACE, entity = MyDayEntryEntity::class\\)" +
+                    "\\s+abstract suspend fun insertMyDayEntry\\(entry: MyDayEntryEntity\\)",
+            ).containsMatchIn(source),
+        )
+    }
+
+    @Test
     fun insertsDeHijos_usanReplaceYNoBorranFisicamente() {
         val source = taskDaoSource()
 
@@ -169,11 +185,71 @@ class TaskDaoConventionsTest {
     fun observeReminderCandidates_exigeFechaNoBorradaYColumnaNoCompletada() {
         val query = querySource("observeReminderCandidates")
 
-        assertTrue(query.contains("INNER JOIN columns ON tasks.columnId = columns.id"))
         assertTrue(query.contains("tasks.dueAt IS NOT NULL"))
         assertTrue(query.contains("tasks.deletedAt IS NULL"))
         assertTrue(query.contains("columns.isDoneColumn = 0"))
         assertEquals(Flow::class.java, method("observeReminderCandidates").returnType)
+    }
+
+    @Test
+    fun observeReminderCandidates_incluyeBandejaYExcluyeCierre() {
+        val query = querySource("observeReminderCandidates")
+
+        assertTrue(query.contains("LEFT JOIN columns ON tasks.columnId = columns.id"))
+        assertTrue(query.contains("(tasks.columnId IS NULL OR columns.isDoneColumn = 0)"))
+    }
+
+    @Test
+    fun countActive_incluyeBandeja() {
+        val query = querySource("countActive")
+
+        assertTrue(query.contains("LEFT JOIN columns ON tasks.columnId = columns.id"))
+        assertTrue(query.contains("(tasks.columnId IS NULL OR columns.isDoneColumn = 0)"))
+    }
+
+    @Test
+    fun findReminderState_bandejaNoEstaCompletada() {
+        val query = querySource("findReminderState")
+
+        assertTrue(query.contains("CASE WHEN tasks.columnId IS NULL THEN 0"))
+        assertTrue(query.contains("LEFT JOIN columns ON tasks.columnId = columns.id"))
+    }
+
+    @Test
+    fun observeInbox_filtraSinColumnaYNoBorradas() {
+        val query = querySource("observeInbox")
+
+        assertTrue(query.contains("WHERE columnId IS NULL AND deletedAt IS NULL"))
+        assertEquals(Flow::class.java, method("observeInbox").returnType)
+    }
+
+    @Test
+    fun observeInbox_ordenaPorCreacionDescendente() {
+        assertTrue(querySource("observeInbox").contains("ORDER BY createdAt DESC, id ASC"))
+    }
+
+    @Test
+    fun observeByBoard_sigueUsandoJoinInterno() {
+        val query = querySource("observeByBoard")
+
+        assertTrue(query.contains("INNER JOIN columns ON tasks.columnId = columns.id"))
+        assertFalse(query.contains("LEFT JOIN"))
+    }
+
+    @Test
+    fun countByColumn_filtraPorColumnaYNoCuentaBandeja() {
+        val query = querySource("countByColumn")
+
+        assertTrue(query.contains("WHERE columnId = :columnId"))
+        assertFalse("no debe contar la bandeja", query.contains("IS NULL"))
+    }
+
+    @Test
+    fun observeCountsByColumn_excluyeBandejaYBorradas() {
+        val query = querySource("observeCountsByColumn")
+
+        assertTrue(query.contains("deletedAt IS NULL AND columnId IS NOT NULL GROUP BY columnId"))
+        assertEquals(Flow::class.java, method("observeCountsByColumn").returnType)
     }
 
     @Test
@@ -221,6 +297,14 @@ class TaskDaoConventionsTest {
         parameterTypes.lastOrNull()?.name == "kotlin.coroutines.Continuation"
 
     private class FakeTaskDao(private val columnDao: FakeColumnDao) : TaskDao() {
+        override fun observeInbox(): Flow<List<TaskEntity>> = emptyFlow()
+
+        override suspend fun countInbox(): Int = 0
+
+        override fun observeCountsByColumn(): Flow<List<ColumnCountRow>> = emptyFlow()
+
+        override suspend fun insertMyDayEntry(entry: MyDayEntryEntity) = Unit
+
         private val rows = MutableStateFlow<Map<String, TaskEntity>>(emptyMap())
 
         fun put(task: TaskEntity) {
@@ -268,6 +352,8 @@ class TaskDaoConventionsTest {
     }
 
     private class FakeColumnDao : ColumnDao() {
+        override fun observeAllActive(): Flow<List<ColumnEntity>> = emptyFlow()
+
         private val rows = MutableStateFlow<Map<String, ColumnEntity>>(emptyMap())
 
         fun put(column: ColumnEntity) {

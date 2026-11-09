@@ -1,6 +1,7 @@
 package com.simposio.taskeer.data.repository
 
 import com.simposio.taskeer.data.local.ColumnDao
+import com.simposio.taskeer.data.local.MyDayEntryEntity
 import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.toEntity
 import com.simposio.taskeer.data.local.toColumn
@@ -8,13 +9,16 @@ import com.simposio.taskeer.data.local.toTask
 import com.simposio.taskeer.data.local.toCandidate
 import com.simposio.taskeer.domain.column.COLUMN_NOT_FOUND
 import com.simposio.taskeer.domain.column.checkWipLimit
+import com.simposio.taskeer.domain.model.Column
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.ReminderCandidate
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskCreation
 import com.simposio.taskeer.domain.model.TaskDraft
+import com.simposio.taskeer.domain.task.TASK_IN_INBOX
 import com.simposio.taskeer.domain.task.TASK_NOT_FOUND
+import com.simposio.taskeer.domain.task.assignedToColumn
 import com.simposio.taskeer.domain.task.checkSameBoard
 import com.simposio.taskeer.domain.task.movedTask
 import com.simposio.taskeer.domain.task.newTask
@@ -35,6 +39,12 @@ class TaskRepositoryImpl(
     override fun observeTasks(boardId: String): Flow<List<Task>> =
         dao.observeByBoard(boardId).map { entities -> entities.map { it.toTask() } }
 
+    override fun observeInbox(): Flow<List<Task>> =
+        dao.observeInbox().map { entities -> entities.map { it.toTask() } }
+
+    override fun observeActiveCountsByColumn(): Flow<Map<String, Int>> =
+        dao.observeCountsByColumn().map { rows -> rows.associate { it.columnId to it.count } }
+
     override fun observeReminderCandidates(): Flow<List<ReminderCandidate>> =
         dao.observeReminderCandidates().map { rows -> rows.map { it.toCandidate() } }
 
@@ -48,14 +58,13 @@ class TaskRepositoryImpl(
         return DomainResult.Success(task)
     }
 
-    override suspend fun createTask(columnId: String, draft: TaskDraft): DomainResult<Task> {
-        val column = columnDao.findById(columnId)?.takeIf { it.deletedAt == null }?.toColumn()
-            ?: return columnNotFound()
-        val position = dao.findActiveByColumn(columnId).size
+    override suspend fun createTask(columnId: String?, draft: TaskDraft): DomainResult<Task> {
+        val column = if (columnId == null) null else activeColumn(columnId) ?: return columnNotFound()
+        val position = nextPosition(columnId)
         return when (val result = newTask(columnId, draft, position, now())) {
             is DomainResult.Failure -> result
             is DomainResult.Success -> {
-                checkWipLimit(column, position)?.let { return DomainResult.Failure(it) }
+                column?.let { checkWipLimit(it, position) }?.let { return DomainResult.Failure(it) }
                 dao.upsert(result.value.toEntity())
                 DomainResult.Success(result.value)
             }
@@ -63,21 +72,28 @@ class TaskRepositoryImpl(
     }
 
     override suspend fun createTaskWithExtras(
-        columnId: String,
+        columnId: String?,
         creation: TaskCreation,
     ): DomainResult<Task> {
-        val column = columnDao.findById(columnId)?.takeIf { it.deletedAt == null }?.toColumn()
-            ?: return columnNotFound()
-        val position = dao.findActiveByColumn(columnId).size
-        val bundle = when (val result = newTaskWithExtras(columnId, creation, position, now())) {
+        val column = if (columnId == null) null else activeColumn(columnId) ?: return columnNotFound()
+        val position = nextPosition(columnId)
+        val createdAt = now()
+        val bundle = when (val result = newTaskWithExtras(columnId, creation, position, createdAt)) {
             is DomainResult.Failure -> return result
             is DomainResult.Success -> result.value
         }
-        checkWipLimit(column, position)?.let { return DomainResult.Failure(it) }
+        column?.let { checkWipLimit(it, position) }?.let { return DomainResult.Failure(it) }
+        val myDayEntry = if (creation.addToMyDay) {
+            val at = createdAt.toEpochMilli()
+            MyDayEntryEntity(bundle.task.id, addedAt = at, updatedAt = at, pending = true, deletedAt = null)
+        } else {
+            null
+        }
         dao.insertTaskWithExtras(
             bundle.task.toEntity(),
             bundle.subtasks.map { it.toEntity() },
             bundle.reminder?.toEntity(),
+            myDayEntry,
         )
         return DomainResult.Success(bundle.task)
     }
@@ -95,19 +111,22 @@ class TaskRepositoryImpl(
 
     override suspend fun moveTask(id: String, toColumnId: String, toIndex: Int): DomainResult<Task> {
         val current = activeTask(id) ?: return taskNotFound()
-        val destination = columnDao.findById(toColumnId)?.takeIf { it.deletedAt == null }?.toColumn()
-            ?: return columnNotFound()
+        val sourceColumnId = current.columnId
+            ?: return DomainResult.Failure(
+                DomainError.Validation(TASK_IN_INBOX, "La tarea no tiene tablero: asígnala primero"),
+            )
+        val destination = activeColumn(toColumnId) ?: return columnNotFound()
         // El boardId de una columna no cambia, así que sirve aunque la columna origen esté borrada.
-        val sourceBoardId = columnDao.findById(current.columnId)?.boardId
+        val sourceBoardId = columnDao.findById(sourceColumnId)?.boardId
         if (sourceBoardId != null) {
             checkSameBoard(sourceBoardId, destination)?.let { return DomainResult.Failure(it) }
         }
-        val source = dao.findActiveByColumn(current.columnId).map { it.toTask() }
-        val target = if (toColumnId == current.columnId) source else dao.findActiveByColumn(toColumnId).map { it.toTask() }
+        val source = dao.findActiveByColumn(sourceColumnId).map { it.toTask() }
+        val target = if (toColumnId == sourceColumnId) source else dao.findActiveByColumn(toColumnId).map { it.toTask() }
         return when (val result = movedTask(current, source, target, toColumnId, toIndex, now())) {
             is DomainResult.Failure -> result
             is DomainResult.Success -> {
-                if (toColumnId != current.columnId) {
+                if (toColumnId != sourceColumnId) {
                     checkWipLimit(destination, target.count { it.id != id })
                         ?.let { return DomainResult.Failure(it) }
                 }
@@ -115,6 +134,20 @@ class TaskRepositoryImpl(
                     dao.upsertAll(result.value.map { it.toEntity() })
                 }
                 DomainResult.Success(result.value.firstOrNull { it.id == id } ?: current)
+            }
+        }
+    }
+
+    override suspend fun assignToColumn(id: String, columnId: String): DomainResult<Task> {
+        val current = activeTask(id) ?: return taskNotFound()
+        val destination = activeColumn(columnId) ?: return columnNotFound()
+        val position = dao.findActiveByColumn(columnId).size
+        return when (val result = current.assignedToColumn(columnId, position, now())) {
+            is DomainResult.Failure -> result
+            is DomainResult.Success -> {
+                checkWipLimit(destination, position)?.let { return DomainResult.Failure(it) }
+                dao.upsert(result.value.toEntity())
+                DomainResult.Success(result.value)
             }
         }
     }
@@ -128,6 +161,12 @@ class TaskRepositoryImpl(
         )
         return DomainResult.Success(Unit)
     }
+
+    private suspend fun activeColumn(id: String): Column? =
+        columnDao.findById(id)?.takeIf { it.deletedAt == null }?.toColumn()
+
+    private suspend fun nextPosition(columnId: String?): Int =
+        if (columnId == null) dao.countInbox() else dao.findActiveByColumn(columnId).size
 
     private suspend fun activeTask(id: String): Task? =
         dao.findById(id)?.toTask()?.takeUnless { it.isDeleted }

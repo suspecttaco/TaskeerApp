@@ -1,10 +1,9 @@
 <resources>
     <string name="app_name">Taskeer</string>
-    <string name="nav_home">Inicio</string>
     <string name="nav_my_day">Mi día</string>
+    <string name="nav_inbox">Tareas</string>
     <string name="nav_workspaces">Workspaces</string>
     <string name="nav_settings">Configuración</string>
-    <string name="screen_home">Inicio</string>
     <string name="board_name_label">Nombre del tablero</string>
     <string name="board_create">Crear</string>
     <string name="board_rename">Renombrar</string>
@@ -114,6 +113,20 @@
     <string name="my_day_sort_priority">Prioridad</string>
     <string name="my_day_sort_marked_at">Marcado reciente</string>
     <string name="my_day_assigned_tag">Asignada</string>
+    <string name="inbox_title">Tareas</string>
+    <string name="inbox_empty">No hay tareas sin tablero</string>
+    <string name="quick_add_label">Nueva tarea</string>
+    <string name="quick_add_add">Añadir</string>
+    <string name="quick_add_destination">Destino</string>
+    <string name="destination_inbox">Tareas (sin tablero)</string>
+    <string name="destination_no_columns">Sin columnas disponibles</string>
+    <string name="destination_no_boards">Crea un tablero en Workspaces</string>
+    <string name="destination_picker_title">Elige destino</string>
+    <string name="destination_picker_close">Cerrar</string>
+    <string name="assign_title">Asignar a tablero</string>
+    <string name="assign_description">Asignar a tablero</string>
+    <string name="destination_wip">%1$s · %2$d/%3$d</string>
+    <string name="destination_count">%1$s · %2$d</string>
     <string name="my_day_empty">Mi día está vacío</string>
     <string name="my_day_filter_empty">No hay tareas con este filtro</string>
     <plurals name="my_day_overdue_count">

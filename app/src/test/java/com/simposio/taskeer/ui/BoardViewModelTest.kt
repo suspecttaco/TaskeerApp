@@ -547,6 +547,8 @@ class BoardViewModelTest {
         private val columns: Flow<List<Column>>,
         private val columnsState: MutableStateFlow<List<Column>>? = null,
     ) : ColumnRepository {
+        override fun observeAllColumns(): Flow<List<Column>> = emptyFlow()
+
         val created = mutableListOf<Pair<String, String>>()
 
         override fun observeColumns(boardId: String): Flow<List<Column>> = columns
@@ -592,6 +594,13 @@ class BoardViewModelTest {
     }
 
     private class FakeTaskRepository(private val tasks: MutableStateFlow<List<Task>>) : TaskRepository {
+        override fun observeInbox(): Flow<List<Task>> = emptyFlow()
+
+        override fun observeActiveCountsByColumn(): Flow<Map<String, Int>> = emptyFlow()
+
+        override suspend fun assignToColumn(id: String, columnId: String): DomainResult<Task> =
+            error("no se usa en este test")
+
         val moves: MutableList<Triple<String, String, Int>> = mutableListOf()
         var failure: DomainError? = null
         var gate: CompletableDeferred<Unit>? = null
@@ -620,10 +629,10 @@ class BoardViewModelTest {
 
         override suspend fun getTask(id: String): DomainResult<Task> = error("no se usa")
 
-        override suspend fun createTask(columnId: String, draft: TaskDraft): DomainResult<Task> = error("no se usa")
+        override suspend fun createTask(columnId: String?, draft: TaskDraft): DomainResult<Task> = error("no se usa")
 
         override suspend fun createTaskWithExtras(
-            columnId: String,
+            columnId: String?,
             creation: TaskCreation,
         ): DomainResult<Task> = error("no se usa")
 

@@ -16,6 +16,7 @@ class AppDatabaseSchemaTest {
     private val schemaV8: String = resolveSchema(version = 8).readText()
     private val schemaV9: String = resolveSchema(version = 9).readText()
     private val schemaV10: String = resolveSchema(version = 10).readText()
+    private val schemaV11: String = resolveSchema(version = 11).readText()
 
     @Test
     fun esquemaVersion1_sigueExportado() {
@@ -362,6 +363,51 @@ class AppDatabaseSchemaTest {
 
         assertEquals(setOf("app_notifications"), tablesV10 - tablesV9)
         assertTrue(tablesV9.all { it in tablesV10 })
+    }
+
+    @Test
+    fun esquemaVersion11_estaExportadoYConservaDel1Al10() {
+        assertTrue(
+            "el esquema debe declarar la versión 11 de la base de datos",
+            Regex("\"version\"\\s*:\\s*11\\b").containsMatchIn(schemaV11),
+        )
+        (1..10).forEach { assertTrue(resolveSchema(version = it).isFile) }
+    }
+
+    @Test
+    fun v11_tasks_columnIdAdmiteNull() {
+        assertEquals(ColumnSchema("TEXT", false), column(tableV11("tasks"), "columnId"))
+    }
+
+    @Test
+    fun v11_tasks_conservaElRestoDeColumnasYElIndice() {
+        val v10 = tableV10("tasks")
+        val v11 = tableV11("tasks")
+
+        listOf(
+            "id", "title", "description", "priority", "dueAt", "assigneeId",
+            "position", "createdAt", "updatedAt", "pending", "deletedAt",
+        ).forEach { assertEquals(it, column(v10, it), column(v11, it)) }
+        assertTrue(v11.contains("index_tasks_columnId_position"))
+        assertTrue(v11.substring(v11.indexOf("index_tasks_columnId_position")).contains("`columnId`, `position`"))
+    }
+
+    @Test
+    fun v11_mantieneLasMismasTablasQueV10() {
+        val tablesV10 = Regex("\"tableName\": \"(\\w+)\"").findAll(schemaV10).map { it.groupValues[1] }.toSet()
+        val tablesV11 = Regex("\"tableName\": \"(\\w+)\"").findAll(schemaV11).map { it.groupValues[1] }.toSet()
+
+        assertEquals(tablesV10, tablesV11)
+        (tablesV10 - "tasks").forEach { table ->
+            assertEquals(table, tableV10(table).substringBefore("\"setupQueries\""), tableV11(table).substringBefore("\"setupQueries\""))
+        }
+    }
+
+    private fun tableV11(name: String): String {
+        val start = schemaV11.indexOf("\"tableName\": \"$name\"")
+        assertTrue("el esquema v11 debe declarar la tabla $name", start >= 0)
+        val nextTable = schemaV11.indexOf("\"tableName\":", start + 1)
+        return schemaV11.substring(start, if (nextTable < 0) schemaV11.length else nextTable)
     }
 
     private fun tableV10(name: String): String {

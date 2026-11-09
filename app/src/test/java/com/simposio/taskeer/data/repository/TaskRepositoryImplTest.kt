@@ -1,8 +1,10 @@
 package com.simposio.taskeer.data.repository
 
 import com.simposio.taskeer.data.local.BoardEntity
+import com.simposio.taskeer.data.local.ColumnCountRow
 import com.simposio.taskeer.data.local.ColumnDao
 import com.simposio.taskeer.data.local.ColumnEntity
+import com.simposio.taskeer.data.local.MyDayEntryEntity
 import com.simposio.taskeer.data.local.ReminderCandidateRow
 import com.simposio.taskeer.data.local.ReminderEntity
 import com.simposio.taskeer.data.local.ReminderTaskStateRow
@@ -26,6 +28,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -1086,6 +1089,240 @@ class TaskRepositoryImplTest {
         assertEquals(later.toEpochMilli(), row.updatedAt)
     }
 
+    @Test
+    fun createTaskWithExtras_conMiDia_escribeTareaYEntradaEnUnaLlamada() = runTest {
+        val (repository, taskDao) = extrasRepository()
+
+        val created = (
+            repository.createTaskWithExtras(
+                "columna-1",
+                TaskCreation(TaskDraft(title = "Informe"), addToMyDay = true),
+            ) as DomainResult.Success
+            ).value
+
+        val entry = taskDao.myDayEntries.getValue(created.id)
+        assertEquals(1, taskDao.extrasCalls)
+        assertEquals(now.toEpochMilli(), entry.addedAt)
+        assertTrue(entry.pending && entry.deletedAt == null)
+    }
+
+    @Test
+    fun createTaskWithExtras_sinMiDia_noEscribeEntrada() = runTest {
+        val (repository, taskDao) = extrasRepository()
+
+        repository.createTaskWithExtras("columna-1", TaskCreation(TaskDraft(title = "Informe")))
+
+        assertTrue(taskDao.myDayEntries.isEmpty())
+    }
+
+    @Test
+    fun createTaskWithExtras_enColumna_ubicaAlFinal() = runTest {
+        val (repository, taskDao) = extrasRepository()
+        taskDao.put(taskEntity("t0", columnId = "columna-1", position = 0))
+        taskDao.put(taskEntity("t1", columnId = "columna-1", position = 1))
+
+        val created = (
+            repository.createTaskWithExtras(
+                "columna-1",
+                TaskCreation(TaskDraft(title = "Informe"), addToMyDay = true),
+            ) as DomainResult.Success
+            ).value
+
+        assertEquals(2, created.position)
+        assertEquals("columna-1", taskDao.stored.getValue(created.id).columnId)
+    }
+
+    @Test
+    fun createTaskWithExtras_enBandeja_noConsultaColumnas() = runTest {
+        val columnDao = FakeColumnDao()
+        val taskDao = FakeTaskDao(columnDao)
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+
+        val created = (
+            repository.createTaskWithExtras(null, TaskCreation(TaskDraft(title = "Pan"), addToMyDay = true))
+                as DomainResult.Success
+            ).value
+
+        assertNull(taskDao.stored.getValue(created.id).columnId)
+        assertEquals(LocalUser.ID, created.assigneeId)
+        assertTrue(taskDao.stored.getValue(created.id).pending)
+    }
+
+    @Test
+    fun createTaskWithExtras_enBandeja_usaElContadorDeBandejaComoPosicion() = runTest {
+        val columnDao = FakeColumnDao()
+        val taskDao = FakeTaskDao(columnDao)
+        taskDao.put(taskEntity("b0", columnId = null, position = 0))
+        taskDao.put(taskEntity("b1", columnId = null, position = 1))
+        taskDao.put(taskEntity("borrada", columnId = null, position = 2, deletedAt = now))
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+
+        val created = (
+            repository.createTaskWithExtras(null, TaskCreation(TaskDraft(title = "Pan")))
+                as DomainResult.Success
+            ).value
+
+        assertEquals(2, created.position)
+        assertEquals(1, taskDao.countInboxCalls)
+    }
+
+    @Test
+    fun createTaskWithExtras_conMiDiaYColumnaLlena_noEscribeNada() = runTest {
+        val (repository, taskDao) = extrasRepository(wipLimit = 1)
+        taskDao.put(taskEntity("t0", columnId = "columna-1", position = 0))
+
+        val error = failureOf(
+            repository.createTaskWithExtras(
+                "columna-1",
+                TaskCreation(TaskDraft(title = "Informe"), addToMyDay = true),
+            ),
+        )
+
+        assertEquals("COLUMN_WIP_LIMIT_REACHED", error.code)
+        assertTrue(taskDao.myDayEntries.isEmpty())
+        assertEquals(setOf("t0"), taskDao.stored.keys)
+    }
+
+    @Test
+    fun createTaskWithExtras_conMiDiaYTituloInvalido_noEscribeNada() = runTest {
+        val (repository, taskDao) = extrasRepository()
+
+        val error = failureOf(
+            repository.createTaskWithExtras(
+                null,
+                TaskCreation(TaskDraft(title = "   "), addToMyDay = true),
+            ),
+        )
+
+        assertEquals("TASK_TITLE_REQUIRED", error.code)
+        assertTrue(taskDao.myDayEntries.isEmpty())
+        assertTrue(taskDao.stored.isEmpty())
+    }
+
+    @Test
+    fun assignToColumn_daColumnaYPosicionFinal() = runTest {
+        val (repository, taskDao) = extrasRepository()
+        taskDao.put(taskEntity("x", columnId = "columna-1", position = 0))
+        taskDao.put(taskEntity("borrada", columnId = "columna-1", position = 1, deletedAt = now))
+        taskDao.put(taskEntity("pan", columnId = null, position = 0))
+
+        val result = repository.assignToColumn("pan", "columna-1")
+
+        val assigned = (result as DomainResult.Success).value
+        val row = taskDao.stored.getValue("pan")
+        assertEquals("columna-1", row.columnId)
+        assertEquals(1, row.position)
+        assertEquals(assigned.columnId, row.columnId)
+        assertTrue(row.pending)
+    }
+
+    @Test
+    fun assignToColumn_noTocaSubtareasNiRecordatorios() = runTest {
+        val (repository, taskDao) = extrasRepository()
+        taskDao.put(taskEntity("pan", columnId = null, position = 0))
+        taskDao.putSubtask(subtaskEntity("s1", "pan"))
+        taskDao.putReminder(reminderEntity("r1", "pan", "PENDING"))
+        val subtaskBefore = taskDao.subtasks.getValue("s1")
+        val reminderBefore = taskDao.reminders.getValue("r1")
+
+        repository.assignToColumn("pan", "columna-1")
+
+        assertEquals(1, taskDao.writeCalls)
+        assertEquals(0, taskDao.extrasCalls)
+        assertEquals(subtaskBefore, taskDao.subtasks.getValue("s1"))
+        assertEquals(reminderBefore, taskDao.reminders.getValue("r1"))
+        assertTrue(taskDao.myDayEntries.isEmpty())
+    }
+
+    @Test
+    fun assignToColumn_conColumnaLlena_noEscribe() = runTest {
+        val (repository, taskDao) = extrasRepository(wipLimit = 1)
+        taskDao.put(taskEntity("x", columnId = "columna-1", position = 0))
+        taskDao.put(taskEntity("pan", columnId = null, position = 0))
+        val writesBefore = taskDao.writeCalls
+
+        val error = failureOf(repository.assignToColumn("pan", "columna-1"))
+
+        assertEquals("COLUMN_WIP_LIMIT_REACHED", error.code)
+        assertEquals(writesBefore, taskDao.writeCalls)
+        assertNull(taskDao.stored.getValue("pan").columnId)
+    }
+
+    @Test
+    fun assignToColumn_columnaInexistente_noEscribe() = runTest {
+        val (repository, taskDao) = extrasRepository()
+        taskDao.put(taskEntity("pan", columnId = null, position = 0))
+        val writesBefore = taskDao.writeCalls
+
+        val error = failureOf(repository.assignToColumn("pan", "columna-x"))
+
+        assertEquals("COLUMN_NOT_FOUND", error.code)
+        assertEquals(writesBefore, taskDao.writeCalls)
+    }
+
+    @Test
+    fun assignToColumn_tareaInexistente_noEscribe() = runTest {
+        val (repository, taskDao) = extrasRepository()
+
+        val error = failureOf(repository.assignToColumn("nada", "columna-1"))
+
+        assertEquals("TASK_NOT_FOUND", error.code)
+        assertEquals(0, taskDao.writeCalls)
+    }
+
+    @Test
+    fun assignToColumn_tareaConColumna_devuelveTaskNotInInbox() = runTest {
+        val (repository, taskDao) = extrasRepository()
+        taskDao.put(taskEntity("t0", columnId = "columna-1", position = 0))
+        val writesBefore = taskDao.writeCalls
+
+        val error = failureOf(repository.assignToColumn("t0", "columna-1"))
+
+        assertEquals("TASK_NOT_IN_INBOX", error.code)
+        assertEquals(writesBefore, taskDao.writeCalls)
+    }
+
+    @Test
+    fun moveTask_deTareaDeBandeja_devuelveTaskInInboxSinEscribir() = runTest {
+        val (repository, taskDao) = extrasRepository()
+        taskDao.put(taskEntity("pan", columnId = null, position = 0))
+        val writesBefore = taskDao.writeCalls
+
+        val error = failureOf(repository.moveTask("pan", "columna-1", 0))
+
+        assertEquals("TASK_IN_INBOX", error.code)
+        assertEquals(writesBefore, taskDao.writeCalls)
+    }
+
+    @Test
+    fun observeInbox_devuelveSoloTareasSinColumnaNoBorradas() = runTest {
+        val (repository, taskDao) = extrasRepository()
+        taskDao.put(taskEntity("pan", columnId = null, position = 0))
+        taskDao.put(taskEntity("borrada", columnId = null, position = 1, deletedAt = now))
+        taskDao.put(taskEntity("t0", columnId = "columna-1", position = 0))
+
+        assertEquals(listOf("pan"), repository.observeInbox().first().map { it.id })
+    }
+
+    @Test
+    fun observeActiveCountsByColumn_conviertaFilasEnMapa() = runTest {
+        val (repository, taskDao) = extrasRepository()
+        taskDao.put(taskEntity("a", columnId = "columna-1", position = 0))
+        taskDao.put(taskEntity("b", columnId = "columna-1", position = 1))
+        taskDao.put(taskEntity("pan", columnId = null, position = 0))
+
+        assertEquals(mapOf("columna-1" to 2), repository.observeActiveCountsByColumn().first())
+    }
+
+    @Test
+    fun activeTaskCount_incluyeBandeja() = runTest {
+        val (repository, taskDao) = extrasRepository()
+        taskDao.put(taskEntity("pan", columnId = null, position = 0, dueAt = DUE))
+        taskDao.put(taskEntity("t0", columnId = "columna-1", position = 0))
+
+        assertEquals(2, repository.activeTaskCount())
+    }
+
     private fun subtaskEntity(id: String, taskId: String, deletedAt: Long? = null): SubtaskEntity =
         SubtaskEntity(
             id = id,
@@ -1115,11 +1352,12 @@ class TaskRepositoryImplTest {
 
     private fun taskEntity(
         id: String,
-        columnId: String,
+        columnId: String?,
         position: Int,
         updatedAt: Instant = now,
         deletedAt: Instant? = null,
         dueAt: Instant? = null,
+        createdAt: Long = 0L,
     ): TaskEntity = TaskEntity(
         id = id,
         columnId = columnId,
@@ -1129,13 +1367,40 @@ class TaskRepositoryImplTest {
         dueAt = dueAt?.toEpochMilli(),
         assigneeId = null,
         position = position,
-        createdAt = 0L,
+        createdAt = createdAt,
         updatedAt = updatedAt.toEpochMilli(),
         pending = true,
         deletedAt = deletedAt?.toEpochMilli(),
     )
 
     private class FakeTaskDao(val columnDao: FakeColumnDao) : TaskDao() {
+        override fun observeInbox(): Flow<List<TaskEntity>> = rows.map { storedRows ->
+            storedRows.values
+                .filter { it.columnId == null && it.deletedAt == null }
+                .sortedWith(compareByDescending<TaskEntity> { it.createdAt }.thenBy { it.id })
+        }
+
+        var countInboxCalls: Int = 0
+            private set
+
+        override suspend fun countInbox(): Int {
+            countInboxCalls++
+            return rows.value.values.count { it.columnId == null && it.deletedAt == null }
+        }
+
+        override fun observeCountsByColumn(): Flow<List<ColumnCountRow>> = rows.map { storedRows ->
+            storedRows.values
+                .filter { it.deletedAt == null && it.columnId != null }
+                .groupBy { requireNotNull(it.columnId) }
+                .map { (columnId, tasks) -> ColumnCountRow(columnId, tasks.size) }
+        }
+
+        val myDayEntries: MutableMap<String, MyDayEntryEntity> = mutableMapOf()
+
+        override suspend fun insertMyDayEntry(entry: MyDayEntryEntity) {
+            myDayEntries[entry.id] = entry
+        }
+
         private val rows = MutableStateFlow<Map<String, TaskEntity>>(emptyMap())
 
         var writeCalls: Int = 0
@@ -1241,11 +1506,12 @@ class TaskRepositoryImplTest {
             task: TaskEntity,
             subtasks: List<SubtaskEntity>,
             reminder: ReminderEntity?,
+            myDayEntry: MyDayEntryEntity?,
         ) {
             extrasCalls++
             inTransaction = true
             try {
-                super.insertTaskWithExtras(task, subtasks, reminder)
+                super.insertTaskWithExtras(task, subtasks, reminder, myDayEntry)
             } finally {
                 inTransaction = false
             }
@@ -1263,13 +1529,15 @@ class TaskRepositoryImplTest {
     }
 
     private class FakeColumnDao : ColumnDao() {
+        override fun observeAllActive(): Flow<List<ColumnEntity>> = emptyFlow()
+
         private val rows = MutableStateFlow<Map<String, ColumnEntity>>(emptyMap())
 
         fun put(column: ColumnEntity) {
             rows.value = rows.value + (column.id to column)
         }
 
-        fun isDone(columnId: String): Boolean = rows.value[columnId]?.isDoneColumn ?: false
+        fun isDone(columnId: String?): Boolean = columnId?.let { rows.value[it]?.isDoneColumn } ?: false
 
         fun activeColumnIds(boardId: String): Set<String> =
             rows.value.values

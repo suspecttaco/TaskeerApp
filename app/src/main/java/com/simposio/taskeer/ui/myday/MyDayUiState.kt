@@ -9,12 +9,14 @@ data class MyDayTaskUi(
     val id: String,
     val title: String,
     val priority: TaskPriority,
-    val boardName: String,
+    val boardName: String?,
     val due: String?,
     val isOverdue: Boolean,
     val isMarked: Boolean,
     val isAssigned: Boolean,
-)
+) {
+    val isInbox: Boolean get() = boardName == null
+}
 
 data class MyDayUiState(
     val items: List<MyDayTaskUi> = emptyList(),

@@ -20,11 +20,15 @@ const val TASK_DESCRIPTION_MAX_LENGTH = 5000
 const val TASK_NOT_FOUND = "TASK_NOT_FOUND"
 const val TASK_INDEX_OUT_OF_BOUNDS = "TASK_INDEX_OUT_OF_BOUNDS"
 
+// Códigos locales: la API exige columnId, la bandeja sin tablero solo existe en la app.
+const val TASK_NOT_IN_INBOX = "TASK_NOT_IN_INBOX"
+const val TASK_IN_INBOX = "TASK_IN_INBOX"
+
 // Código local: la API solo conoce CROSS_WORKSPACE_MOVE, concepto que no existe sin workspaces.
 const val COLUMN_BOARD_MISMATCH = "COLUMN_BOARD_MISMATCH"
 
 fun newTask(
-    columnId: String,
+    columnId: String?,
     draft: TaskDraft,
     position: Int,
     now: Instant,
@@ -64,6 +68,19 @@ fun Task.updated(draft: TaskDraft, now: Instant): DomainResult<Task> {
     )
 }
 
+fun Task.assignedToColumn(columnId: String, position: Int, now: Instant): DomainResult<Task> =
+    if (this.columnId != null) {
+        validation(TASK_NOT_IN_INBOX, "La tarea ya pertenece a un tablero")
+    } else {
+        DomainResult.Success(
+            copy(columnId = columnId, position = position, sync = sync.afterLocalChange(now)),
+        )
+    }
+
+// Punto único de la regla: task-complete-toggle la cambiará aquí.
+fun isTaskCompleted(columnId: String?, isDoneColumn: Boolean): Boolean =
+    columnId != null && isDoneColumn
+
 fun isOverdue(dueAt: Instant?, isDoneColumn: Boolean, now: Instant): Boolean =
     !isDoneColumn && dueAt != null && dueAt < now
 
@@ -101,7 +118,7 @@ fun movedTask(
     return DomainResult.Success(result.filter { it != originals[it.id] })
 }
 
-private fun List<Task>.renumbered(columnId: String, now: Instant): List<Task> = mapIndexed { index, task ->
+private fun List<Task>.renumbered(columnId: String?, now: Instant): List<Task> = mapIndexed { index, task ->
     if (task.position == index && task.columnId == columnId) {
         task
     } else {

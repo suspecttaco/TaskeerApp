@@ -10,6 +10,10 @@ import kotlinx.coroutines.flow.Flow
 interface TaskRepository {
     fun observeTasks(boardId: String): Flow<List<Task>>
 
+    fun observeInbox(): Flow<List<Task>>
+
+    fun observeActiveCountsByColumn(): Flow<Map<String, Int>>
+
     fun observeReminderCandidates(): Flow<List<ReminderCandidate>>
 
     suspend fun reminderCandidates(): List<ReminderCandidate>
@@ -18,13 +22,15 @@ interface TaskRepository {
 
     suspend fun getTask(id: String): DomainResult<Task>
 
-    suspend fun createTask(columnId: String, draft: TaskDraft): DomainResult<Task>
+    suspend fun createTask(columnId: String?, draft: TaskDraft): DomainResult<Task>
 
-    suspend fun createTaskWithExtras(columnId: String, creation: TaskCreation): DomainResult<Task>
+    suspend fun createTaskWithExtras(columnId: String?, creation: TaskCreation): DomainResult<Task>
 
     suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task>
 
     suspend fun moveTask(id: String, toColumnId: String, toIndex: Int): DomainResult<Task>
+
+    suspend fun assignToColumn(id: String, columnId: String): DomainResult<Task>
 
     suspend fun deleteTask(id: String): DomainResult<Unit>
 }

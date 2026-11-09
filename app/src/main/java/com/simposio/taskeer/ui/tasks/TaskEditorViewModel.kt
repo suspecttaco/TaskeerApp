@@ -40,7 +40,7 @@ class TaskEditorViewModel(
 
     val uiState: StateFlow<TaskEditorUiState> = _uiState.asStateFlow()
 
-    fun openForCreate(columnId: String) {
+    fun openForCreate(columnId: String?) {
         _uiState.value = TaskEditorUiState(isOpen = true, columnId = columnId)
     }
 

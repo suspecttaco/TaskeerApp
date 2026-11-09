@@ -9,6 +9,7 @@ import com.simposio.taskeer.ui.columns.ColumnsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -67,6 +68,8 @@ class ColumnsViewModelTest {
     private fun handle() = SavedStateHandle(mapOf(ColumnsViewModel.BOARD_ID_ARG to "tablero-1"))
 
     private class FakeColumnRepository : ColumnRepository {
+        override fun observeAllColumns(): Flow<List<Column>> = emptyFlow()
+
         val calls: MutableList<Pair<String, Int?>> = mutableListOf()
         var failure: DomainError? = null
 

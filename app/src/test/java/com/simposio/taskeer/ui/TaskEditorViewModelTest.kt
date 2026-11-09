@@ -376,6 +376,32 @@ class TaskEditorViewModelTest {
         assertNull(repository.lastCreated)
     }
 
+    @Test
+    fun editarTareaDeBandeja_llamaAUpdateTask() = runTest {
+        val repository = FakeTaskRepository(task("pan", "Comprar pan").copy(columnId = null))
+        val viewModel = viewModel(repository)
+
+        viewModel.openForEdit("pan")
+        viewModel.save()
+
+        assertNull(viewModel.uiState.value.columnId)
+        assertEquals(1, repository.updateCalls)
+        assertEquals(0, repository.extrasCalls)
+    }
+
+    @Test
+    fun crearConColumnaNula_llamaACreateTaskWithExtras() = runTest {
+        val repository = FakeTaskRepository()
+        val viewModel = viewModel(repository).apply { openForCreate(null) }
+        viewModel.onTitleChange("Comprar pan")
+
+        viewModel.save()
+
+        assertEquals(1, repository.extrasCalls)
+        assertNull(repository.lastCreated?.columnId)
+        assertEquals("Comprar pan", repository.lastCreated?.title)
+    }
+
     private fun viewModel(repository: TaskRepository) =
         TaskEditorViewModel(
             repository,
@@ -397,6 +423,13 @@ class TaskEditorViewModelTest {
     )
 
     private class FakeTaskRepository(vararg tasks: Task) : TaskRepository {
+        override fun observeInbox(): Flow<List<Task>> = emptyFlow()
+
+        override fun observeActiveCountsByColumn(): Flow<Map<String, Int>> = emptyFlow()
+
+        override suspend fun assignToColumn(id: String, columnId: String): DomainResult<Task> =
+            error("no se usa en este test")
+
         private val stored = tasks.associateBy { it.id }
         var deleteGate: CompletableDeferred<Unit>? = null
         var deleteError: DomainError? = null
@@ -419,13 +452,13 @@ class TaskEditorViewModelTest {
             stored[id]?.let { DomainResult.Success(it) }
                 ?: DomainResult.Failure(DomainError.NotFound("TASK_NOT_FOUND", "No existe"))
 
-        override suspend fun createTask(columnId: String, draft: TaskDraft): DomainResult<Task> =
+        override suspend fun createTask(columnId: String?, draft: TaskDraft): DomainResult<Task> =
             createError?.let { DomainResult.Failure(it) }
                 ?: newTask(columnId, draft, position = 0, now = Instant.EPOCH)
                     .also { result -> lastCreated = (result as? DomainResult.Success)?.value }
 
         override suspend fun createTaskWithExtras(
-            columnId: String,
+            columnId: String?,
             creation: TaskCreation,
         ): DomainResult<Task> {
             extrasCalls++

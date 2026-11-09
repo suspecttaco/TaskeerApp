@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ReminderEntity::class,
         AppNotificationEntity::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -195,6 +195,41 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_10_11: Migration = object : Migration(10, 11) {
+            // SQLite no puede quitar NOT NULL con ALTER TABLE: se reconstruye la tabla. Copia también
+            // las filas borradas lógicamente y no toca updatedAt/pending (no es un cambio del usuario).
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `tasks_new` (" +
+                        "`id` TEXT NOT NULL, " +
+                        "`columnId` TEXT, " +
+                        "`title` TEXT NOT NULL, " +
+                        "`description` TEXT, " +
+                        "`priority` TEXT NOT NULL, " +
+                        "`dueAt` INTEGER, " +
+                        "`assigneeId` TEXT, " +
+                        "`position` INTEGER NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "`updatedAt` INTEGER NOT NULL, " +
+                        "`pending` INTEGER NOT NULL, " +
+                        "`deletedAt` INTEGER, " +
+                        "PRIMARY KEY(`id`))",
+                )
+                db.execSQL(
+                    "INSERT INTO `tasks_new` (id, columnId, title, description, priority, dueAt, " +
+                        "assigneeId, position, createdAt, updatedAt, pending, deletedAt) " +
+                        "SELECT id, columnId, title, description, priority, dueAt, assigneeId, " +
+                        "position, createdAt, updatedAt, pending, deletedAt FROM `tasks`",
+                )
+                db.execSQL("DROP TABLE `tasks`")
+                db.execSQL("ALTER TABLE `tasks_new` RENAME TO `tasks`")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_tasks_columnId_position` " +
+                        "ON `tasks` (`columnId`, `position`)",
+                )
+            }
+        }
+
         private val MIGRATIONS: List<Migration> = listOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -205,6 +240,7 @@ abstract class AppDatabase : RoomDatabase() {
             MIGRATION_7_8,
             MIGRATION_8_9,
             MIGRATION_9_10,
+            MIGRATION_10_11,
         )
 
         fun create(context: Context): AppDatabase =

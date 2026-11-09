@@ -32,6 +32,9 @@ class ColumnRepositoryImpl(
     override fun observeColumns(boardId: String): Flow<List<Column>> =
         dao.observeByBoard(boardId).map { entities -> entities.map { it.toColumn() } }
 
+    override fun observeAllColumns(): Flow<List<Column>> =
+        dao.observeAllActive().map { entities -> entities.map { it.toColumn() } }
+
     override suspend fun createColumn(boardId: String, name: String): DomainResult<Column> {
         if (activeBoard(boardId) == null) {
             return boardNotFound()

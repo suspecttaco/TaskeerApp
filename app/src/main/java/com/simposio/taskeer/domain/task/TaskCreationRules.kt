@@ -11,7 +11,7 @@ import com.simposio.taskeer.domain.subtask.newSubtask
 import java.time.Instant
 
 fun newTaskWithExtras(
-    columnId: String,
+    columnId: String?,
     creation: TaskCreation,
     position: Int,
     now: Instant,

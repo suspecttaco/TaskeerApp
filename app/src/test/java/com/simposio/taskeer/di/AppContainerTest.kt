@@ -32,6 +32,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
@@ -170,6 +171,8 @@ class AppContainerTest {
     }
 
     private class FakeColumnRepository : ColumnRepository {
+        override fun observeAllColumns(): Flow<List<Column>> = emptyFlow()
+
         override fun observeColumns(boardId: String): Flow<List<Column>> = MutableStateFlow(emptyList())
 
         override suspend fun createColumn(boardId: String, name: String): DomainResult<Column> = unused()
@@ -187,6 +190,13 @@ class AppContainerTest {
     }
 
     private class FakeTaskRepository : TaskRepository {
+        override fun observeInbox(): Flow<List<Task>> = emptyFlow()
+
+        override fun observeActiveCountsByColumn(): Flow<Map<String, Int>> = emptyFlow()
+
+        override suspend fun assignToColumn(id: String, columnId: String): DomainResult<Task> =
+            error("no se usa en este test")
+
         override fun observeTasks(boardId: String): Flow<List<Task>> = MutableStateFlow(emptyList())
 
         override fun observeReminderCandidates(): Flow<List<ReminderCandidate>> = MutableStateFlow(emptyList())
@@ -197,10 +207,10 @@ class AppContainerTest {
 
         override suspend fun getTask(id: String): DomainResult<Task> = unused()
 
-        override suspend fun createTask(columnId: String, draft: TaskDraft): DomainResult<Task> = unused()
+        override suspend fun createTask(columnId: String?, draft: TaskDraft): DomainResult<Task> = unused()
 
         override suspend fun createTaskWithExtras(
-            columnId: String,
+            columnId: String?,
             creation: TaskCreation,
         ): DomainResult<Task> = unused()
 

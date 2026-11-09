@@ -11,6 +11,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 
 class FakeTaskLookupRepository : TaskRepository {
+    override fun observeInbox(): Flow<List<Task>> = emptyFlow()
+
+    override fun observeActiveCountsByColumn(): Flow<Map<String, Int>> = emptyFlow()
+
+    override suspend fun assignToColumn(id: String, columnId: String): DomainResult<Task> =
+        error("no se usa en este test")
+
 
     val existing: MutableMap<String, Task> = mutableMapOf()
 
@@ -26,10 +33,10 @@ class FakeTaskLookupRepository : TaskRepository {
 
     override suspend fun activeTaskCount(): Int = unused()
 
-    override suspend fun createTask(columnId: String, draft: TaskDraft): DomainResult<Task> = unused()
+    override suspend fun createTask(columnId: String?, draft: TaskDraft): DomainResult<Task> = unused()
 
     override suspend fun createTaskWithExtras(
-        columnId: String,
+        columnId: String?,
         creation: TaskCreation,
     ): DomainResult<Task> = unused()
 

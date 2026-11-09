@@ -1,8 +1,8 @@
 package com.simposio.taskeer.ui.navigation
 
 enum class AppDestination(val route: String) {
-    HOME("home"),
     MY_DAY("my_day"),
+    INBOX("inbox"),
     WORKSPACES("workspaces"),
     SETTINGS("settings"),
     BOARD("board/{boardId}"),
@@ -16,9 +16,9 @@ enum class AppDestination(val route: String) {
     }
 
     companion object {
-        val START: AppDestination = HOME
+        val START: AppDestination = MY_DAY
 
-        val topLevel: List<AppDestination> = listOf(HOME, MY_DAY, WORKSPACES, SETTINGS)
+        val topLevel: List<AppDestination> = listOf(MY_DAY, INBOX, WORKSPACES, SETTINGS)
 
         fun boardRoute(boardId: String): String = "board/$boardId"
 

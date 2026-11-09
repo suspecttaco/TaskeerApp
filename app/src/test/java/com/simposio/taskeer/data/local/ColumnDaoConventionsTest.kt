@@ -4,6 +4,7 @@ import java.io.File
 import java.lang.reflect.Method
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -27,6 +28,14 @@ class ColumnDaoConventionsTest {
 
         assertTrue("debe filtrar por tablero", source.contains("boardId = :boardId"))
         assertTrue("debe excluir las filas borradas", source.contains("deletedAt IS NULL"))
+    }
+
+    @Test
+    fun observeAllActive_filtraBorradasYOrdena() {
+        val query = columnDaoSource()
+
+        assertTrue(query.contains("WHERE deletedAt IS NULL ORDER BY boardId ASC, position ASC, id ASC"))
+        assertEquals(Flow::class.java, method("observeAllActive").returnType)
     }
 
     @Test
@@ -91,6 +100,8 @@ class ColumnDaoConventionsTest {
         parameterTypes.lastOrNull()?.name == "kotlin.coroutines.Continuation"
 
     private class RecordingColumnDao : ColumnDao() {
+        override fun observeAllActive(): Flow<List<ColumnEntity>> = emptyFlow()
+
         val insertedBoards = mutableListOf<BoardEntity>()
         val insertedBatches = mutableListOf<List<ColumnEntity>>()
 

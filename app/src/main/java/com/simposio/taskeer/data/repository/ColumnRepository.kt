@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.Flow
 interface ColumnRepository {
     fun observeColumns(boardId: String): Flow<List<Column>>
 
+    fun observeAllColumns(): Flow<List<Column>>
+
     suspend fun createColumn(boardId: String, name: String): DomainResult<Column>
 
     suspend fun renameColumn(id: String, name: String): DomainResult<Column>

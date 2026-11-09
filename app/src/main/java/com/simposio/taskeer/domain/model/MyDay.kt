@@ -4,8 +4,8 @@ import java.time.Instant
 
 data class MyDayTask(
     val task: Task,
-    val boardId: String,
-    val boardName: String,
+    val boardId: String?,
+    val boardName: String?,
     val addedAt: Instant?,
 )
 
