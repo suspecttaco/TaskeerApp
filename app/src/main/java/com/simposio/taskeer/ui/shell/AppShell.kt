@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.WbSunny
@@ -150,17 +150,17 @@ private fun NotificationsAction(unreadCount: Int, onClick: () -> Unit) {
 }
 
 private fun AppDestination.icon(): ImageVector = when (this) {
-    AppDestination.HOME -> Icons.Filled.Home
     AppDestination.MY_DAY -> Icons.Filled.WbSunny
+    AppDestination.INBOX -> Icons.Filled.Inbox
     AppDestination.WORKSPACES -> Icons.Filled.Dashboard
     AppDestination.SETTINGS -> Icons.Filled.Settings
-    else -> Icons.Filled.Home
+    else -> Icons.Filled.WbSunny
 }
 
 @StringRes
 private fun AppDestination.labelRes(): Int = when (this) {
-    AppDestination.HOME -> R.string.nav_home
     AppDestination.MY_DAY -> R.string.nav_my_day
+    AppDestination.INBOX -> R.string.nav_inbox
     AppDestination.WORKSPACES -> R.string.nav_workspaces
     AppDestination.SETTINGS -> R.string.nav_settings
     AppDestination.BOARD -> R.string.board_title
@@ -173,7 +173,7 @@ private fun AppDestination.labelRes(): Int = when (this) {
 private fun AppShellPreview() {
     TaskeerTheme {
         AppShell(
-            // La preview abre el destino inicial (Inicio): la factoría nunca se usa.
+            // La preview abre el destino inicial (Mi día): la factoría nunca se usa.
             viewModelFactory = object : ViewModelProvider.Factory {},
         )
     }

@@ -14,6 +14,13 @@ class FakeReminderTaskRepository(
     candidates: List<ReminderCandidate> = emptyList(),
     var activeCount: Int = 0,
 ) : TaskRepository {
+    override fun observeInbox(): Flow<List<Task>> = emptyFlow()
+
+    override fun observeActiveCountsByColumn(): Flow<Map<String, Int>> = emptyFlow()
+
+    override suspend fun assignToColumn(id: String, columnId: String): DomainResult<Task> =
+        error("no se usa en este test")
+
 
     val candidates = MutableStateFlow(candidates)
 
@@ -27,10 +34,10 @@ class FakeReminderTaskRepository(
 
     override suspend fun getTask(id: String): DomainResult<Task> = unused()
 
-    override suspend fun createTask(columnId: String, draft: TaskDraft): DomainResult<Task> = unused()
+    override suspend fun createTask(columnId: String?, draft: TaskDraft): DomainResult<Task> = unused()
 
     override suspend fun createTaskWithExtras(
-        columnId: String,
+        columnId: String?,
         creation: TaskCreation,
     ): DomainResult<Task> = unused()
 

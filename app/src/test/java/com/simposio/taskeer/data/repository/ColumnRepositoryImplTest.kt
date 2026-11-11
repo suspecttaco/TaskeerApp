@@ -10,6 +10,7 @@ import com.simposio.taskeer.domain.model.DomainResult
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
@@ -23,6 +24,18 @@ class ColumnRepositoryImplTest {
 
     private val now = Instant.parse("2026-10-15T10:00:00Z")
     private val later = now.plusSeconds(60)
+
+    @Test
+    fun observeAllColumns_mapeaYConservaOrden() = runTest {
+        val columnDao = FakeColumnDao()
+        columnDao.put(columnEntity("c1", name = "Segunda", position = 1))
+        columnDao.put(columnEntity("c0", name = "Primera", position = 0))
+        val repository = ColumnRepositoryImpl(FakeBoardDao(), columnDao, now = { now })
+
+        val columns = repository.observeAllColumns().first()
+
+        assertEquals(listOf("Primera", "Segunda"), columns.map { it.name })
+    }
 
     @Test
     fun createColumn_anhadeLaColumnaAlFinalYPersiste() = runTest {
@@ -494,6 +507,12 @@ class ColumnRepositoryImplTest {
 
     private class FakeColumnDao : ColumnDao() {
         private val rows = MutableStateFlow<Map<String, ColumnEntity>>(emptyMap())
+
+        override fun observeAllActive(): Flow<List<ColumnEntity>> = rows.map { storedRows ->
+            storedRows.values
+                .filter { it.deletedAt == null }
+                .sortedWith(compareBy({ it.boardId }, { it.position }, { it.id }))
+        }
 
         var writeCalls: Int = 0
             private set

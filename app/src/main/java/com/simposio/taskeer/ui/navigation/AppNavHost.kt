@@ -13,7 +13,7 @@ import com.simposio.taskeer.ui.board.BoardViewModel
 import com.simposio.taskeer.ui.boards.BoardsScreen
 import com.simposio.taskeer.ui.columns.ColumnsScreen
 import com.simposio.taskeer.ui.columns.ColumnsViewModel
-import com.simposio.taskeer.ui.home.HomeScreen
+import com.simposio.taskeer.ui.inbox.InboxScreen
 import com.simposio.taskeer.ui.myday.MyDayScreen
 import com.simposio.taskeer.ui.notifications.NotificationsScreen
 import com.simposio.taskeer.ui.settings.SettingsScreen
@@ -29,8 +29,8 @@ fun AppNavHost(
         startDestination = AppDestination.START.route,
         modifier = modifier,
     ) {
-        composable(AppDestination.HOME.route) { HomeScreen() }
         composable(AppDestination.MY_DAY.route) { MyDayScreen(viewModelFactory) }
+        composable(AppDestination.INBOX.route) { InboxScreen(viewModelFactory) }
         composable(AppDestination.WORKSPACES.route) {
             BoardsScreen(
                 viewModelFactory = viewModelFactory,

@@ -13,8 +13,8 @@ enum class MyDayFilter { ALL, MARKED, ASSIGNED, OVERDUE }
 
 data class MyDayItem(
     val task: Task,
-    val boardId: String,
-    val boardName: String,
+    val boardId: String?,
+    val boardName: String?,
     val markedAt: Instant?,
     val isAssigned: Boolean,
 ) {

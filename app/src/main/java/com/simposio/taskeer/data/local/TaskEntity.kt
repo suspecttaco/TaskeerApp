@@ -10,7 +10,7 @@ import androidx.room.PrimaryKey
 )
 data class TaskEntity(
     @PrimaryKey override val id: String,
-    val columnId: String,
+    val columnId: String?,
     val title: String,
     val description: String?,
     val priority: String,

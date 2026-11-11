@@ -8,8 +8,10 @@ import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.domain.model.Column
+import com.simposio.taskeer.domain.task.assignedToColumn
 import com.simposio.taskeer.domain.task.checkSameBoard
 import com.simposio.taskeer.domain.task.isOverdue
+import com.simposio.taskeer.domain.task.isTaskCompleted
 import com.simposio.taskeer.domain.task.movedTask
 import com.simposio.taskeer.domain.task.newTask
 import com.simposio.taskeer.domain.task.softDeleted
@@ -389,6 +391,51 @@ class TaskRulesTest {
 
     private fun ok(result: DomainResult<List<Task>>): List<Task> = (result as DomainResult.Success).value
 
+    @Test
+    fun newTask_sinColumna_nacePendienteYConAsignadoYo() {
+        val task = (newTask(null, TaskDraft(title = "Comprar pan"), position = 3, now = now) as DomainResult.Success).value
+
+        assertNull(task.columnId)
+        assertTrue(task.isInbox)
+        assertEquals(LocalUser.ID, task.assigneeId)
+        assertEquals(3, task.position)
+        assertTrue(task.sync.pending)
+        assertTrue(task.id.isNotBlank())
+    }
+
+    @Test
+    fun tareaSinColumna_nuncaEstaCompletada() {
+        assertFalse(isTaskCompleted(columnId = null, isDoneColumn = true))
+    }
+
+    @Test
+    fun tareaEnColumnaDeCierre_estaCompletada() {
+        assertTrue(isTaskCompleted(columnId = "columna-hecha", isDoneColumn = true))
+        assertFalse(isTaskCompleted(columnId = "columna-1", isDoneColumn = false))
+    }
+
+    @Test
+    fun assignedToColumn_daColumnaYPosicion() {
+        val inbox = task(columnId = null, title = "Pan")
+
+        val assigned = (inbox.assignedToColumn("columna-2", position = 5, now = later) as DomainResult.Success).value
+
+        assertEquals("columna-2", assigned.columnId)
+        assertEquals(5, assigned.position)
+        assertEquals(later, assigned.sync.updatedAt)
+        assertTrue(assigned.sync.pending)
+        assertEquals("Pan", assigned.title)
+        assertEquals(inbox.id, assigned.id)
+    }
+
+    @Test
+    fun assignedToColumn_conColumnaPrevia_devuelveTaskNotInInbox() {
+        val error = (task(columnId = "columna-1").assignedToColumn("columna-2", 0, later) as DomainResult.Failure).error
+
+        assertTrue(error is DomainError.Validation)
+        assertEquals("TASK_NOT_IN_INBOX", error.code)
+    }
+
     private fun columnOf(boardId: String) = Column(
         boardId = boardId,
         name = "Columna",
@@ -400,7 +447,7 @@ class TaskRulesTest {
     )
 
     private fun task(
-        columnId: String = "columna-1",
+        columnId: String? = "columna-1",
         title: String = "Tarea",
         position: Int = 0,
         sync: SyncMetadata = SyncMetadata("tarea-1", now, pending = true, deletedAt = null),

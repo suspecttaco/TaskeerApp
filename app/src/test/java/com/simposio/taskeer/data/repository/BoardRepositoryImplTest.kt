@@ -10,6 +10,7 @@ import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
@@ -344,6 +345,8 @@ class BoardRepositoryImplTest {
     }
 
     private class FakeColumnDao(private val boardDao: FakeBoardDao) : ColumnDao() {
+        override fun observeAllActive(): Flow<List<ColumnEntity>> = emptyFlow()
+
         private val columns = MutableStateFlow<Map<String, ColumnEntity>>(emptyMap())
 
         var seedCalls: Int = 0

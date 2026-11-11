@@ -16,9 +16,9 @@ class NavigationPolicyTest {
     }
 
     @Test
-    fun recortaHastaInicio() {
+    fun recortaHastaMiDia() {
         assertEquals(AppDestination.START.route, spec.popUpToRoute)
-        assertEquals("home", spec.popUpToRoute)
+        assertEquals("my_day", spec.popUpToRoute)
     }
 
     @Test
@@ -32,9 +32,9 @@ class NavigationPolicyTest {
     }
 
     @Test
-    fun volverDesdeAvisos_sinAnterior_navegaAInicio() {
+    fun volverDesdeAvisos_sinAnterior_navegaAMiDia() {
         assertEquals(
-            BackStep.Navigate("home"),
+            BackStep.Navigate("my_day"),
             backStep(AppDestination.NOTIFICATIONS, null, hasPrevious = false),
         )
     }
@@ -49,8 +49,13 @@ class NavigationPolicyTest {
     }
 
     @Test
+    fun volver_enMiDia_noHaceNada() {
+        assertEquals(BackStep.None, backStep(AppDestination.MY_DAY, null, hasPrevious = true))
+    }
+
+    @Test
     fun volver_enDestinosSinBotonVolver_noHaceNada() {
-        assertEquals(BackStep.None, backStep(AppDestination.HOME, null, hasPrevious = true))
+        assertEquals(BackStep.None, backStep(AppDestination.INBOX, null, hasPrevious = true))
         assertEquals(BackStep.None, backStep(AppDestination.BOARD, "b1", hasPrevious = true))
     }
 

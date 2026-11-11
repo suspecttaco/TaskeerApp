@@ -1,6 +1,7 @@
 package com.simposio.taskeer.data.repository
 
 import com.simposio.taskeer.data.local.BoardEntity
+import com.simposio.taskeer.data.local.ColumnCountRow
 import com.simposio.taskeer.data.local.ColumnDao
 import com.simposio.taskeer.data.local.ColumnEntity
 import com.simposio.taskeer.data.local.MyDayDao
@@ -357,6 +358,8 @@ class MyDayRepositoryImplTest {
     fun tareaCreadaSinAsignado_aparecenEnAsignadasYVencidas() = runTest {
         val fixture = fixture()
         val columns = object : ColumnDao() {
+        override fun observeAllActive(): Flow<List<ColumnEntity>> = emptyFlow()
+
             override fun observeByBoard(boardId: String): Flow<List<ColumnEntity>> = error("no se usa")
             override suspend fun findActiveByBoard(boardId: String): List<ColumnEntity> = error("no se usa")
             override suspend fun findById(id: String): ColumnEntity? = ColumnEntity(
@@ -375,6 +378,36 @@ class MyDayRepositoryImplTest {
         assertEquals(1, fixture.repository.observeOverdueCount().first())
     }
 
+    @Test
+    fun observeMyDay_incluyeTareaDeBandejaMarcadaSinTablero() = runTest {
+        val fixture = fixture()
+        fixture.addTask("pan", columnId = null)
+        fixture.repository.setMarked("pan", true)
+
+        val pinned = fixture.repository.observeMyDay().first().pinned.single()
+
+        assertEquals("pan", pinned.task.id)
+        assertNull(pinned.boardName)
+    }
+
+    @Test
+    fun observeMyDay_incluyeTareaDeBandejaAsignadaConFechaYLaCuentaComoVencida() = runTest {
+        val fixture = fixture()
+        fixture.addTask("pan", columnId = null, dueAt = now.minusSeconds(60).toEpochMilli(), assigneeId = LocalUser.ID)
+
+        assertEquals(listOf("pan"), fixture.repository.observeMyDay().first().assigned.map { it.task.id })
+        assertEquals(1, fixture.repository.observeOverdueCount().first())
+    }
+
+    @Test
+    fun observeMyDay_conColumnaInexistente_sigueExcluida() = runTest {
+        val fixture = fixture()
+        fixture.addTask("huerfana", columnId = "c-x")
+        fixture.repository.setMarked("huerfana", true)
+
+        assertTrue(fixture.repository.observeMyDay().first().pinned.isEmpty())
+    }
+
     private fun fixture(): Fixture = Fixture(now)
 
     private inner class Fixture(var clock: Instant) {
@@ -383,7 +416,7 @@ class MyDayRepositoryImplTest {
 
         fun addTask(
             id: String,
-            columnId: String = "c1",
+            columnId: String? = "c1",
             dueAt: Long? = null,
             assigneeId: String? = null,
             deletedAt: Long? = null,
@@ -462,6 +495,7 @@ class MyDayRepositoryImplTest {
 
         private fun visible(task: TaskEntity?): MyDayRow? {
             if (task == null || task.deletedAt != null) return null
+            if (task.columnId == null) return MyDayRow(task, boardId = null, boardName = null, addedAt = null)
             val column = columns[task.columnId] ?: return null
             val board = boards[column.boardId] ?: return null
             if (column.deleted || column.isDone || board.deleted) return null
@@ -470,6 +504,14 @@ class MyDayRepositoryImplTest {
     }
 
     private class WritingTaskDao(private val myDayDao: FakeMyDayDao) : TaskDao() {
+        override fun observeInbox(): Flow<List<TaskEntity>> = emptyFlow()
+
+        override suspend fun countInbox(): Int = 0
+
+        override fun observeCountsByColumn(): Flow<List<ColumnCountRow>> = emptyFlow()
+
+        override suspend fun insertMyDayEntry(entry: MyDayEntryEntity) = Unit
+
         override fun observeByBoard(boardId: String): Flow<List<TaskEntity>> = error("no se usa")
         override suspend fun findActiveByColumn(columnId: String): List<TaskEntity> = emptyList()
         override suspend fun findById(id: String): TaskEntity? = myDayDao.tasks.value[id]
@@ -494,6 +536,14 @@ class MyDayRepositoryImplTest {
     }
 
     private class FakeTaskDao(private val myDayDao: FakeMyDayDao) : TaskDao() {
+        override fun observeInbox(): Flow<List<TaskEntity>> = emptyFlow()
+
+        override suspend fun countInbox(): Int = 0
+
+        override fun observeCountsByColumn(): Flow<List<ColumnCountRow>> = emptyFlow()
+
+        override suspend fun insertMyDayEntry(entry: MyDayEntryEntity) = Unit
+
         override fun observeByBoard(boardId: String): Flow<List<TaskEntity>> = myDayDao.tasks.map { it.values.toList() }
 
         override suspend fun findActiveByColumn(columnId: String): List<TaskEntity> = emptyList()

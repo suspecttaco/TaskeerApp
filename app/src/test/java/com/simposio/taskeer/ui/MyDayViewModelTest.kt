@@ -299,6 +299,39 @@ class MyDayViewModelTest {
         assertEquals(setOf("items", "sort", "filter", "overdueCount", "totalCount", "error"), properties)
     }
 
+    @Test
+    fun tareaDeBandeja_marcaIsInboxYSinNombreDeTablero() = runTest {
+        val inbox = item("pan", addedAt = now).let { it.copy(task = it.task.copy(columnId = null), boardId = null, boardName = null) }
+        val viewModel = viewModel(FakeMyDayRepository(MyDay(listOf(inbox), emptyList())))
+
+        val card = viewModel.uiState.value.items.single()
+
+        assertTrue(card.isInbox)
+        assertNull(card.boardName)
+    }
+
+    @Test
+    fun tareaConTablero_noEsDeBandeja() = runTest {
+        val viewModel = viewModel(FakeMyDayRepository(MyDay(listOf(item("t1", addedAt = now)), emptyList())))
+
+        val card = viewModel.uiState.value.items.single()
+
+        assertFalse(card.isInbox)
+        assertEquals("Tablero", card.boardName)
+    }
+
+    @Test
+    fun tareaCreadaPorAltaRapida_apareceEnItems() = runTest {
+        val repository = FakeMyDayRepository(MyDay(emptyList(), emptyList()))
+        val viewModel = viewModel(repository)
+        assertTrue(viewModel.uiState.value.items.isEmpty())
+
+        val inbox = item("pan", addedAt = now).let { it.copy(task = it.task.copy(columnId = null), boardId = null, boardName = null) }
+        repository.emit(MyDay(listOf(inbox), emptyList()))
+
+        assertEquals(listOf("pan"), viewModel.uiState.value.items.map { it.id })
+    }
+
     private fun TestScope.viewModel(repository: FakeMyDayRepository): MyDayViewModel {
         val viewModel = MyDayViewModel(repository, madrid) { now }
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
@@ -334,6 +367,10 @@ class MyDayViewModelTest {
         var failure: DomainError? = null
 
         override fun observeMyDay(): Flow<MyDay> = myDay
+
+        fun emit(value: MyDay) {
+            myDay.value = value
+        }
 
         override fun observeMarkedTaskIds(): Flow<Set<String>> = error("no se usa")
 

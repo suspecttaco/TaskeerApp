@@ -8,11 +8,14 @@ import com.simposio.taskeer.ui.app.AppViewModel
 import com.simposio.taskeer.ui.board.BoardViewModel
 import com.simposio.taskeer.ui.boards.BoardsViewModel
 import com.simposio.taskeer.ui.columns.ColumnsViewModel
+import com.simposio.taskeer.ui.inbox.InboxViewModel
 import com.simposio.taskeer.ui.myday.MyDayViewModel
+import com.simposio.taskeer.ui.myday.QuickAddViewModel
 import com.simposio.taskeer.ui.notifications.NotificationsViewModel
 import com.simposio.taskeer.ui.notifications.UnreadCounterViewModel
 import com.simposio.taskeer.ui.permission.NotificationPermissionViewModel
 import com.simposio.taskeer.ui.settings.SettingsViewModel
+import com.simposio.taskeer.ui.tasks.AssignToBoardViewModel
 import com.simposio.taskeer.ui.tasks.RemindersViewModel
 import com.simposio.taskeer.ui.tasks.SubtasksViewModel
 import com.simposio.taskeer.ui.tasks.TaskEditorViewModel
@@ -56,6 +59,24 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
             ) as T
         modelClass.isAssignableFrom(MyDayViewModel::class.java) ->
             MyDayViewModel(container.myDayRepository, container.dateTimeConverter) as T
+        modelClass.isAssignableFrom(QuickAddViewModel::class.java) ->
+            QuickAddViewModel(
+                container.taskRepository,
+                container.boardRepository,
+                container.columnRepository,
+            ) as T
+        modelClass.isAssignableFrom(InboxViewModel::class.java) ->
+            InboxViewModel(
+                container.taskRepository,
+                container.myDayRepository,
+                container.dateTimeConverter,
+            ) as T
+        modelClass.isAssignableFrom(AssignToBoardViewModel::class.java) ->
+            AssignToBoardViewModel(
+                container.taskRepository,
+                container.boardRepository,
+                container.columnRepository,
+            ) as T
         modelClass.isAssignableFrom(NotificationsViewModel::class.java) ->
             NotificationsViewModel(
                 container.notificationHistoryRepository,

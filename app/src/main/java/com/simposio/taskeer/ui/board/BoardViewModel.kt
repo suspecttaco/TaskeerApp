@@ -49,7 +49,10 @@ class BoardViewModel(
         combine(error, newColumn) { error, newColumn -> error to newColumn },
     ) { columns, tasks, myDay, move, (error, newColumn) ->
         val ordered = tasks.sortedWith(compareBy({ it.position }, { it.id }))
-        val byColumn = ordered.groupBy { it.columnId }.toMutableMap()
+        val byColumn = ordered
+            .mapNotNull { task -> task.columnId?.let { it to task } }
+            .groupBy({ it.first }, { it.second })
+            .toMutableMap()
         if (move != null && !move.isReflectedIn(ordered)) {
             byColumn.withMove(move)
         }

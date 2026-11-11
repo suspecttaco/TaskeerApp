@@ -13,9 +13,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SwapVert
@@ -45,9 +47,12 @@ import com.simposio.taskeer.domain.myday.MyDayFilter
 import com.simposio.taskeer.domain.myday.MyDaySort
 import com.simposio.taskeer.ui.board.color
 import com.simposio.taskeer.ui.board.labelRes
+import com.simposio.taskeer.ui.components.ActionIcon
 import com.simposio.taskeer.ui.components.DecorativeIcon
 import com.simposio.taskeer.ui.components.IconLabel
 import com.simposio.taskeer.ui.components.MyDayToggle
+import com.simposio.taskeer.ui.tasks.DestinationPickerDialog
+import com.simposio.taskeer.ui.tasks.rememberAssignToBoardHost
 import com.simposio.taskeer.ui.tasks.rememberTaskEditorHost
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
@@ -56,15 +61,38 @@ import com.simposio.taskeer.ui.theme.TaskeerTheme
 fun MyDayScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifier = Modifier) {
     val viewModel: MyDayViewModel = viewModel(factory = viewModelFactory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val quickAddViewModel: QuickAddViewModel = viewModel(factory = viewModelFactory)
+    val quickAddState by quickAddViewModel.uiState.collectAsStateWithLifecycle()
     val editorHost = rememberTaskEditorHost(viewModelFactory)
+    val openAssign = rememberAssignToBoardHost(viewModelFactory)
     MyDayContent(
         state = state,
         onSort = viewModel::setSort,
         onFilter = viewModel::setFilter,
         onOpenTask = editorHost.openForEdit,
         onToggleMarked = viewModel::toggleMarked,
+        onAssign = openAssign,
         modifier = modifier,
+        quickAdd = {
+            QuickAddBar(
+                state = quickAddState,
+                onTitleChange = quickAddViewModel::onTitleChange,
+                onAdd = quickAddViewModel::add,
+                onOpenPicker = quickAddViewModel::openPicker,
+            )
+        },
     )
+    if (quickAddState.isPickerOpen) {
+        DestinationPickerDialog(
+            title = stringResource(R.string.destination_picker_title),
+            destinations = quickAddState.destinations,
+            allowInbox = true,
+            selectedColumnId = (quickAddState.destination as? QuickAddDestination.InColumn)?.columnId,
+            onSelectInbox = quickAddViewModel::selectInbox,
+            onSelectColumn = quickAddViewModel::selectColumn,
+            onDismiss = quickAddViewModel::closePicker,
+        )
+    }
 }
 
 @Composable
@@ -74,7 +102,9 @@ fun MyDayContent(
     onFilter: (MyDayFilter) -> Unit,
     onOpenTask: (String) -> Unit,
     onToggleMarked: (String) -> Unit,
+    onAssign: (String) -> Unit,
     modifier: Modifier = Modifier,
+    quickAdd: @Composable () -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -134,11 +164,20 @@ fun MyDayContent(
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap)) {
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap),
+        ) {
             items(state.items, key = { it.id }) { task ->
-                MyDayTaskCard(task = task, onOpen = onOpenTask, onToggleMarked = onToggleMarked)
+                MyDayTaskCard(
+                    task = task,
+                    onOpen = onOpenTask,
+                    onToggleMarked = onToggleMarked,
+                    onAssign = onAssign,
+                )
             }
         }
+        quickAdd()
     }
 }
 
@@ -177,6 +216,7 @@ private fun MyDayTaskCard(
     task: MyDayTaskUi,
     onOpen: (String) -> Unit,
     onToggleMarked: (String) -> Unit,
+    onAssign: (String) -> Unit,
 ) {
     Card(
         onClick = { onOpen(task.id) },
@@ -194,6 +234,13 @@ private fun MyDayTaskCard(
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f),
                 )
+                if (task.isInbox) {
+                    ActionIcon(
+                        icon = Icons.AutoMirrored.Filled.DriveFileMove,
+                        contentDescription = stringResource(R.string.assign_description),
+                        onClick = { onAssign(task.id) },
+                    )
+                }
                 MyDayToggle(inMyDay = task.isMarked, onToggle = { onToggleMarked(task.id) })
             }
             IconLabel(
@@ -202,7 +249,11 @@ private fun MyDayTaskCard(
                 color = task.priority.color(),
                 style = MaterialTheme.typography.labelMedium,
             )
-            IconLabel(icon = Icons.Filled.Dashboard, text = task.boardName)
+            if (task.boardName == null) {
+                IconLabel(icon = Icons.Filled.Inbox, text = stringResource(R.string.inbox_title))
+            } else {
+                IconLabel(icon = Icons.Filled.Dashboard, text = task.boardName)
+            }
             if (task.isAssigned) {
                 IconLabel(
                     icon = Icons.Filled.Person,
@@ -241,14 +292,19 @@ private fun MyDayContentPreview() {
                         "t1", "Escribir el informe", TaskPriority.HIGH, "Proyecto",
                         null, isOverdue = false, isMarked = true, isAssigned = false,
                     ),
+                    MyDayTaskUi(
+                        "t3", "Comprar pan", TaskPriority.MEDIUM, null,
+                        null, isOverdue = false, isMarked = true, isAssigned = false,
+                    ),
                 ),
                 overdueCount = 1,
-                totalCount = 2,
+                totalCount = 3,
             ),
             onSort = {},
             onFilter = {},
             onOpenTask = {},
             onToggleMarked = {},
+            onAssign = {},
         )
     }
 }

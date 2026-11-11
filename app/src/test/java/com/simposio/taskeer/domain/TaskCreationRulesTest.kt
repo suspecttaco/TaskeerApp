@@ -103,6 +103,15 @@ class TaskCreationRulesTest {
         assertEquals("TASK_TITLE_REQUIRED", error)
     }
 
+    @Test
+    fun conColumnaNula_generaTareaDeBandeja() {
+        val bundle = success(newTaskWithExtras(null, TaskCreation(TaskDraft(title = "Pan")), position = 2, now = now))
+
+        assertNull(bundle.task.columnId)
+        assertEquals(2, bundle.task.position)
+        assertTrue(bundle.task.sync.pending)
+    }
+
     private fun success(result: DomainResult<NewTaskBundle>): NewTaskBundle =
         (result as DomainResult.Success).value
 

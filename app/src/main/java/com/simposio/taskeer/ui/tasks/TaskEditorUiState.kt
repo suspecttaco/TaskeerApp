@@ -9,7 +9,7 @@ import java.time.LocalDateTime
 data class TaskEditorUiState(
     val isOpen: Boolean = false,
     val taskId: String? = null,
-    val columnId: String = "",
+    val columnId: String? = null,
     val title: String = "",
     val description: String = "",
     val priority: TaskPriority = TaskPriority.MEDIUM,

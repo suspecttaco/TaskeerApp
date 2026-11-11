@@ -32,11 +32,36 @@ class MyDayDaoConventionsTest {
     @Test
     fun bloquesYConteo_excluyenColumnasDeCompletadasYBorrados() {
         listOf("observePinned", "observeAssigned", "observeOverdueCount").forEach { name ->
-            val query = querySource(name)
-            assertTrue("$name: columnas de completadas", query.contains("c.isDoneColumn = 0"))
-            assertTrue("$name: tarea borrada", query.contains("t.deletedAt IS NULL"))
-            assertTrue("$name: columna borrada", query.contains("c.deletedAt IS NULL"))
-            assertTrue("$name: tablero borrado", query.contains("b.deletedAt IS NULL"))
+            assertTrue("$name: condición de visibilidad compartida", querySource(name).contains("VISIBLE"))
+        }
+        val visible = constantSource("VISIBLE")
+        assertTrue("columnas de completadas", visible.contains("c.isDoneColumn = 0"))
+        assertTrue("tarea borrada", visible.contains("t.deletedAt IS NULL"))
+        assertTrue("columna borrada", visible.contains("c.deletedAt IS NULL"))
+        assertTrue("tablero borrado", visible.contains("b.deletedAt IS NULL"))
+    }
+
+    @Test
+    fun consultas_usanLeftJoinYRamaDeBandeja() {
+        val from = constantSource("FROM_TASKS")
+
+        assertTrue(from.contains("LEFT JOIN columns c ON t.columnId = c.id"))
+        assertTrue(from.contains("LEFT JOIN boards b ON c.boardId = b.id"))
+        assertTrue(constantSource("VISIBLE").contains("t.columnId IS NULL OR"))
+        assertTrue(querySource("observePinned").contains("LEFT JOIN columns c ON t.columnId = c.id"))
+        assertTrue(querySource("observeAssigned").contains("FROM_TASKS"))
+        assertTrue(querySource("observeOverdueCount").contains("FROM_TASKS"))
+    }
+
+    @Test
+    fun consultas_exigenColumnaYTableroExistentesParaTareasConColumna() {
+        assertTrue(constantSource("VISIBLE").contains("c.id IS NOT NULL AND c.deletedAt IS NULL AND b.id IS NOT NULL"))
+    }
+
+    @Test
+    fun consultas_comparteLaCondicionDeVisibilidad() {
+        listOf("observePinned", "observeAssigned", "observeOverdueCount").forEach { name ->
+            assertFalse("$name no duplica la condición", querySource(name).contains("c.isDoneColumn"))
         }
     }
 
@@ -51,6 +76,12 @@ class MyDayDaoConventionsTest {
         assertFalse(source.contains("@Delete"))
         assertFalse(source.contains("DELETE FROM"))
         assertTrue(source.contains("OnConflictStrategy.REPLACE"))
+    }
+
+    private fun constantSource(name: String): String {
+        val start = source.indexOf("private const val $name")
+        assertTrue("falta la constante $name", start >= 0)
+        return source.substring(start, source.indexOf("\n\n", start).takeIf { it > 0 } ?: source.length)
     }
 
     private fun querySource(name: String): String {

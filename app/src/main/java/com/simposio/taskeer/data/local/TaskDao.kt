@@ -19,6 +19,18 @@ abstract class TaskDao {
     @Query("SELECT * FROM tasks WHERE columnId = :columnId AND deletedAt IS NULL ORDER BY position ASC, id ASC")
     abstract suspend fun findActiveByColumn(columnId: String): List<TaskEntity>
 
+    @Query("SELECT * FROM tasks WHERE columnId IS NULL AND deletedAt IS NULL ORDER BY createdAt DESC, id ASC")
+    abstract fun observeInbox(): Flow<List<TaskEntity>>
+
+    @Query("SELECT COUNT(*) FROM tasks WHERE columnId IS NULL AND deletedAt IS NULL")
+    abstract suspend fun countInbox(): Int
+
+    @Query(
+        "SELECT columnId AS columnId, COUNT(*) AS count FROM tasks " +
+            "WHERE deletedAt IS NULL AND columnId IS NOT NULL GROUP BY columnId",
+    )
+    abstract fun observeCountsByColumn(): Flow<List<ColumnCountRow>>
+
     @Query("SELECT * FROM tasks WHERE id = :id")
     abstract suspend fun findById(id: String): TaskEntity?
 
@@ -48,21 +60,22 @@ abstract class TaskDao {
 
     @Query(
         "SELECT tasks.id AS id, tasks.title AS title, tasks.dueAt AS dueAt FROM tasks " +
-            "INNER JOIN columns ON tasks.columnId = columns.id " +
+            "LEFT JOIN columns ON tasks.columnId = columns.id " +
             "WHERE tasks.dueAt IS NOT NULL AND tasks.deletedAt IS NULL " +
-            "AND columns.isDoneColumn = 0 ORDER BY tasks.dueAt ASC, tasks.id ASC",
+            "AND (tasks.columnId IS NULL OR columns.isDoneColumn = 0) ORDER BY tasks.dueAt ASC, tasks.id ASC",
     )
     abstract fun observeReminderCandidates(): Flow<List<ReminderCandidateRow>>
 
     @Query(
-        "SELECT COUNT(*) FROM tasks INNER JOIN columns ON tasks.columnId = columns.id " +
-            "WHERE tasks.deletedAt IS NULL AND columns.isDoneColumn = 0",
+        "SELECT COUNT(*) FROM tasks LEFT JOIN columns ON tasks.columnId = columns.id " +
+            "WHERE tasks.deletedAt IS NULL AND (tasks.columnId IS NULL OR columns.isDoneColumn = 0)",
     )
     abstract suspend fun countActive(): Int
 
     @Query(
         "SELECT tasks.title AS title, tasks.deletedAt IS NOT NULL AS deleted, " +
-            "COALESCE(columns.isDoneColumn, 0) AS completed FROM tasks " +
+            "CASE WHEN tasks.columnId IS NULL THEN 0 ELSE COALESCE(columns.isDoneColumn, 0) END " +
+            "AS completed FROM tasks " +
             "LEFT JOIN columns ON tasks.columnId = columns.id WHERE tasks.id = :taskId",
     )
     abstract suspend fun findReminderState(taskId: String): ReminderTaskStateRow?
@@ -81,14 +94,19 @@ abstract class TaskDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE, entity = ReminderEntity::class)
     abstract suspend fun insertReminder(reminder: ReminderEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE, entity = MyDayEntryEntity::class)
+    abstract suspend fun insertMyDayEntry(entry: MyDayEntryEntity)
+
     @Transaction
     open suspend fun insertTaskWithExtras(
         task: TaskEntity,
         subtasks: List<SubtaskEntity>,
         reminder: ReminderEntity?,
+        myDayEntry: MyDayEntryEntity?,
     ) {
         upsert(task)
         if (subtasks.isNotEmpty()) insertSubtasks(subtasks)
         reminder?.let { insertReminder(it) }
+        myDayEntry?.let { insertMyDayEntry(it) }
     }
 }

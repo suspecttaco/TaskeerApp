@@ -1,5 +1,7 @@
 package com.simposio.taskeer.data.repository
 
+import com.simposio.taskeer.data.local.ColumnCountRow
+import com.simposio.taskeer.data.local.MyDayEntryEntity
 import com.simposio.taskeer.data.local.ReminderCandidateRow
 import com.simposio.taskeer.data.local.ReminderDao
 import com.simposio.taskeer.data.local.ReminderEntity
@@ -380,6 +382,14 @@ class ReminderRepositoryImplTest {
     }
 
     private class FakeTaskDao : TaskDao() {
+        override fun observeInbox(): Flow<List<TaskEntity>> = emptyFlow()
+
+        override suspend fun countInbox(): Int = 0
+
+        override fun observeCountsByColumn(): Flow<List<ColumnCountRow>> = emptyFlow()
+
+        override suspend fun insertMyDayEntry(entry: MyDayEntryEntity) = Unit
+
         private val rows = MutableStateFlow<Map<String, TaskEntity>>(emptyMap())
 
         val doneColumns: MutableSet<String> = mutableSetOf()
