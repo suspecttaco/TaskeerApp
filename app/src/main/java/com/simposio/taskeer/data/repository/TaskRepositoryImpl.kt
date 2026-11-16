@@ -17,14 +17,20 @@ import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskCreation
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.task.TASK_IN_INBOX
+import com.simposio.taskeer.domain.task.TASK_NO_OPEN_COLUMN
 import com.simposio.taskeer.domain.task.TASK_NOT_FOUND
 import com.simposio.taskeer.domain.task.assignedToColumn
 import com.simposio.taskeer.domain.task.checkSameBoard
+import com.simposio.taskeer.domain.task.closingColumn
+import com.simposio.taskeer.domain.task.completed
 import com.simposio.taskeer.domain.task.movedTask
 import com.simposio.taskeer.domain.task.newTask
 import com.simposio.taskeer.domain.task.newTaskWithExtras
+import com.simposio.taskeer.domain.task.reopened
+import com.simposio.taskeer.domain.task.reopeningColumn
 import com.simposio.taskeer.domain.task.softDeleted
 import com.simposio.taskeer.domain.task.updated
+import com.simposio.taskeer.domain.task.withCompletionFor
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -117,7 +123,8 @@ class TaskRepositoryImpl(
             )
         val destination = activeColumn(toColumnId) ?: return columnNotFound()
         // El boardId de una columna no cambia, así que sirve aunque la columna origen esté borrada.
-        val sourceBoardId = columnDao.findById(sourceColumnId)?.boardId
+        val sourceColumn = columnDao.findById(sourceColumnId)
+        val sourceBoardId = sourceColumn?.boardId
         if (sourceBoardId != null) {
             checkSameBoard(sourceBoardId, destination)?.let { return DomainResult.Failure(it) }
         }
@@ -130,10 +137,18 @@ class TaskRepositoryImpl(
                     checkWipLimit(destination, target.count { it.id != id })
                         ?.let { return DomainResult.Failure(it) }
                 }
-                if (result.value.isNotEmpty()) {
-                    dao.upsertAll(result.value.map { it.toEntity() })
+                val changed = result.value.map { task ->
+                    when {
+                        task.id != id -> task
+                        destination.isDoneColumn -> task.completed(now())
+                        sourceColumn?.isDoneColumn == true -> task.reopened(now())
+                        else -> task
+                    }
                 }
-                DomainResult.Success(result.value.firstOrNull { it.id == id } ?: current)
+                if (changed.isNotEmpty()) {
+                    dao.upsertAll(changed.map { it.toEntity() })
+                }
+                DomainResult.Success(changed.firstOrNull { it.id == id } ?: current)
             }
         }
     }
@@ -146,10 +161,42 @@ class TaskRepositoryImpl(
             is DomainResult.Failure -> result
             is DomainResult.Success -> {
                 checkWipLimit(destination, position)?.let { return DomainResult.Failure(it) }
-                dao.upsert(result.value.toEntity())
-                DomainResult.Success(result.value)
+                val assigned = result.value.withCompletionFor(destination, now())
+                dao.upsert(assigned.toEntity())
+                DomainResult.Success(assigned)
             }
         }
+    }
+
+    override suspend fun setCompleted(id: String, completed: Boolean): DomainResult<Task> {
+        val current = activeTask(id) ?: return taskNotFound()
+        if (current.isCompleted == completed) return DomainResult.Success(current)
+        val inPlace = if (completed) current.completed(now()) else current.reopened(now())
+        val sourceColumn = current.columnId?.let { activeColumn(it) } ?: return saveInPlace(inPlace)
+        val columns = columnDao.findActiveByBoard(sourceColumn.boardId).map { it.toColumn() }
+        val destination = when {
+            completed -> closingColumn(columns).takeUnless { sourceColumn.isDoneColumn }
+            sourceColumn.isDoneColumn -> reopeningColumn(columns) ?: return noOpenColumn()
+            else -> null
+        }
+        if (destination == null) return saveInPlace(inPlace)
+        val source = dao.findActiveByColumn(sourceColumn.id).map { it.toTask() }
+        val target = dao.findActiveByColumn(destination.id).map { it.toTask() }
+        checkWipLimit(destination, target.size)?.let { return DomainResult.Failure(it) }
+        val moved = when (val result = movedTask(current, source, target, destination.id, target.size, now())) {
+            is DomainResult.Failure -> return result
+            is DomainResult.Success -> result.value
+        }
+        val changed = moved.map { task ->
+            if (task.id != id) task else if (completed) task.completed(now()) else task.reopened(now())
+        }
+        dao.upsertAll(changed.map { it.toEntity() })
+        return DomainResult.Success(changed.first { it.id == id })
+    }
+
+    private suspend fun saveInPlace(task: Task): DomainResult<Task> {
+        dao.upsert(task.toEntity())
+        return DomainResult.Success(task)
     }
 
     override suspend fun deleteTask(id: String): DomainResult<Unit> {
@@ -173,6 +220,10 @@ class TaskRepositoryImpl(
 
     private fun columnNotFound(): DomainResult.Failure =
         DomainResult.Failure(DomainError.NotFound(COLUMN_NOT_FOUND, "La columna no existe"))
+
+    private fun noOpenColumn(): DomainResult.Failure = DomainResult.Failure(
+        DomainError.Conflict(TASK_NO_OPEN_COLUMN, "El tablero no tiene una columna a la que devolver la tarea"),
+    )
 
     private fun taskNotFound(): DomainResult.Failure =
         DomainResult.Failure(DomainError.NotFound(TASK_NOT_FOUND, "La tarea no existe"))

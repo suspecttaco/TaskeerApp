@@ -201,6 +201,7 @@ class MyDayRulesTest {
             assigneeId = null,
             position = 0,
             createdAt = Instant.EPOCH,
+            completedAt = null,
             sync = SyncMetadata(id, Instant.EPOCH, pending = false, deletedAt = null),
         ),
         boardId = "b1",

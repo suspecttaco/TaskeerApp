@@ -59,6 +59,8 @@ class FakeDestinationTaskRepository : TaskRepository {
     val assignments = mutableListOf<Pair<String, String>>()
     var createFailure: DomainError? = null
     var assignFailure: DomainError? = null
+    val completions = mutableListOf<Pair<String, Boolean>>()
+    var completeFailure: DomainError? = null
 
     override fun observeInbox(): Flow<List<Task>> = inbox
 
@@ -93,6 +95,14 @@ class FakeDestinationTaskRepository : TaskRepository {
     override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> = unused()
 
     override suspend fun moveTask(id: String, toColumnId: String, toIndex: Int): DomainResult<Task> = unused()
+
+    override suspend fun setCompleted(id: String, completed: Boolean): DomainResult<Task> {
+        completions += id to completed
+        completeFailure?.let { return DomainResult.Failure(it) }
+        val updated = inbox.value.first { it.id == id }.copy(completedAt = if (completed) Instant.EPOCH else null)
+        inbox.value = inbox.value.map { if (it.id == id) updated else it }
+        return DomainResult.Success(updated)
+    }
 
     override suspend fun deleteTask(id: String): DomainResult<Unit> = unused()
 

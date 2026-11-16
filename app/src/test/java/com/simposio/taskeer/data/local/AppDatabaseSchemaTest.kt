@@ -17,6 +17,7 @@ class AppDatabaseSchemaTest {
     private val schemaV9: String = resolveSchema(version = 9).readText()
     private val schemaV10: String = resolveSchema(version = 10).readText()
     private val schemaV11: String = resolveSchema(version = 11).readText()
+    private val schemaV12: String = resolveSchema(version = 12).readText()
 
     @Test
     fun esquemaVersion1_sigueExportado() {
@@ -401,6 +402,41 @@ class AppDatabaseSchemaTest {
         (tablesV10 - "tasks").forEach { table ->
             assertEquals(table, tableV10(table).substringBefore("\"setupQueries\""), tableV11(table).substringBefore("\"setupQueries\""))
         }
+    }
+
+    @Test
+    fun version_es12() {
+        assertTrue(
+            "el esquema debe declarar la versión 12 de la base de datos",
+            Regex("\"version\"\\s*:\\s*12\\b").containsMatchIn(schemaV12),
+        )
+    }
+
+    @Test
+    fun v12_tasks_completedAtAdmiteNull() {
+        assertEquals(ColumnSchema("INTEGER", false), column(tableV12("tasks"), "completedAt"))
+    }
+
+    @Test
+    fun json12_coincideConLaEntidad() {
+        val tasks = tableV12("tasks")
+        val entityFields = TaskEntity::class.java.declaredFields.map { it.name }.filter { !it.contains('$') }
+
+        entityFields.forEach { assertTrue("12.json debe declarar $it", tasks.contains("\"columnName\": \"$it\"")) }
+        assertEquals(entityFields.size, Regex("\"columnName\"").findAll(tasks.substringBefore("\"primaryKey\"")).count())
+    }
+
+    @Test
+    fun v12_mantieneElRestoDeColumnasDeTasksQueV11() {
+        listOf("id", "columnId", "title", "description", "priority", "dueAt", "assigneeId", "position", "createdAt", "updatedAt", "pending", "deletedAt")
+            .forEach { assertEquals(it, column(tableV11("tasks"), it), column(tableV12("tasks"), it)) }
+    }
+
+    private fun tableV12(name: String): String {
+        val start = schemaV12.indexOf("\"tableName\": \"$name\"")
+        assertTrue("el esquema v12 debe declarar la tabla $name", start >= 0)
+        val nextTable = schemaV12.indexOf("\"tableName\":", start + 1)
+        return schemaV12.substring(start, if (nextTable < 0) schemaV12.length else nextTable)
     }
 
     private fun tableV11(name: String): String {

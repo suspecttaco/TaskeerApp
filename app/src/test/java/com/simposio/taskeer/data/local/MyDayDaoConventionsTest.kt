@@ -30,15 +30,16 @@ class MyDayDaoConventionsTest {
     }
 
     @Test
-    fun bloquesYConteo_excluyenColumnasDeCompletadasYBorrados() {
+    fun visible_usaCompletedAtYNoIsDoneColumn() {
         listOf("observePinned", "observeAssigned", "observeOverdueCount").forEach { name ->
             assertTrue("$name: condición de visibilidad compartida", querySource(name).contains("VISIBLE"))
         }
         val visible = constantSource("VISIBLE")
-        assertTrue("columnas de completadas", visible.contains("c.isDoneColumn = 0"))
+        assertTrue("tareas completadas", visible.contains("t.completedAt IS NULL"))
         assertTrue("tarea borrada", visible.contains("t.deletedAt IS NULL"))
         assertTrue("columna borrada", visible.contains("c.deletedAt IS NULL"))
         assertTrue("tablero borrado", visible.contains("b.deletedAt IS NULL"))
+        assertFalse("ya no depende de la columna de cierre", visible.contains("isDoneColumn"))
     }
 
     @Test

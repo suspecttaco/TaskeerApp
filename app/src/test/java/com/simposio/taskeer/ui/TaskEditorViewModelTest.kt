@@ -419,6 +419,7 @@ class TaskEditorViewModelTest {
         assigneeId = null,
         position = 0,
         createdAt = Instant.EPOCH,
+        completedAt = null,
         sync = SyncMetadata(clientId = id, updatedAt = Instant.EPOCH, pending = false, deletedAt = null),
     )
 
@@ -482,6 +483,8 @@ class TaskEditorViewModelTest {
 
         override suspend fun moveTask(id: String, toColumnId: String, toIndex: Int): DomainResult<Task> =
             error("no se usa")
+
+        override suspend fun setCompleted(id: String, completed: Boolean): DomainResult<Task> = error("no se usa")
 
         override suspend fun deleteTask(id: String): DomainResult<Unit> {
             deleteCalls++

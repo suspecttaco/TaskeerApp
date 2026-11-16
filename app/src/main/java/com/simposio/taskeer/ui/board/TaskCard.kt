@@ -22,9 +22,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.TaskPriority
+import com.simposio.taskeer.ui.components.CompleteCheckbox
 import com.simposio.taskeer.ui.components.IconLabel
 import com.simposio.taskeer.ui.components.MyDayToggle
 import com.simposio.taskeer.ui.tasks.DUE_DATE_TIME_FORMATTER
@@ -39,6 +41,7 @@ internal fun TaskCard(
     modifier: Modifier = Modifier,
     elevated: Boolean = false,
     onToggleMyDay: (String) -> Unit = {},
+    onToggleCompleted: (String) -> Unit = {},
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -50,9 +53,11 @@ internal fun TaskCard(
             verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                CompleteCheckbox(completed = card.isCompleted, onToggle = { onToggleCompleted(card.id) })
                 Text(
                     text = card.title,
                     style = MaterialTheme.typography.bodyLarge,
+                    textDecoration = if (card.isCompleted) TextDecoration.LineThrough else null,
                     modifier = Modifier.weight(1f),
                 )
                 MyDayToggle(inMyDay = card.inMyDay, onToggle = { onToggleMyDay(card.id) })

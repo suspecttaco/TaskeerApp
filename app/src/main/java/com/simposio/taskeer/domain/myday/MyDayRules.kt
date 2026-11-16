@@ -33,7 +33,7 @@ fun mergeMyDay(myDay: MyDay): List<MyDayItem> {
 
 // Mismo criterio que el conteo de vencidas: solo cuentan las asignadas.
 fun MyDayItem.isOverdueAssigned(now: Instant): Boolean =
-    isAssigned && isOverdue(task.dueAt, isDoneColumn = false, now = now)
+    isAssigned && isOverdue(task.dueAt, task.isCompleted, now)
 
 fun filterMyDay(items: List<MyDayItem>, filter: MyDayFilter, now: Instant): List<MyDayItem> =
     when (filter) {

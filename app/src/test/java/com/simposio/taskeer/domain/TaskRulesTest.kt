@@ -10,12 +10,17 @@ import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.domain.model.Column
 import com.simposio.taskeer.domain.task.assignedToColumn
 import com.simposio.taskeer.domain.task.checkSameBoard
+import com.simposio.taskeer.domain.task.closingColumn
+import com.simposio.taskeer.domain.task.completed
 import com.simposio.taskeer.domain.task.isOverdue
 import com.simposio.taskeer.domain.task.isTaskCompleted
 import com.simposio.taskeer.domain.task.movedTask
 import com.simposio.taskeer.domain.task.newTask
+import com.simposio.taskeer.domain.task.reopened
+import com.simposio.taskeer.domain.task.reopeningColumn
 import com.simposio.taskeer.domain.task.softDeleted
 import com.simposio.taskeer.domain.task.updated
+import com.simposio.taskeer.domain.task.withCompletionFor
 import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -363,27 +368,27 @@ class TaskRulesTest {
 
     @Test
     fun isOverdue_sinFecha_noEsVencida() {
-        assertFalse(isOverdue(dueAt = null, isDoneColumn = false, now = now))
+        assertFalse(isOverdue(dueAt = null, isCompleted = false, now = now))
     }
 
     @Test
     fun isOverdue_fechaFutura_noEsVencida() {
-        assertFalse(isOverdue(dueAt = later, isDoneColumn = false, now = now))
+        assertFalse(isOverdue(dueAt = later, isCompleted = false, now = now))
     }
 
     @Test
     fun isOverdue_fechaIgualAAhora_noEsVencida() {
-        assertFalse(isOverdue(dueAt = now, isDoneColumn = false, now = now))
+        assertFalse(isOverdue(dueAt = now, isCompleted = false, now = now))
     }
 
     @Test
     fun isOverdue_fechaPasada_esVencida() {
-        assertTrue(isOverdue(dueAt = now.minusMillis(1), isDoneColumn = false, now = now))
+        assertTrue(isOverdue(dueAt = now.minusMillis(1), isCompleted = false, now = now))
     }
 
     @Test
-    fun isOverdue_columnaCompletada_nuncaEsVencida() {
-        assertFalse(isOverdue(dueAt = now.minusSeconds(3600), isDoneColumn = true, now = now))
+    fun isOverdue_completada_esFalso() {
+        assertFalse(isOverdue(dueAt = now.minusSeconds(3600), isCompleted = true, now = now))
     }
 
     private fun tk(id: String, columnId: String, position: Int): Task =
@@ -404,14 +409,87 @@ class TaskRulesTest {
     }
 
     @Test
-    fun tareaSinColumna_nuncaEstaCompletada() {
-        assertFalse(isTaskCompleted(columnId = null, isDoneColumn = true))
+    fun isTaskCompleted_conCompletedAt_esVerdadero() {
+        assertTrue(isTaskCompleted(now))
+        assertFalse(isTaskCompleted(null))
     }
 
     @Test
-    fun tareaEnColumnaDeCierre_estaCompletada() {
-        assertTrue(isTaskCompleted(columnId = "columna-hecha", isDoneColumn = true))
-        assertFalse(isTaskCompleted(columnId = "columna-1", isDoneColumn = false))
+    fun tareaDeBandeja_completada_noVence() {
+        val inbox = task(columnId = null).copy(dueAt = now.minusSeconds(3600)).completed(later)
+
+        assertFalse(isOverdue(inbox.dueAt, inbox.isCompleted, now))
+    }
+
+    @Test
+    fun completed_fijaCompletedAtYMarcaPendiente() {
+        val current = task(sync = SyncMetadata("tarea-1", now, pending = false, deletedAt = null))
+
+        val done = current.completed(later)
+
+        assertEquals(later, done.completedAt)
+        assertTrue(done.isCompleted)
+        assertEquals(later, done.sync.updatedAt)
+        assertTrue(done.sync.pending)
+    }
+
+    @Test
+    fun reopened_limpiaCompletedAt() {
+        val current = task(sync = SyncMetadata("tarea-1", now, pending = false, deletedAt = null)).copy(completedAt = now)
+
+        val reopened = current.reopened(later)
+
+        assertNull(reopened.completedAt)
+        assertEquals(later, reopened.sync.updatedAt)
+        assertTrue(reopened.sync.pending)
+    }
+
+    @Test
+    fun completed_enTareaCompletada_noCambiaNada() {
+        val current = task().copy(completedAt = now)
+
+        assertEquals(current, current.completed(later))
+    }
+
+    @Test
+    fun reopened_enTareaPendiente_noCambiaNada() {
+        val current = task()
+
+        assertEquals(current, current.reopened(later))
+    }
+
+    @Test
+    fun closingColumn_devuelveLaDeMenorPositionActiva() {
+        val columns = listOf(
+            columnOf("b", id = "c3", position = 3, isDone = true),
+            columnOf("b", id = "c1", position = 1, isDone = true),
+            columnOf("b", id = "c0", position = 0, isDone = false),
+            columnOf("b", id = "c2", position = 2, isDone = true, deleted = true),
+        )
+
+        assertEquals("c1", closingColumn(columns)?.id)
+        assertNull(closingColumn(columns.filter { !it.isDoneColumn }))
+    }
+
+    @Test
+    fun reopeningColumn_ignoraColumnasDeCierre() {
+        val columns = listOf(
+            columnOf("b", id = "c0", position = 0, isDone = true),
+            columnOf("b", id = "c2", position = 2, isDone = false),
+            columnOf("b", id = "c1", position = 1, isDone = false, deleted = true),
+        )
+
+        assertEquals("c2", reopeningColumn(columns)?.id)
+        assertNull(reopeningColumn(columns.filter { it.isDoneColumn }))
+    }
+
+    @Test
+    fun withCompletionFor_destinoDeCierre_completa() {
+        val done = columnOf("b", id = "c1", position = 1, isDone = true)
+        val open = columnOf("b", id = "c0", position = 0, isDone = false)
+
+        assertEquals(later, task().withCompletionFor(done, later).completedAt)
+        assertNull(task().withCompletionFor(open, later).completedAt)
     }
 
     @Test
@@ -436,14 +514,20 @@ class TaskRulesTest {
         assertEquals("TASK_NOT_IN_INBOX", error.code)
     }
 
-    private fun columnOf(boardId: String) = Column(
+    private fun columnOf(
+        boardId: String,
+        id: String = "col-x",
+        position: Int = 0,
+        isDone: Boolean = false,
+        deleted: Boolean = false,
+    ) = Column(
         boardId = boardId,
         name = "Columna",
-        position = 0,
+        position = position,
         wipLimit = null,
-        isDoneColumn = false,
+        isDoneColumn = isDone,
         createdAt = Instant.EPOCH,
-        sync = SyncMetadata("col-x", now, pending = false, deletedAt = null),
+        sync = SyncMetadata(id, now, pending = false, deletedAt = if (deleted) now else null),
     )
 
     private fun task(
@@ -460,6 +544,7 @@ class TaskRulesTest {
         assigneeId = null,
         position = position,
         createdAt = Instant.EPOCH,
+        completedAt = null,
         sync = sync,
     )
 }

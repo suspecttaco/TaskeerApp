@@ -101,6 +101,8 @@
     <string name="board_add_column_title">Nueva columna</string>
     <string name="nav_back">Volver</string>
     <string name="task_assignee_me">Yo</string>
+    <string name="task_complete">Completar tarea</string>
+    <string name="task_mark_pending">Marcar como pendiente</string>
     <string name="task_in_my_day_add">Marcar en Mi día</string>
     <string name="task_in_my_day_remove">Quitar de Mi día</string>
     <string name="my_day_filter_label">Filtrar</string>

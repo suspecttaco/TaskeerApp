@@ -45,6 +45,8 @@ class FakeTaskLookupRepository : TaskRepository {
     override suspend fun moveTask(id: String, toColumnId: String, toIndex: Int): DomainResult<Task> =
         unused()
 
+    override suspend fun setCompleted(id: String, completed: Boolean): DomainResult<Task> = unused()
+
     override suspend fun deleteTask(id: String): DomainResult<Unit> = unused()
 
     private fun unused(): Nothing = error("no se usa en este test")

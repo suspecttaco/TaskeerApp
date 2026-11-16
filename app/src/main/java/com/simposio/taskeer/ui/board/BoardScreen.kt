@@ -67,6 +67,7 @@ fun BoardScreen(
         onCreateTask = editorHost.openForCreate,
         onEditTask = editorHost.openForEdit,
         onToggleMyDay = viewModel::toggleMyDay,
+        onToggleCompleted = viewModel::toggleCompleted,
         onManageColumns = { onManageColumns(viewModel.boardId) },
         onAddColumn = viewModel::openNewColumn,
         onNewColumnNameChange = viewModel::onNewColumnNameChange,
@@ -89,6 +90,7 @@ fun BoardContent(
     onCreateTask: (String) -> Unit,
     onEditTask: (String) -> Unit,
     onToggleMyDay: (String) -> Unit,
+    onToggleCompleted: (String) -> Unit,
     onManageColumns: () -> Unit,
     onAddColumn: () -> Unit,
     onNewColumnNameChange: (String) -> Unit,
@@ -186,6 +188,7 @@ fun BoardContent(
                         onCreateTask = { onCreateTask(column.id) },
                         onEditTask = onEditTask,
                         onToggleMyDay = onToggleMyDay,
+                        onToggleCompleted = onToggleCompleted,
                     )
                 }
             }
@@ -240,6 +243,7 @@ private fun BoardContentPreview() {
             onCreateTask = {},
             onEditTask = {},
             onToggleMyDay = {},
+            onToggleCompleted = {},
             onManageColumns = {},
             onAddColumn = {},
             onNewColumnNameChange = {},

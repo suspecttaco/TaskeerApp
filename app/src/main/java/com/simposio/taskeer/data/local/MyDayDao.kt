@@ -6,8 +6,8 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
-// Las tareas de columnas de cierre (c.isDoneColumn = 0) no aparecen en Mi día ni en el
-// conteo de vencidas; el filtro vive en SQL para que bloques y conteo no diverjan.
+// Solo entran tareas no completadas (t.completedAt IS NULL); las completadas no aparecen en
+// Mi día ni en el conteo de vencidas. El filtro vive en SQL para que bloques y conteo no diverjan.
 @Dao
 abstract class MyDayDao {
     @Query("SELECT id FROM my_day_tasks WHERE deletedAt IS NULL")
@@ -48,6 +48,5 @@ private const val FROM_TASKS =
 
 // c.id/b.id IS NOT NULL: con LEFT JOIN, una columna inexistente pasaría el filtro de deletedAt.
 private const val VISIBLE =
-    "t.deletedAt IS NULL AND (t.columnId IS NULL OR " +
-        "(c.id IS NOT NULL AND c.deletedAt IS NULL AND b.id IS NOT NULL AND b.deletedAt IS NULL " +
-        "AND c.isDoneColumn = 0))"
+    "t.deletedAt IS NULL AND t.completedAt IS NULL AND (t.columnId IS NULL OR " +
+        "(c.id IS NOT NULL AND c.deletedAt IS NULL AND b.id IS NOT NULL AND b.deletedAt IS NULL))"

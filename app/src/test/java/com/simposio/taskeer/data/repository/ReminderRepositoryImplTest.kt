@@ -192,9 +192,9 @@ class ReminderRepositoryImplTest {
     }
 
     @Test
-    fun claimDue_deTareaCompletada_loDescartaConDismissedSinAviso() = runTest {
+    fun claimDue_tareaCompletada_descartaRecordatorioManual() = runTest {
         val created = (repository.createReminder("t1", at) as DomainResult.Success).value
-        taskDao.doneColumns += "c1"
+        taskDao.setCompleted("t1", true)
 
         val claim = repositoryAt(at).claimDue(at)
 
@@ -243,7 +243,7 @@ class ReminderRepositoryImplTest {
     @Test
     fun claimDue_vencidoYCompletado_prevaleceDismissedSobreElOmitidoPorTolerancia() = runTest {
         val created = (repository.createReminder("t1", at) as DomainResult.Success).value
-        taskDao.doneColumns += "c1"
+        taskDao.setCompleted("t1", true)
         val late = at.plus(Duration.ofHours(2))
 
         val claim = repositoryAt(late).claimDue(late)
@@ -256,9 +256,9 @@ class ReminderRepositoryImplTest {
     @Test
     fun claimDue_tareaCompletadaQueVuelveANoCompletadaAntesDeLaHora_sigueVigenteYAvisa() = runTest {
         val created = (repository.createReminder("t1", at) as DomainResult.Success).value
-        taskDao.doneColumns += "c1"
+        taskDao.setCompleted("t1", true)
         assertEquals("PENDING", reminderDao.rows.value.getValue(created.id).status)
-        taskDao.doneColumns -= "c1"
+        taskDao.setCompleted("t1", false)
 
         val claim = repositoryAt(at).claimDue(at)
 
@@ -331,6 +331,7 @@ class ReminderRepositoryImplTest {
         createdAt = 0L,
         updatedAt = 0L,
         pending = false,
+        completedAt = null,
         deletedAt = deletedAt,
     )
 
@@ -392,7 +393,8 @@ class ReminderRepositoryImplTest {
 
         private val rows = MutableStateFlow<Map<String, TaskEntity>>(emptyMap())
 
-        val doneColumns: MutableSet<String> = mutableSetOf()
+        fun setCompleted(id: String, completed: Boolean) =
+            put(rows.value.getValue(id).copy(completedAt = if (completed) 1L else null))
 
         fun put(task: TaskEntity) {
             rows.value = rows.value + (task.id to task)
@@ -418,7 +420,7 @@ class ReminderRepositoryImplTest {
 
         override suspend fun findReminderState(taskId: String): ReminderTaskStateRow? =
             rows.value[taskId]?.let {
-                ReminderTaskStateRow(it.title, it.deletedAt != null, it.columnId in doneColumns)
+                ReminderTaskStateRow(it.title, it.deletedAt != null, it.completedAt != null)
             }
 
         override suspend fun dismissRemindersOfTask(taskId: String, now: Long): Int = 0

@@ -51,6 +51,7 @@ internal fun BoardColumnView(
     onCreateTask: () -> Unit,
     onEditTask: (String) -> Unit,
     onToggleMyDay: (String) -> Unit,
+    onToggleCompleted: (String) -> Unit,
 ) {
     DisposableEffect(column.id) { onDispose(onColumnDisposed) }
 
@@ -104,6 +105,7 @@ internal fun BoardColumnView(
                     TaskCard(
                         card = card,
                         onToggleMyDay = onToggleMyDay,
+                        onToggleCompleted = onToggleCompleted,
                         modifier = Modifier
                             .alpha(if (card.id == draggedId) 0.3f else 1f)
                             .onGloballyPositioned { onCardPositioned(card.id, it.boundsInRoot().toBounds()) }

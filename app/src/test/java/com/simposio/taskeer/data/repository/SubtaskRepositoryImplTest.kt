@@ -267,6 +267,7 @@ class SubtaskRepositoryImplTest {
                 createdAt = 0L,
                 updatedAt = now.toEpochMilli(),
                 pending = false,
+                completedAt = null,
                 deletedAt = if (taskDeleted) now.toEpochMilli() else null,
             ),
         )
