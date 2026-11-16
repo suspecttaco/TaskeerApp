@@ -52,6 +52,23 @@ class UiPresentationRulesTest {
     }
 
     @Test
+    fun completeCheckboxTieneDescripcionDeContenidoYObjetivoTactil() {
+        val source = File(sourcesRoot, "ui/components/CompleteCheckbox.kt").readText()
+
+        assertTrue(source.contains("contentDescription = description"))
+        assertTrue(source.contains("R.string.task_complete"))
+        assertTrue(source.contains("R.string.task_mark_pending"))
+        assertTrue(source.contains("minimumInteractiveComponentSize()"))
+    }
+
+    @Test
+    fun pantallasDeTareasUsanLaCasillaCompartida() {
+        listOf("ui/board/TaskCard.kt", "ui/inbox/InboxScreen.kt", "ui/myday/MyDayScreen.kt").forEach { path ->
+            assertTrue("$path debe usar CompleteCheckbox", File(sourcesRoot, path).readText().contains("CompleteCheckbox("))
+        }
+    }
+
+    @Test
     fun sinDpLiteralesEnPantallas() {
         val literal = Regex("(padding|spacedBy|size)\\([^)]*\\d\\.dp")
         val violations = uiFiles()

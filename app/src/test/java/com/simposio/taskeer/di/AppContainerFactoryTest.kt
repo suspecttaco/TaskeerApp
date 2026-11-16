@@ -16,10 +16,12 @@ import com.simposio.taskeer.data.repository.PreferencesRepository
 import com.simposio.taskeer.data.repository.ReminderRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskRepository
+import com.simposio.taskeer.testing.FakeDestinationTaskRepository
 import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
 import com.simposio.taskeer.testing.InMemoryCheckpointStore
 import com.simposio.taskeer.testing.RecordingNotifier
 import com.simposio.taskeer.testing.RecordingReminderScheduler
+import com.simposio.taskeer.ui.myday.MyDayViewModel
 import com.simposio.taskeer.ui.tasks.RemindersViewModel
 import com.simposio.taskeer.ui.tasks.SubtasksViewModel
 import java.lang.reflect.Proxy
@@ -28,6 +30,7 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Test
 
 class AppContainerFactoryTest {
@@ -64,6 +67,34 @@ class AppContainerFactoryTest {
         val viewModel = AppViewModelFactory(container).create(SubtasksViewModel::class.java)
 
         assertEquals(SubtasksViewModel::class.java, viewModel.javaClass)
+    }
+
+    @Test
+    fun factory_construyeMyDayViewModelConElRepositorioDeTareas() {
+        val tasks = FakeDestinationTaskRepository()
+        val myDay = Proxy.newProxyInstance(
+            MyDayRepository::class.java.classLoader,
+            arrayOf(MyDayRepository::class.java),
+        ) { _, method, _ ->
+            if (method.returnType == Flow::class.java) emptyFlow<Any>() else error("${method.name} no se usa")
+        } as MyDayRepository
+        val container = AppContainer(
+            preferencesRepository = stub<PreferencesRepository>(),
+            timeZoneProvider = { java.time.ZoneOffset.UTC },
+            boardRepository = stub<BoardRepository>(),
+            columnRepository = stub<ColumnRepository>(),
+            taskRepository = tasks,
+            subtaskRepository = stub<SubtaskRepository>(),
+            myDayRepository = myDay,
+            reminderRepository = stub<ReminderRepository>(),
+            reminderReconciler = reconciler(),
+            notificationHistoryRepository = FakeNotificationHistoryRepository(),
+        )
+
+        val viewModel = AppViewModelFactory(container).create(MyDayViewModel::class.java)
+
+        val field = MyDayViewModel::class.java.getDeclaredField("taskRepository").apply { isAccessible = true }
+        assertSame(tasks, field.get(viewModel))
     }
 
     @Test
@@ -165,6 +196,7 @@ class AppContainerFactoryTest {
         createdAt = 0L,
         updatedAt = 0L,
         pending = true,
+        completedAt = null,
         deletedAt = null,
     )
 }

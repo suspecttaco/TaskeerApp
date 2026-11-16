@@ -12,6 +12,7 @@ import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.domain.myday.MyDayFilter
 import com.simposio.taskeer.domain.myday.MyDaySort
+import com.simposio.taskeer.testing.FakeDestinationTaskRepository
 import com.simposio.taskeer.ui.myday.MyDayUiState
 import com.simposio.taskeer.ui.myday.MyDayViewModel
 import java.time.Instant
@@ -332,8 +333,65 @@ class MyDayViewModelTest {
         assertEquals(listOf("pan"), viewModel.uiState.value.items.map { it.id })
     }
 
-    private fun TestScope.viewModel(repository: FakeMyDayRepository): MyDayViewModel {
-        val viewModel = MyDayViewModel(repository, madrid) { now }
+    @Test
+    fun toggleCompleted_llamaASetCompleted() = runTest {
+        val pending = item("a", addedAt = now)
+        val tasks = FakeDestinationTaskRepository().apply { inbox.value = listOf(pending.task) }
+        val viewModel = viewModel(FakeMyDayRepository(MyDay(listOf(pending), emptyList())), tasks)
+
+        viewModel.toggleCompleted("a")
+
+        assertEquals(listOf("a" to true), tasks.completions)
+    }
+
+    @Test
+    fun tareaCompletada_dejaDeAparecerYNoCuentaComoVencida() = runTest {
+        val overdue = item("a", dueAt = now.minusSeconds(60), addedAt = now)
+        val repository = FakeMyDayRepository(MyDay(emptyList(), listOf(overdue))).apply { this.overdue.value = 1 }
+        val tasks = FakeDestinationTaskRepository().apply { inbox.value = listOf(overdue.task) }
+        val viewModel = viewModel(repository, tasks)
+        assertEquals(1, viewModel.uiState.value.overdueCount)
+
+        viewModel.toggleCompleted("a")
+        repository.emit(MyDay(emptyList(), emptyList()))
+        repository.overdue.value = 0
+
+        assertTrue(viewModel.uiState.value.items.isEmpty())
+        assertEquals(0, viewModel.uiState.value.overdueCount)
+    }
+
+    @Test
+    fun tareaCompletada_nuncaSeMarcaVencida() = runTest {
+        val done = item("a", dueAt = now.minusSeconds(60), addedAt = now).let { it.copy(task = it.task.copy(completedAt = now)) }
+        val viewModel = viewModel(FakeMyDayRepository(MyDay(listOf(done), emptyList())))
+
+        val card = viewModel.uiState.value.items.single()
+
+        assertTrue(card.isCompleted)
+        assertFalse(card.isOverdue)
+    }
+
+    @Test
+    fun toggleCompleted_conFallo_exponeError() = runTest {
+        val failure = DomainError.NotFound("TASK_NOT_FOUND", "La tarea no existe")
+        val pending = item("a", addedAt = now)
+        val tasks = FakeDestinationTaskRepository().apply {
+            inbox.value = listOf(pending.task)
+            completeFailure = failure
+        }
+        val viewModel = viewModel(FakeMyDayRepository(MyDay(listOf(pending), emptyList())), tasks)
+
+        viewModel.toggleCompleted("a")
+
+        assertEquals(failure, viewModel.uiState.value.error)
+        assertEquals(listOf("a"), viewModel.uiState.value.items.map { it.id })
+    }
+
+    private fun TestScope.viewModel(
+        repository: FakeMyDayRepository,
+        tasks: FakeDestinationTaskRepository = FakeDestinationTaskRepository(),
+    ): MyDayViewModel {
+        val viewModel = MyDayViewModel(repository, tasks, madrid) { now }
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }
@@ -353,6 +411,7 @@ class MyDayViewModelTest {
             assigneeId = null,
             position = 0,
             createdAt = Instant.EPOCH,
+            completedAt = null,
             sync = SyncMetadata(id, Instant.EPOCH, pending = false, deletedAt = null),
         ),
         boardId = "b1",

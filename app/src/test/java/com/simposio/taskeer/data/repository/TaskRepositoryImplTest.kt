@@ -588,6 +588,36 @@ class TaskRepositoryImplTest {
     }
 
     @Test
+    fun reminderCandidates_excluyeTareasCompletadas() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
+        val taskDao = FakeTaskDao(columnDao).apply {
+            put(taskEntity("abierta", columnId = "columna-1", position = 0, dueAt = DUE))
+            put(taskEntity("hecha", columnId = "columna-1", position = 1, dueAt = DUE, completedAt = now))
+            put(taskEntity("bandeja-hecha", columnId = null, position = 0, dueAt = DUE, completedAt = now))
+        }
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+
+        assertEquals(listOf("abierta"), repository.reminderCandidates().map { it.taskId })
+        assertEquals(1, repository.activeTaskCount())
+
+        repository.setCompleted("hecha", false)
+
+        assertEquals(listOf("abierta", "hecha"), repository.reminderCandidates().map { it.taskId }.sorted())
+    }
+
+    @Test
+    fun counts_incluyenTareasCompletadas() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
+        val taskDao = FakeTaskDao(columnDao).apply {
+            put(taskEntity("abierta", columnId = "columna-1", position = 0))
+            put(taskEntity("hecha", columnId = "columna-1", position = 1, completedAt = now))
+        }
+        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+
+        assertEquals(mapOf("columna-1" to 2), repository.observeActiveCountsByColumn().first())
+    }
+
+    @Test
     fun reminderCandidates_reapareceAlSacarLaTareaDeLaColumnaCompletada() = runTest {
         val repository = repositoryWithCandidateTasks()
 
@@ -633,7 +663,7 @@ class TaskRepositoryImplTest {
             put(taskEntity("con-fecha", columnId = "columna-1", position = 0, dueAt = DUE))
             put(taskEntity("sin-fecha", columnId = "columna-1", position = 1))
             put(taskEntity("borrada", columnId = "columna-1", position = 2, dueAt = DUE, deletedAt = now))
-            put(taskEntity("completada", columnId = "columna-hecha", position = 0, dueAt = DUE))
+            put(taskEntity("completada", columnId = "columna-hecha", position = 0, dueAt = DUE, completedAt = now))
         }
         return TaskRepositoryImpl(taskDao, columnDao, now = { later })
     }
@@ -1006,6 +1036,230 @@ class TaskRepositoryImplTest {
         return taskDao to TaskRepositoryImpl(taskDao, columnDao, now = { later })
     }
 
+    private fun completionFixture(
+        todoWip: Int? = null,
+        doneWip: Int? = null,
+        withDone: Boolean = true,
+        withOpen: Boolean = true,
+    ): Pair<FakeTaskDao, TaskRepositoryImpl> {
+        val columnDao = FakeColumnDao().apply {
+            if (withOpen) {
+                put(columnEntity("todo", position = 0, wipLimit = todoWip))
+                put(columnEntity("doing", position = 1))
+            }
+            if (withDone) {
+                put(columnEntity("done2", position = 3, isDone = true))
+                put(columnEntity("done", position = 2, isDone = true, wipLimit = doneWip))
+            }
+        }
+        val taskDao = FakeTaskDao(columnDao)
+        return taskDao to TaskRepositoryImpl(taskDao, columnDao, now = { later })
+    }
+
+    @Test
+    fun setCompleted_enBandeja_fijaCompletedAtSinMover() = runTest {
+        val (taskDao, repository) = completionFixture()
+        taskDao.put(taskEntity("i", columnId = null, position = 4))
+
+        val done = (repository.setCompleted("i", true) as DomainResult.Success).value
+
+        assertEquals(later, done.completedAt)
+        assertNull(done.columnId)
+        assertEquals(4, done.position)
+        assertEquals(later.toEpochMilli(), taskDao.stored.getValue("i").completedAt)
+        assertEquals(1, taskDao.writeCalls)
+    }
+
+    @Test
+    fun setCompleted_false_enBandeja_limpiaCompletedAt() = runTest {
+        val (taskDao, repository) = completionFixture()
+        taskDao.put(taskEntity("i", columnId = null, position = 4, completedAt = now))
+
+        repository.setCompleted("i", false)
+
+        val row = taskDao.stored.getValue("i")
+        assertNull(row.completedAt)
+        assertNull(row.columnId)
+        assertEquals(4, row.position)
+        assertTrue(row.pending)
+    }
+
+    @Test
+    fun setCompleted_conColumnaDeCierre_laMueveAlFinalYRenumeraOrigen() = runTest {
+        val (taskDao, repository) = completionFixture()
+        taskDao.put(taskEntity("a", columnId = "todo", position = 0))
+        taskDao.put(taskEntity("b", columnId = "todo", position = 1))
+        taskDao.put(taskEntity("c", columnId = "todo", position = 2))
+        taskDao.put(taskEntity("x", columnId = "done", position = 0, completedAt = now))
+
+        val done = (repository.setCompleted("b", true) as DomainResult.Success).value
+
+        assertEquals("done", done.columnId)
+        assertEquals(1, done.position)
+        assertEquals(later, done.completedAt)
+        assertEquals(listOf("a" to 0, "c" to 1), taskDao.column("todo"))
+        assertEquals(listOf("x" to 0, "b" to 1), taskDao.column("done"))
+        assertEquals(1, taskDao.writeCalls)
+    }
+
+    @Test
+    fun setCompleted_yaEnColumnaDeCierre_noCambiaDeColumna() = runTest {
+        val (taskDao, repository) = completionFixture()
+        taskDao.put(taskEntity("a", columnId = "done2", position = 0))
+
+        val done = (repository.setCompleted("a", true) as DomainResult.Success).value
+
+        assertEquals("done2", done.columnId)
+        assertEquals(0, done.position)
+        assertEquals(later, done.completedAt)
+    }
+
+    @Test
+    fun setCompleted_sinColumnaDeCierre_laDejaEnSuColumna() = runTest {
+        val (taskDao, repository) = completionFixture(withDone = false)
+        taskDao.put(taskEntity("a", columnId = "todo", position = 0))
+        taskDao.put(taskEntity("b", columnId = "todo", position = 1))
+
+        val done = (repository.setCompleted("a", true) as DomainResult.Success).value
+
+        assertEquals("todo", done.columnId)
+        assertEquals(0, done.position)
+        assertEquals(later, done.completedAt)
+        assertEquals(listOf("a" to 0, "b" to 1), taskDao.column("todo"))
+    }
+
+    @Test
+    fun setCompleted_false_desdeColumnaDeCierre_laMueveALaPrimeraColumnaAbierta() = runTest {
+        val (taskDao, repository) = completionFixture()
+        taskDao.put(taskEntity("t0", columnId = "todo", position = 0))
+        taskDao.put(taskEntity("h", columnId = "done", position = 0, completedAt = now))
+        taskDao.put(taskEntity("k", columnId = "done", position = 1, completedAt = now))
+
+        val reopened = (repository.setCompleted("h", false) as DomainResult.Success).value
+
+        assertEquals("todo", reopened.columnId)
+        assertEquals(1, reopened.position)
+        assertNull(reopened.completedAt)
+        assertEquals(listOf("t0" to 0, "h" to 1), taskDao.column("todo"))
+        assertEquals(listOf("k" to 0), taskDao.column("done"))
+        assertEquals(1, taskDao.writeCalls)
+    }
+
+    @Test
+    fun setCompleted_false_fueraDeColumnaDeCierre_soloLimpiaCompletedAt() = runTest {
+        val (taskDao, repository) = completionFixture()
+        taskDao.put(taskEntity("a", columnId = "doing", position = 0, completedAt = now))
+
+        val reopened = (repository.setCompleted("a", false) as DomainResult.Success).value
+
+        assertEquals("doing", reopened.columnId)
+        assertEquals(0, reopened.position)
+        assertNull(reopened.completedAt)
+    }
+
+    @Test
+    fun setCompleted_false_sinColumnaAbierta_devuelveTaskNoOpenColumn() = runTest {
+        val (taskDao, repository) = completionFixture(withOpen = false)
+        taskDao.put(taskEntity("h", columnId = "done", position = 0, completedAt = now))
+
+        val error = (repository.setCompleted("h", false) as DomainResult.Failure).error
+
+        assertEquals("TASK_NO_OPEN_COLUMN", error.code)
+        assertEquals(0, taskDao.writeCalls)
+        assertEquals(now.toEpochMilli(), taskDao.stored.getValue("h").completedAt)
+    }
+
+    @Test
+    fun setCompleted_destinoLleno_devuelveWipYNoEscribe() = runTest {
+        val (taskDao, repository) = completionFixture(doneWip = 1)
+        taskDao.put(taskEntity("a", columnId = "todo", position = 0))
+        taskDao.put(taskEntity("x", columnId = "done", position = 0, completedAt = now))
+
+        val error = (repository.setCompleted("a", true) as DomainResult.Failure).error
+
+        assertEquals("COLUMN_WIP_LIMIT_REACHED", error.code)
+        assertEquals(0, taskDao.writeCalls)
+        assertNull(taskDao.stored.getValue("a").completedAt)
+    }
+
+    @Test
+    fun setCompleted_false_destinoLleno_devuelveWipYNoEscribe() = runTest {
+        val (taskDao, repository) = completionFixture(todoWip = 1)
+        taskDao.put(taskEntity("t0", columnId = "todo", position = 0))
+        taskDao.put(taskEntity("h", columnId = "done", position = 0, completedAt = now))
+
+        val error = (repository.setCompleted("h", false) as DomainResult.Failure).error
+
+        assertEquals("COLUMN_WIP_LIMIT_REACHED", error.code)
+        assertEquals(0, taskDao.writeCalls)
+        assertEquals("done", taskDao.stored.getValue("h").columnId)
+    }
+
+    @Test
+    fun setCompleted_tareaInexistente_devuelveTaskNotFound() = runTest {
+        val (taskDao, repository) = completionFixture()
+        taskDao.put(taskEntity("borrada", columnId = "todo", position = 0, deletedAt = now))
+
+        assertEquals("TASK_NOT_FOUND", (repository.setCompleted("nada", true) as DomainResult.Failure).error.code)
+        assertEquals("TASK_NOT_FOUND", (repository.setCompleted("borrada", true) as DomainResult.Failure).error.code)
+        assertEquals(0, taskDao.writeCalls)
+    }
+
+    @Test
+    fun setCompleted_mismoEstado_noEscribe() = runTest {
+        val (taskDao, repository) = completionFixture()
+        taskDao.put(taskEntity("a", columnId = "todo", position = 0))
+
+        val same = (repository.setCompleted("a", false) as DomainResult.Success).value
+
+        assertEquals("a", same.id)
+        assertEquals(0, taskDao.writeCalls)
+    }
+
+    @Test
+    fun moveTask_aColumnaDeCierre_fijaCompletedAt() = runTest {
+        val (taskDao, repository) = completionFixture()
+        taskDao.put(taskEntity("a", columnId = "todo", position = 0))
+
+        val moved = (repository.moveTask("a", "done", 0) as DomainResult.Success).value
+
+        assertEquals(later, moved.completedAt)
+        assertEquals(later.toEpochMilli(), taskDao.stored.getValue("a").completedAt)
+    }
+
+    @Test
+    fun moveTask_desdeColumnaDeCierre_limpiaCompletedAt() = runTest {
+        val (taskDao, repository) = completionFixture()
+        taskDao.put(taskEntity("h", columnId = "done", position = 0, completedAt = now))
+
+        repository.moveTask("h", "todo", 0)
+
+        assertNull(taskDao.stored.getValue("h").completedAt)
+    }
+
+    @Test
+    fun moveTask_entreColumnasAbiertas_conservaCompletedAt() = runTest {
+        val (taskDao, repository) = completionFixture()
+        taskDao.put(taskEntity("a", columnId = "todo", position = 0, completedAt = now))
+
+        repository.moveTask("a", "doing", 0)
+
+        assertEquals(now.toEpochMilli(), taskDao.stored.getValue("a").completedAt)
+    }
+
+    @Test
+    fun assignToColumn_aColumnaDeCierre_fijaCompletedAt() = runTest {
+        val (taskDao, repository) = completionFixture()
+        taskDao.put(taskEntity("i", columnId = null, position = 0))
+        taskDao.put(taskEntity("j", columnId = null, position = 1, completedAt = now))
+
+        val toDone = (repository.assignToColumn("i", "done") as DomainResult.Success).value
+        val toOpen = (repository.assignToColumn("j", "todo") as DomainResult.Success).value
+
+        assertEquals(later, toDone.completedAt)
+        assertEquals(now, toOpen.completedAt)
+    }
+
     private fun FakeTaskDao.column(columnId: String): List<Pair<String, Int>> =
         stored.values
             .filter { it.columnId == columnId && it.deletedAt == null }
@@ -1018,11 +1272,12 @@ class TaskRepositoryImplTest {
         boardId: String = BOARD_ID,
         wipLimit: Int? = null,
         isDone: Boolean = false,
+        position: Int = 0,
     ): ColumnEntity = ColumnEntity(
         id = id,
         boardId = boardId,
         name = "Por hacer",
-        position = 0,
+        position = position,
         wipLimit = wipLimit,
         isDoneColumn = isDone,
         createdAt = 0L,
@@ -1358,6 +1613,7 @@ class TaskRepositoryImplTest {
         deletedAt: Instant? = null,
         dueAt: Instant? = null,
         createdAt: Long = 0L,
+        completedAt: Instant? = null,
     ): TaskEntity = TaskEntity(
         id = id,
         columnId = columnId,
@@ -1370,6 +1626,7 @@ class TaskRepositoryImplTest {
         createdAt = createdAt,
         updatedAt = updatedAt.toEpochMilli(),
         pending = true,
+        completedAt = completedAt?.toEpochMilli(),
         deletedAt = deletedAt?.toEpochMilli(),
     )
 
@@ -1477,11 +1734,11 @@ class TaskRepositoryImplTest {
 
         override suspend fun findReminderState(taskId: String): ReminderTaskStateRow? =
             rows.value[taskId]?.let {
-                ReminderTaskStateRow(it.title, it.deletedAt != null, columnDao.isDone(it.columnId))
+                ReminderTaskStateRow(it.title, it.deletedAt != null, it.completedAt != null)
             }
 
         private fun activeTasks(): List<TaskEntity> =
-            rows.value.values.filter { it.deletedAt == null && !columnDao.isDone(it.columnId) }
+            rows.value.values.filter { it.deletedAt == null && it.completedAt == null }
 
         override suspend fun dismissRemindersOfTask(taskId: String, now: Long): Int {
             val pendingIds = reminders.values.filter { it.taskId == taskId && it.status == "PENDING" }.map { it.id }
@@ -1536,8 +1793,6 @@ class TaskRepositoryImplTest {
         fun put(column: ColumnEntity) {
             rows.value = rows.value + (column.id to column)
         }
-
-        fun isDone(columnId: String?): Boolean = columnId?.let { rows.value[it]?.isDoneColumn } ?: false
 
         fun activeColumnIds(boardId: String): Set<String> =
             rows.value.values

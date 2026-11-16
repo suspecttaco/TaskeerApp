@@ -59,7 +59,7 @@ class BoardViewModel(
         val instant = now()
         BoardUiState(
             columns = columns.sortedWith(compareBy({ it.position }, { it.id })).map { column ->
-                BoardColumnUi(column, byColumn[column.id].orEmpty().map { it.toCard(myDay, column.isDoneColumn, instant) })
+                BoardColumnUi(column, byColumn[column.id].orEmpty().map { it.toCard(myDay, instant) })
             },
             error = error,
             newColumn = newColumn,
@@ -109,6 +109,16 @@ class BoardViewModel(
         }
     }
 
+    fun toggleCompleted(taskId: String) {
+        val completed = uiState.value.columns.flatMap { it.cards }.firstOrNull { it.id == taskId }?.isCompleted ?: return
+        viewModelScope.launch {
+            when (val result = taskRepository.setCompleted(taskId, !completed)) {
+                is DomainResult.Failure -> error.value = result.error
+                is DomainResult.Success -> error.value = null
+            }
+        }
+    }
+
     fun openNewColumn() {
         newColumn.value = NewColumnUiState(isOpen = true)
     }
@@ -131,7 +141,7 @@ class BoardViewModel(
         newColumn.value = NewColumnUiState()
     }
 
-    private fun Task.toCard(myDay: Set<String>, isDoneColumn: Boolean, now: Instant): TaskCardUi = TaskCardUi(
+    private fun Task.toCard(myDay: Set<String>, now: Instant): TaskCardUi = TaskCardUi(
         id = id,
         title = title,
         priority = priority,
@@ -140,7 +150,8 @@ class BoardViewModel(
         assigneeId = assigneeId,
         assigneeIsMe = assigneeId == LocalUser.ID,
         inMyDay = id in myDay,
-        isOverdue = isOverdue(dueAt, isDoneColumn, now),
+        isOverdue = isOverdue(dueAt, isCompleted, now),
+        isCompleted = isCompleted,
     )
 
     private data class PendingMove(val taskId: String, val toColumnId: String, val toIndex: Int) {

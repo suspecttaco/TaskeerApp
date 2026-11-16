@@ -13,6 +13,7 @@ fun TaskEntity.toTask(): Task = Task(
     assigneeId = assigneeId,
     position = position,
     createdAt = Instant.ofEpochMilli(createdAt),
+    completedAt = completedAt?.let(Instant::ofEpochMilli),
     sync = toSyncMetadata(),
 )
 
@@ -26,6 +27,7 @@ fun Task.toEntity(): TaskEntity = TaskEntity(
     assigneeId = assigneeId,
     position = position,
     createdAt = createdAt.toEpochMilli(),
+    completedAt = completedAt?.toEpochMilli(),
     updatedAt = sync.updatedAt.toEpochMilli(),
     pending = sync.pending,
     deletedAt = sync.deletedAt?.toEpochMilli(),

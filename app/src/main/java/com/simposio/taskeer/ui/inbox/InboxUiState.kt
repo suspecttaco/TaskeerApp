@@ -10,6 +10,7 @@ data class InboxTaskUi(
     val due: String?,
     val isOverdue: Boolean,
     val isMarked: Boolean,
+    val isCompleted: Boolean = false,
 )
 
 data class InboxUiState(

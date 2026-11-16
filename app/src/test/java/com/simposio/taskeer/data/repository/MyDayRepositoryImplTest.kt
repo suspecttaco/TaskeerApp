@@ -434,6 +434,7 @@ class MyDayRepositoryImplTest {
                     createdAt = 0L,
                     updatedAt = 0L,
                     pending = false,
+                    completedAt = null,
                     deletedAt = deletedAt,
                 )
                 )

@@ -11,10 +11,10 @@ class AppDatabaseMigrationTest {
     private val source: String = File(resolveLocalRoot(), "AppDatabase.kt").readText()
 
     @Test
-    fun versionActual_esOnce() {
+    fun versionActual_esDoce() {
         assertTrue(
-            "AppDatabase debe declarar la versión 11",
-            Regex("version\\s*=\\s*11\\b").containsMatchIn(source),
+            "AppDatabase debe declarar la versión 12",
+            Regex("version\\s*=\\s*12\\b").containsMatchIn(source),
         )
     }
 
@@ -146,12 +146,12 @@ class AppDatabaseMigrationTest {
     }
 
     @Test
-    fun migraciones_formanLaCadenaCompleta1a11() {
+    fun migraciones_formanLaCadenaCompleta1a12() {
         assertTrue(
-            "MIGRATIONS debe incluir de MIGRATION_1_2 a MIGRATION_10_11",
+            "MIGRATIONS debe incluir de MIGRATION_1_2 a MIGRATION_11_12",
             Regex(
                 "MIGRATIONS[^=]*=\\s*listOf\\(\\s*MIGRATION_1_2\\s*,\\s*MIGRATION_2_3\\s*,\\s*" +
-                    "MIGRATION_3_4\\s*,\\s*MIGRATION_4_5\\s*,\\s*MIGRATION_5_6\\s*,\\s*MIGRATION_6_7\\s*,\\s*MIGRATION_7_8\\s*,\\s*MIGRATION_8_9\\s*,\\s*MIGRATION_9_10\\s*,\\s*MIGRATION_10_11\\s*,?\\s*\\)",
+                    "MIGRATION_3_4\\s*,\\s*MIGRATION_4_5\\s*,\\s*MIGRATION_5_6\\s*,\\s*MIGRATION_6_7\\s*,\\s*MIGRATION_7_8\\s*,\\s*MIGRATION_8_9\\s*,\\s*MIGRATION_9_10\\s*,\\s*MIGRATION_10_11\\s*,\\s*MIGRATION_11_12\\s*,?\\s*\\)",
             ).containsMatchIn(source),
         )
         assertTrue("las migraciones se aplican con addMigrations", source.contains("addMigrations("))
@@ -357,6 +357,33 @@ class AppDatabaseMigrationTest {
         }
     }
 
+    @Test
+    fun migracion11a12_estaDeclaradaYEnMigrations() {
+        assertTrue(source.contains("Migration(11, 12)"))
+        assertTrue(Regex("MIGRATIONS[^=]*=\\s*listOf\\([^)]*MIGRATION_11_12").containsMatchIn(source))
+    }
+
+    @Test
+    fun migracion11a12_rellenaSoloNoBorradasEnColumnasDeCierre() {
+        val body = migration11to12().replace(Regex("\"\\s*\\+\\s*\""), "")
+
+        assertTrue(body.contains("ALTER TABLE `tasks` ADD COLUMN `completedAt` INTEGER\""))
+        assertTrue(body.contains("UPDATE `tasks` SET `completedAt` = `updatedAt`"))
+        assertTrue(body.contains("`deletedAt` IS NULL"))
+        assertTrue(body.contains("SELECT `id` FROM `columns` WHERE `isDoneColumn` = 1"))
+        assertTrue("la columna se añade antes del relleno", body.indexOf("ADD COLUMN") < body.indexOf("UPDATE"))
+    }
+
+    @Test
+    fun migracion11a12_noTocaUpdatedAtNiPending() {
+        val body = migration11to12().substringAfter("override fun migrate").replace(Regex("\"\\s*\\+\\s*\""), "")
+
+        assertEquals(2, Regex("execSQL\\(").findAll(body).count())
+        assertFalse(body.contains("`updatedAt` ="))
+        assertFalse(body.contains("pending"))
+        listOf("DROP", "DELETE").forEach { assertFalse(it, Regex("\\b$it\\b").containsMatchIn(body.uppercase())) }
+    }
+
     private fun migration6to7(): String {
         val start = source.indexOf("Migration(6, 7)")
         assertTrue("debe declarar una Migration(6, 7)", start >= 0)
@@ -388,6 +415,13 @@ class AppDatabaseMigrationTest {
     private fun migration10to11(): String {
         val start = source.indexOf("Migration(10, 11)")
         assertTrue("debe declarar una Migration(10, 11)", start >= 0)
+        val end = source.indexOf("private val MIGRATION_11_12", start)
+        return source.substring(start, end)
+    }
+
+    private fun migration11to12(): String {
+        val start = source.indexOf("Migration(11, 12)")
+        assertTrue("debe declarar una Migration(11, 12)", start >= 0)
         val end = source.indexOf("private val MIGRATIONS", start)
         return source.substring(start, end)
     }

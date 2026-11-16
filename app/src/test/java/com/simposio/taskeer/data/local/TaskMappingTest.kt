@@ -28,6 +28,7 @@ class TaskMappingTest {
             createdAt = 0L,
             updatedAt = dueAt.toEpochMilli(),
             pending = true,
+            completedAt = null,
             deletedAt = null,
         )
 
@@ -58,6 +59,7 @@ class TaskMappingTest {
             assigneeId = "local-user",
             position = 4,
             createdAt = Instant.EPOCH,
+            completedAt = null,
             sync = SyncMetadata("tarea-1", dueAt, pending = true, deletedAt = null),
         )
 
@@ -87,6 +89,7 @@ class TaskMappingTest {
             assigneeId = "local-user",
             position = 0,
             createdAt = Instant.EPOCH,
+            completedAt = null,
             sync = SyncMetadata("tarea-1", dueAt, pending = true, deletedAt = null),
         )
 
@@ -107,6 +110,7 @@ class TaskMappingTest {
             assigneeId = null,
             position = 2,
             createdAt = Instant.EPOCH,
+            completedAt = null,
             sync = SyncMetadata("tarea-1", dueAt, pending = true, deletedAt = dueAt),
         )
 
@@ -134,6 +138,7 @@ class TaskMappingTest {
             createdAt = 0L,
             updatedAt = dueAt.toEpochMilli(),
             pending = true,
+            completedAt = null,
             deletedAt = null,
         )
 
@@ -161,11 +166,58 @@ class TaskMappingTest {
                 createdAt = 0L,
                 updatedAt = dueAt.toEpochMilli(),
                 pending = true,
+                completedAt = null,
                 deletedAt = null,
             )
 
             assertEquals(priority, entity.toTask().priority)
             assertEquals(priority.name, entity.toTask().toEntity().priority)
         }
+    }
+
+    @Test
+    fun completedAt_idaYVuelta() {
+        val completedAt = Instant.parse("2026-11-15T09:00:00Z")
+        val task = Task(
+            columnId = null,
+            title = "Pan",
+            description = null,
+            priority = TaskPriority.MEDIUM,
+            dueAt = null,
+            assigneeId = null,
+            position = 0,
+            createdAt = Instant.EPOCH,
+            completedAt = completedAt,
+            sync = SyncMetadata("tarea-1", dueAt, pending = true, deletedAt = null),
+        )
+
+        val entity = task.toEntity()
+
+        assertEquals(completedAt.toEpochMilli(), entity.completedAt)
+        assertEquals(completedAt, entity.toTask().completedAt)
+        assertTrue(entity.toTask().isCompleted)
+    }
+
+    @Test
+    fun completedAtNulo_idaYVuelta() {
+        val entity = TaskEntity(
+            id = "tarea-1",
+            columnId = null,
+            title = "Pan",
+            description = null,
+            priority = "MEDIUM",
+            dueAt = null,
+            assigneeId = null,
+            position = 0,
+            createdAt = 0L,
+            completedAt = null,
+            updatedAt = 0L,
+            pending = false,
+            deletedAt = null,
+        )
+
+        assertNull(entity.toTask().completedAt)
+        assertFalse(entity.toTask().isCompleted)
+        assertNull(entity.toTask().toEntity().completedAt)
     }
 }

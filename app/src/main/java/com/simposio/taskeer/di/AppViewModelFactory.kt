@@ -58,7 +58,7 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 container.sdkInt,
             ) as T
         modelClass.isAssignableFrom(MyDayViewModel::class.java) ->
-            MyDayViewModel(container.myDayRepository, container.dateTimeConverter) as T
+            MyDayViewModel(container.myDayRepository, container.taskRepository, container.dateTimeConverter) as T
         modelClass.isAssignableFrom(QuickAddViewModel::class.java) ->
             QuickAddViewModel(
                 container.taskRepository,

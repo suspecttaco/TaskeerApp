@@ -18,6 +18,7 @@ data class TaskEntity(
     val assigneeId: String?,
     val position: Int,
     val createdAt: Long,
+    val completedAt: Long?,
     override val updatedAt: Long,
     override val pending: Boolean,
     override val deletedAt: Long?,

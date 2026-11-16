@@ -358,44 +358,64 @@ class BoardViewModelTest {
 
     @Test
     fun overdue_enColumnaNormal_esTrue() = runTest {
-        assertEquals(true, overdueOf(NOW.minusSeconds(1), isDone = false))
+        assertEquals(true, overdueOf(NOW.minusSeconds(1)))
     }
 
     @Test
-    fun overdue_mismaFechaEnColumnaDeCompletadas_esFalse() = runTest {
-        assertEquals(false, overdueOf(NOW.minusSeconds(1), isDone = true))
+    fun overdue_tareaCompletada_esFalse() = runTest {
+        assertEquals(false, overdueOf(NOW.minusSeconds(1), completedAt = NOW))
     }
 
     @Test
     fun overdue_fechaFutura_esFalse() = runTest {
-        assertEquals(false, overdueOf(NOW.plusSeconds(1), isDone = false))
+        assertEquals(false, overdueOf(NOW.plusSeconds(1)))
     }
 
     @Test
     fun overdue_sinFecha_esFalse() = runTest {
-        assertEquals(false, overdueOf(null, isDone = false))
+        assertEquals(false, overdueOf(null))
     }
 
     @Test
     fun overdue_fechaIgualAAhora_esFalse() = runTest {
-        assertEquals(false, overdueOf(NOW, isDone = false))
+        assertEquals(false, overdueOf(NOW))
     }
 
     @Test
-    fun overdue_tarjetaArrastradaDeFormaOptimistaACompletadas_esFalse() = runTest {
-        val tasks = MutableStateFlow(listOf(task("a", "c1", 0, dueAt = NOW.minusSeconds(60))))
-        val repository = FakeTaskRepository(tasks).apply { gate = CompletableDeferred() }
-        val viewModel = viewModel(
-            MutableStateFlow(listOf(column("c1", 0), column("c2", 1, isDoneColumn = true))),
-            tasks,
-            repository,
-        )
+    fun toggleCompleted_llamaASetCompletedConElEstadoOpuesto() = runTest {
+        val tasks = MutableStateFlow(listOf(task("a", "c1", 0), task("b", "c1", 1, completedAt = NOW)))
+        val repository = FakeTaskRepository(tasks)
+        val viewModel = viewModel(MutableStateFlow(listOf(column("c1", 0))), tasks, repository)
         collect(viewModel)
-        assertTrue(viewModel.uiState.value.columns[0].cards.single().isOverdue)
 
-        viewModel.moveTask("a", "c2", 0)
+        viewModel.toggleCompleted("a")
+        viewModel.toggleCompleted("b")
 
-        assertFalse(viewModel.uiState.value.columns[1].cards.single().isOverdue)
+        assertEquals(listOf("a" to true, "b" to false), repository.completions)
+    }
+
+    @Test
+    fun card_completada_marcaIsCompleted() = runTest {
+        val tasks = MutableStateFlow(listOf(task("a", "c1", 0, completedAt = NOW), task("b", "c1", 1)))
+        val viewModel = viewModel(MutableStateFlow(listOf(column("c1", 0))), tasks)
+        collect(viewModel)
+
+        assertEquals(listOf(true, false), viewModel.uiState.value.columns.single().cards.map { it.isCompleted })
+    }
+
+    @Test
+    fun toggleCompleted_conFallo_exponeErrorYNoCambiaTarjetas() = runTest {
+        val failure = DomainError.Conflict("COLUMN_WIP_LIMIT_REACHED", "Columna llena")
+        val tasks = MutableStateFlow(listOf(task("a", "c1", 0)))
+        val repository = FakeTaskRepository(tasks).apply { this.failure = failure }
+        val viewModel = viewModel(MutableStateFlow(listOf(column("c1", 0))), tasks, repository)
+        collect(viewModel)
+        val before = viewModel.uiState.value.columns
+
+        viewModel.toggleCompleted("a")
+
+        assertEquals(failure, viewModel.uiState.value.error)
+        assertEquals(before, viewModel.uiState.value.columns)
     }
 
     @Test
@@ -486,9 +506,9 @@ class BoardViewModelTest {
         assertTrue(viewModel.uiState.value.columns.single().cards.single().inMyDay)
     }
 
-    private fun TestScope.overdueOf(dueAt: Instant?, isDone: Boolean): Boolean {
-        val tasks = MutableStateFlow(listOf(task("a", "c1", 0, dueAt = dueAt)))
-        val viewModel = viewModel(MutableStateFlow(listOf(column("c1", 0, isDone))), tasks)
+    private fun TestScope.overdueOf(dueAt: Instant?, completedAt: Instant? = null): Boolean {
+        val tasks = MutableStateFlow(listOf(task("a", "c1", 0, dueAt = dueAt, completedAt = completedAt)))
+        val viewModel = viewModel(MutableStateFlow(listOf(column("c1", 0))), tasks)
         collect(viewModel)
         return viewModel.uiState.value.columns.single().cards.single().isOverdue
     }
@@ -531,6 +551,7 @@ class BoardViewModelTest {
         priority: TaskPriority = TaskPriority.MEDIUM,
         dueAt: Instant? = null,
         assigneeId: String? = null,
+        completedAt: Instant? = null,
     ): Task = Task(
         columnId = columnId,
         title = "Tarea $id",
@@ -540,6 +561,7 @@ class BoardViewModelTest {
         assigneeId = assigneeId,
         position = position,
         createdAt = Instant.EPOCH,
+        completedAt = completedAt,
         sync = SyncMetadata(id, Instant.EPOCH, pending = false, deletedAt = null),
     )
 
@@ -637,6 +659,16 @@ class BoardViewModelTest {
         ): DomainResult<Task> = error("no se usa")
 
         override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> = error("no se usa")
+
+        val completions: MutableList<Pair<String, Boolean>> = mutableListOf()
+
+        override suspend fun setCompleted(id: String, completed: Boolean): DomainResult<Task> {
+            completions += id to completed
+            failure?.let { return DomainResult.Failure(it) }
+            val updated = tasks.value.first { it.id == id }.copy(completedAt = if (completed) Instant.EPOCH else null)
+            tasks.value = tasks.value.map { if (it.id == id) updated else it }
+            return DomainResult.Success(updated)
+        }
 
         override suspend fun deleteTask(id: String): DomainResult<Unit> = error("no se usa")
     }

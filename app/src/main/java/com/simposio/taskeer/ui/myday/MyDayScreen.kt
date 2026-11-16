@@ -49,6 +49,7 @@ import com.simposio.taskeer.ui.board.color
 import com.simposio.taskeer.ui.board.labelRes
 import com.simposio.taskeer.ui.components.ActionIcon
 import com.simposio.taskeer.ui.components.DecorativeIcon
+import com.simposio.taskeer.ui.components.CompleteCheckbox
 import com.simposio.taskeer.ui.components.IconLabel
 import com.simposio.taskeer.ui.components.MyDayToggle
 import com.simposio.taskeer.ui.tasks.DestinationPickerDialog
@@ -71,6 +72,7 @@ fun MyDayScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifier 
         onFilter = viewModel::setFilter,
         onOpenTask = editorHost.openForEdit,
         onToggleMarked = viewModel::toggleMarked,
+        onToggleCompleted = viewModel::toggleCompleted,
         onAssign = openAssign,
         modifier = modifier,
         quickAdd = {
@@ -102,6 +104,7 @@ fun MyDayContent(
     onFilter: (MyDayFilter) -> Unit,
     onOpenTask: (String) -> Unit,
     onToggleMarked: (String) -> Unit,
+    onToggleCompleted: (String) -> Unit,
     onAssign: (String) -> Unit,
     modifier: Modifier = Modifier,
     quickAdd: @Composable () -> Unit = {},
@@ -173,6 +176,7 @@ fun MyDayContent(
                     task = task,
                     onOpen = onOpenTask,
                     onToggleMarked = onToggleMarked,
+                    onToggleCompleted = onToggleCompleted,
                     onAssign = onAssign,
                 )
             }
@@ -216,6 +220,7 @@ private fun MyDayTaskCard(
     task: MyDayTaskUi,
     onOpen: (String) -> Unit,
     onToggleMarked: (String) -> Unit,
+    onToggleCompleted: (String) -> Unit,
     onAssign: (String) -> Unit,
 ) {
     Card(
@@ -229,6 +234,7 @@ private fun MyDayTaskCard(
             verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                CompleteCheckbox(completed = task.isCompleted, onToggle = { onToggleCompleted(task.id) })
                 Text(
                     text = task.title,
                     style = MaterialTheme.typography.bodyLarge,
@@ -304,6 +310,7 @@ private fun MyDayContentPreview() {
             onFilter = {},
             onOpenTask = {},
             onToggleMarked = {},
+            onToggleCompleted = {},
             onAssign = {},
         )
     }

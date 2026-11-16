@@ -24,6 +24,9 @@ const val TASK_INDEX_OUT_OF_BOUNDS = "TASK_INDEX_OUT_OF_BOUNDS"
 const val TASK_NOT_IN_INBOX = "TASK_NOT_IN_INBOX"
 const val TASK_IN_INBOX = "TASK_IN_INBOX"
 
+// Código local: la API no modela completar como un movimiento, así que no define este fallo.
+const val TASK_NO_OPEN_COLUMN = "TASK_NO_OPEN_COLUMN"
+
 // Código local: la API solo conoce CROSS_WORKSPACE_MOVE, concepto que no existe sin workspaces.
 const val COLUMN_BOARD_MISMATCH = "COLUMN_BOARD_MISMATCH"
 
@@ -47,6 +50,7 @@ fun newTask(
             assigneeId = assigneeOrMe(draft.assigneeId),
             position = position,
             createdAt = now,
+            completedAt = null,
             sync = newSyncMetadata(now, clientId),
         ),
     )
@@ -77,12 +81,25 @@ fun Task.assignedToColumn(columnId: String, position: Int, now: Instant): Domain
         )
     }
 
-// Punto único de la regla: task-complete-toggle la cambiará aquí.
-fun isTaskCompleted(columnId: String?, isDoneColumn: Boolean): Boolean =
-    columnId != null && isDoneColumn
+fun isTaskCompleted(completedAt: Instant?): Boolean = completedAt != null
 
-fun isOverdue(dueAt: Instant?, isDoneColumn: Boolean, now: Instant): Boolean =
-    !isDoneColumn && dueAt != null && dueAt < now
+fun isOverdue(dueAt: Instant?, isCompleted: Boolean, now: Instant): Boolean =
+    !isCompleted && dueAt != null && dueAt < now
+
+fun Task.completed(now: Instant): Task =
+    if (isCompleted) this else copy(completedAt = now, sync = sync.afterLocalChange(now))
+
+fun Task.reopened(now: Instant): Task =
+    if (!isCompleted) this else copy(completedAt = null, sync = sync.afterLocalChange(now))
+
+fun closingColumn(columns: List<Column>): Column? =
+    columns.filter { !it.isDeleted && it.isDoneColumn }.minByOrNull { it.position }
+
+fun reopeningColumn(columns: List<Column>): Column? =
+    columns.filter { !it.isDeleted && !it.isDoneColumn }.minByOrNull { it.position }
+
+fun Task.withCompletionFor(destination: Column, now: Instant): Task =
+    if (destination.isDoneColumn) completed(now) else this
 
 fun Task.softDeleted(now: Instant): Task = copy(sync = sync.afterLocalDelete(now))
 

@@ -14,6 +14,7 @@ data class MyDayTaskUi(
     val isOverdue: Boolean,
     val isMarked: Boolean,
     val isAssigned: Boolean,
+    val isCompleted: Boolean = false,
 ) {
     val isInbox: Boolean get() = boardName == null
 }

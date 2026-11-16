@@ -72,6 +72,7 @@ class NotificationsViewModelTest {
         assigneeId = null,
         position = 0,
         createdAt = Instant.EPOCH,
+        completedAt = null,
         sync = SyncMetadata(clientId = id, updatedAt = Instant.EPOCH, pending = false, deletedAt = null),
     )
 

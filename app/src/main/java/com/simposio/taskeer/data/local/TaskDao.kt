@@ -60,23 +60,19 @@ abstract class TaskDao {
 
     @Query(
         "SELECT tasks.id AS id, tasks.title AS title, tasks.dueAt AS dueAt FROM tasks " +
-            "LEFT JOIN columns ON tasks.columnId = columns.id " +
             "WHERE tasks.dueAt IS NOT NULL AND tasks.deletedAt IS NULL " +
-            "AND (tasks.columnId IS NULL OR columns.isDoneColumn = 0) ORDER BY tasks.dueAt ASC, tasks.id ASC",
+            "AND tasks.completedAt IS NULL ORDER BY tasks.dueAt ASC, tasks.id ASC",
     )
     abstract fun observeReminderCandidates(): Flow<List<ReminderCandidateRow>>
 
     @Query(
-        "SELECT COUNT(*) FROM tasks LEFT JOIN columns ON tasks.columnId = columns.id " +
-            "WHERE tasks.deletedAt IS NULL AND (tasks.columnId IS NULL OR columns.isDoneColumn = 0)",
+        "SELECT COUNT(*) FROM tasks WHERE tasks.deletedAt IS NULL AND tasks.completedAt IS NULL",
     )
     abstract suspend fun countActive(): Int
 
     @Query(
         "SELECT tasks.title AS title, tasks.deletedAt IS NOT NULL AS deleted, " +
-            "CASE WHEN tasks.columnId IS NULL THEN 0 ELSE COALESCE(columns.isDoneColumn, 0) END " +
-            "AS completed FROM tasks " +
-            "LEFT JOIN columns ON tasks.columnId = columns.id WHERE tasks.id = :taskId",
+            "tasks.completedAt IS NOT NULL AS completed FROM tasks WHERE tasks.id = :taskId",
     )
     abstract suspend fun findReminderState(taskId: String): ReminderTaskStateRow?
 

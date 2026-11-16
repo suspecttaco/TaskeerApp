@@ -182,37 +182,31 @@ class TaskDaoConventionsTest {
     }
 
     @Test
-    fun observeReminderCandidates_exigeFechaNoBorradaYColumnaNoCompletada() {
+    fun observeReminderCandidates_exigeFechaNoBorradaYNoCompletada() {
         val query = querySource("observeReminderCandidates")
 
         assertTrue(query.contains("tasks.dueAt IS NOT NULL"))
         assertTrue(query.contains("tasks.deletedAt IS NULL"))
-        assertTrue(query.contains("columns.isDoneColumn = 0"))
+        assertTrue(query.contains("tasks.completedAt IS NULL"))
         assertEquals(Flow::class.java, method("observeReminderCandidates").returnType)
     }
 
     @Test
-    fun observeReminderCandidates_incluyeBandejaYExcluyeCierre() {
-        val query = querySource("observeReminderCandidates")
-
-        assertTrue(query.contains("LEFT JOIN columns ON tasks.columnId = columns.id"))
-        assertTrue(query.contains("(tasks.columnId IS NULL OR columns.isDoneColumn = 0)"))
+    fun consultasDeCandidatosYConteo_usanCompletedAt() {
+        listOf("observeReminderCandidates", "countActive").forEach { name ->
+            val query = querySource(name)
+            assertTrue("$name filtra por completedAt", query.contains("tasks.completedAt IS NULL"))
+            assertFalse("$name ya no usa isDoneColumn", query.contains("isDoneColumn"))
+            assertFalse("$name ya no necesita JOIN", query.contains("JOIN"))
+        }
     }
 
     @Test
-    fun countActive_incluyeBandeja() {
-        val query = querySource("countActive")
-
-        assertTrue(query.contains("LEFT JOIN columns ON tasks.columnId = columns.id"))
-        assertTrue(query.contains("(tasks.columnId IS NULL OR columns.isDoneColumn = 0)"))
-    }
-
-    @Test
-    fun findReminderState_bandejaNoEstaCompletada() {
+    fun findReminderState_completadaSaleDeCompletedAt() {
         val query = querySource("findReminderState")
 
-        assertTrue(query.contains("CASE WHEN tasks.columnId IS NULL THEN 0"))
-        assertTrue(query.contains("LEFT JOIN columns ON tasks.columnId = columns.id"))
+        assertTrue(query.contains("tasks.completedAt IS NOT NULL AS completed"))
+        assertFalse(query.contains("isDoneColumn"))
     }
 
     @Test
@@ -253,22 +247,25 @@ class TaskDaoConventionsTest {
     }
 
     @Test
+    fun observeCountsByColumn_noFiltraCompletadas() {
+        assertFalse(querySource("observeCountsByColumn").contains("completedAt"))
+    }
+
+    @Test
     fun countActive_cuentaConYSinFechaPeroNoBorradasNiCompletadas() {
         val query = querySource("countActive")
 
         assertTrue(query.contains("tasks.deletedAt IS NULL"))
-        assertTrue(query.contains("columns.isDoneColumn = 0"))
+        assertTrue(query.contains("tasks.completedAt IS NULL"))
         assertFalse("no debe filtrar por fecha límite", query.contains("dueAt"))
         assertTrue(method("countActive").isSuspend())
     }
 
     @Test
-    fun findReminderState_leeBorradoYColumnaCompletadaConJoin() {
+    fun findReminderState_leeBorradoYCompletadaSinJoin() {
         val query = querySource("findReminderState")
 
-        assertTrue(query.contains("JOIN columns ON tasks.columnId = columns.id"))
         assertTrue(query.contains("tasks.deletedAt IS NOT NULL AS deleted"))
-        assertTrue(query.contains("columns.isDoneColumn"))
         assertTrue(method("findReminderState").isSuspend())
     }
 
@@ -416,6 +413,7 @@ class TaskDaoConventionsTest {
         createdAt = 0L,
         updatedAt = 0L,
         pending = true,
+        completedAt = null,
         deletedAt = deletedAt,
     )
 

@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ReminderEntity::class,
         AppNotificationEntity::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -230,6 +230,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_11_12: Migration = object : Migration(11, 12) {
+            // Las tareas ya en columnas de cierre quedan completadas con su último cambio como instante;
+            // no toca updatedAt/pending porque no es un cambio del usuario.
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `tasks` ADD COLUMN `completedAt` INTEGER")
+                db.execSQL(
+                    "UPDATE `tasks` SET `completedAt` = `updatedAt` " +
+                        "WHERE `deletedAt` IS NULL " +
+                        "AND `columnId` IN (SELECT `id` FROM `columns` WHERE `isDoneColumn` = 1)",
+                )
+            }
+        }
+
         private val MIGRATIONS: List<Migration> = listOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -241,6 +254,7 @@ abstract class AppDatabase : RoomDatabase() {
             MIGRATION_8_9,
             MIGRATION_9_10,
             MIGRATION_10_11,
+            MIGRATION_11_12,
         )
 
         fun create(context: Context): AppDatabase =

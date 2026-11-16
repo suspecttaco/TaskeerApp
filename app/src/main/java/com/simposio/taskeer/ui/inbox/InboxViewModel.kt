@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class InboxViewModel(
-    taskRepository: TaskRepository,
+    private val taskRepository: TaskRepository,
     private val myDayRepository: MyDayRepository,
     private val dateTimeConverter: DateTimeConverter,
     private val now: () -> Instant = Instant::now,
@@ -33,7 +33,8 @@ class InboxViewModel(
         error,
     ) { tasks, marked, error ->
         val instant = now()
-        InboxUiState(items = tasks.map { it.toUi(it.id in marked, instant) }, error = error)
+        val (pending, completed) = tasks.partition { !it.isCompleted }
+        InboxUiState(items = (pending + completed).map { it.toUi(it.id in marked, instant) }, error = error)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), InboxUiState())
 
     fun toggleMarked(taskId: String) {
@@ -46,12 +47,23 @@ class InboxViewModel(
         }
     }
 
+    fun toggleCompleted(taskId: String) {
+        val completed = uiState.value.items.firstOrNull { it.id == taskId }?.isCompleted ?: return
+        viewModelScope.launch {
+            when (val result = taskRepository.setCompleted(taskId, !completed)) {
+                is DomainResult.Failure -> error.value = result.error
+                is DomainResult.Success -> error.value = null
+            }
+        }
+    }
+
     private fun Task.toUi(isMarked: Boolean, now: Instant): InboxTaskUi = InboxTaskUi(
         id = id,
         title = title,
         priority = priority,
         due = dueAt?.let { dateTimeConverter.toLocalDateTime(it).format(DUE_DATE_TIME_FORMATTER) },
-        isOverdue = isOverdue(dueAt, isDoneColumn = false, now = now),
+        isOverdue = isOverdue(dueAt, isCompleted, now),
+        isCompleted = isCompleted,
         isMarked = isMarked,
     )
 

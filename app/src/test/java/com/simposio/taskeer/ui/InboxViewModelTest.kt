@@ -3,6 +3,7 @@ package com.simposio.taskeer.ui
 import com.simposio.taskeer.data.repository.MyDayRepository
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.date.TimeZoneProvider
+import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.MyDay
 import com.simposio.taskeer.domain.model.SyncMetadata
@@ -92,7 +93,49 @@ class InboxViewModelTest {
         assertFalse(items[1].isOverdue)
     }
 
-    private fun task(id: String, dueAt: Instant? = null) = Task(
+    @Test
+    fun toggleCompleted_llamaASetCompleted() = runTest {
+        tasks.inbox.value = listOf(task("a"), task("b", completedAt = now))
+        val viewModel = viewModel()
+
+        viewModel.toggleCompleted("a")
+        viewModel.toggleCompleted("b")
+
+        assertEquals(listOf("a" to true, "b" to false), tasks.completions)
+    }
+
+    @Test
+    fun completadas_vanDespuesDeLasPendientes() = runTest {
+        tasks.inbox.value = listOf(task("hecha", completedAt = now), task("p1"), task("p2"))
+
+        val items = viewModel().uiState.value.items
+
+        assertEquals(listOf("p1", "p2", "hecha"), items.map { it.id })
+        assertEquals(listOf(false, false, true), items.map { it.isCompleted })
+    }
+
+    @Test
+    fun completada_noEsVencida() = runTest {
+        tasks.inbox.value = listOf(task("a", dueAt = now.minusSeconds(60), completedAt = now))
+
+        assertFalse(viewModel().uiState.value.items.single().isOverdue)
+    }
+
+    @Test
+    fun toggleCompleted_conFallo_exponeError() = runTest {
+        val failure = DomainError.NotFound("TASK_NOT_FOUND", "La tarea no existe")
+        tasks.inbox.value = listOf(task("a"))
+        tasks.completeFailure = failure
+        val viewModel = viewModel()
+
+        viewModel.toggleCompleted("a")
+
+        assertEquals(failure, viewModel.uiState.value.error)
+        assertEquals(listOf("a"), viewModel.uiState.value.items.map { it.id })
+        assertFalse(viewModel.uiState.value.items.single().isCompleted)
+    }
+
+    private fun task(id: String, dueAt: Instant? = null, completedAt: Instant? = null) = Task(
         columnId = null,
         title = "Tarea $id",
         description = null,
@@ -101,6 +144,7 @@ class InboxViewModelTest {
         assigneeId = null,
         position = 0,
         createdAt = Instant.EPOCH,
+        completedAt = completedAt,
         sync = SyncMetadata(id, Instant.EPOCH, pending = false, deletedAt = null),
     )
 

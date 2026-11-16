@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -33,6 +34,7 @@ import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.ui.board.color
 import com.simposio.taskeer.ui.board.labelRes
 import com.simposio.taskeer.ui.components.ActionIcon
+import com.simposio.taskeer.ui.components.CompleteCheckbox
 import com.simposio.taskeer.ui.components.IconLabel
 import com.simposio.taskeer.ui.components.MyDayToggle
 import com.simposio.taskeer.ui.tasks.rememberAssignToBoardHost
@@ -50,6 +52,7 @@ fun InboxScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifier 
         state = state,
         onOpenTask = editorHost.openForEdit,
         onToggleMarked = viewModel::toggleMarked,
+        onToggleCompleted = viewModel::toggleCompleted,
         onAssign = openAssign,
         modifier = modifier,
     )
@@ -60,6 +63,7 @@ fun InboxContent(
     state: InboxUiState,
     onOpenTask: (String) -> Unit,
     onToggleMarked: (String) -> Unit,
+    onToggleCompleted: (String) -> Unit,
     onAssign: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -81,7 +85,7 @@ fun InboxContent(
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap)) {
             items(state.items, key = { it.id }) { task ->
-                InboxTaskCard(task, onOpenTask, onToggleMarked, onAssign)
+                InboxTaskCard(task, onOpenTask, onToggleMarked, onToggleCompleted, onAssign)
             }
         }
     }
@@ -92,6 +96,7 @@ private fun InboxTaskCard(
     task: InboxTaskUi,
     onOpen: (String) -> Unit,
     onToggleMarked: (String) -> Unit,
+    onToggleCompleted: (String) -> Unit,
     onAssign: (String) -> Unit,
 ) {
     Card(
@@ -105,9 +110,11 @@ private fun InboxTaskCard(
             verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                CompleteCheckbox(completed = task.isCompleted, onToggle = { onToggleCompleted(task.id) })
                 Text(
                     text = task.title,
                     style = MaterialTheme.typography.bodyLarge,
+                    textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null,
                     modifier = Modifier.weight(1f),
                 )
                 ActionIcon(
@@ -147,11 +154,13 @@ private fun InboxContentPreview() {
             state = InboxUiState(
                 items = listOf(
                     InboxTaskUi("t1", "Comprar pan", TaskPriority.MEDIUM, null, isOverdue = false, isMarked = true),
+                    InboxTaskUi("t3", "Pagar la luz", TaskPriority.LOW, null, isOverdue = false, isMarked = false, isCompleted = true),
                     InboxTaskUi("t2", "Llamar al banco", TaskPriority.HIGH, "1 oct 2026, 9:00", isOverdue = true, isMarked = false),
                 ),
             ),
             onOpenTask = {},
             onToggleMarked = {},
+            onToggleCompleted = {},
             onAssign = {},
         )
     }

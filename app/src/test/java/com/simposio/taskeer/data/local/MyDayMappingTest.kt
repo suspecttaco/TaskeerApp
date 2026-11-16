@@ -44,6 +44,7 @@ class MyDayMappingTest {
         createdAt = 0L,
         updatedAt = 0L,
         pending = true,
+        completedAt = null,
         deletedAt = null,
     )
 }

@@ -32,5 +32,7 @@ interface TaskRepository {
 
     suspend fun assignToColumn(id: String, columnId: String): DomainResult<Task>
 
+    suspend fun setCompleted(id: String, completed: Boolean): DomainResult<Task>
+
     suspend fun deleteTask(id: String): DomainResult<Unit>
 }

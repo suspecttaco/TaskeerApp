@@ -3,6 +3,7 @@ package com.simposio.taskeer.ui.myday
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.simposio.taskeer.data.repository.MyDayRepository
+import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
@@ -23,6 +24,7 @@ import kotlinx.coroutines.launch
 
 class MyDayViewModel(
     private val repository: MyDayRepository,
+    private val taskRepository: TaskRepository,
     private val dateTimeConverter: DateTimeConverter,
     private val now: () -> Instant = Instant::now,
 ) : ViewModel() {
@@ -68,14 +70,24 @@ class MyDayViewModel(
         }
     }
 
-    // Las listas ya excluyen columnas de completadas, por eso isDoneColumn es false.
+    fun toggleCompleted(taskId: String) {
+        val completed = uiState.value.items.firstOrNull { it.id == taskId }?.isCompleted ?: return
+        viewModelScope.launch {
+            when (val result = taskRepository.setCompleted(taskId, !completed)) {
+                is DomainResult.Failure -> error.value = result.error
+                is DomainResult.Success -> error.value = null
+            }
+        }
+    }
+
     private fun MyDayItem.toUi(now: Instant): MyDayTaskUi = MyDayTaskUi(
         id = task.id,
         title = task.title,
         priority = task.priority,
         boardName = boardName,
         due = task.dueAt?.let { dateTimeConverter.toLocalDateTime(it).format(DUE_DATE_TIME_FORMATTER) },
-        isOverdue = isOverdue(task.dueAt, isDoneColumn = false, now = now),
+        isOverdue = isOverdue(task.dueAt, task.isCompleted, now),
+        isCompleted = task.isCompleted,
         isMarked = isMarked,
         isAssigned = isAssigned,
     )

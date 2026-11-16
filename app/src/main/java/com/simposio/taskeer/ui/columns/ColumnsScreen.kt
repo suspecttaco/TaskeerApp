@@ -342,6 +342,7 @@ private fun previewTasks(): List<Task> = listOf(
         assigneeId = null,
         position = 0,
         createdAt = Instant.EPOCH,
+        completedAt = null,
         sync = SyncMetadata(
             clientId = "tarea-0",
             updatedAt = Instant.EPOCH,
