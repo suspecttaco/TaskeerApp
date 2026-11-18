@@ -16,6 +16,7 @@ import com.simposio.taskeer.ui.columns.ColumnsViewModel
 import com.simposio.taskeer.ui.inbox.InboxScreen
 import com.simposio.taskeer.ui.myday.MyDayScreen
 import com.simposio.taskeer.ui.notifications.NotificationsScreen
+import com.simposio.taskeer.ui.planned.PlannedScreen
 import com.simposio.taskeer.ui.settings.SettingsScreen
 
 @Composable
@@ -41,6 +42,7 @@ fun AppNavHost(
         }
         composable(AppDestination.SETTINGS.route) { SettingsScreen(viewModelFactory) }
         composable(AppDestination.NOTIFICATIONS.route) { NotificationsScreen(viewModelFactory) }
+        composable(AppDestination.PLANNED.route) { PlannedScreen(viewModelFactory) }
         composable(
             route = AppDestination.BOARD.route,
             arguments = listOf(

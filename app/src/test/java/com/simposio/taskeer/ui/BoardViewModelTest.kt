@@ -164,6 +164,26 @@ class BoardViewModelTest {
     }
 
     @Test
+    fun estrella_marcaAnterior_apareceVacia() = runTest {
+        val myDayRepository = FakeMyDayRepository()
+        val viewModel = viewModel(
+            MutableStateFlow(listOf(column("c1", 0))),
+            MutableStateFlow(listOf(task("ayer", "c1", 0), task("hoy", "c1", 1))),
+            myDayRepository = myDayRepository,
+        )
+        collect(viewModel)
+
+        myDayRepository.marked.value = setOf("hoy")
+
+        assertEquals(
+            listOf("ayer" to false, "hoy" to true),
+            viewModel.uiState.value.columns.single().cards.map { it.id to it.inMyDay },
+        )
+        viewModel.toggleMyDay("ayer")
+        assertEquals("ayer" to true, myDayRepository.calls.last())
+    }
+
+    @Test
     fun tarjeta_sinCosturaDeMyDay_ningunaTienEstrella() = runTest {
         val viewModel = viewModel(
             MutableStateFlow(listOf(column("c1", 0))),

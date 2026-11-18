@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Notifications
@@ -91,6 +92,15 @@ fun AppShell(
                     Text(stringResource((currentDestination ?: AppDestination.START).labelRes()))
                 },
                 actions = {
+                    if (currentDestination == AppDestination.MY_DAY) {
+                        ActionIcon(
+                            icon = Icons.Filled.CalendarMonth,
+                            contentDescription = stringResource(R.string.nav_planned),
+                            onClick = {
+                                navController.navigate(AppDestination.PLANNED.route) { launchSingleTop = true }
+                            },
+                        )
+                    }
                     NotificationsAction(
                         unreadCount = unreadCount,
                         onClick = {
@@ -166,6 +176,7 @@ private fun AppDestination.labelRes(): Int = when (this) {
     AppDestination.BOARD -> R.string.board_title
     AppDestination.BOARD_COLUMNS -> R.string.columns_title
     AppDestination.NOTIFICATIONS -> R.string.notifications_title
+    AppDestination.PLANNED -> R.string.planned_title
 }
 
 @Preview(showBackground = true)

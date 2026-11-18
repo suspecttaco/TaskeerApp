@@ -83,4 +83,24 @@ class AppDestinationTest {
         assertEquals("notifications", AppDestination.NOTIFICATIONS.route)
         assertEquals(AppDestination.NOTIFICATIONS, AppDestination.fromRoute("notifications"))
     }
+
+    @Test
+    fun planned_noEsDeNivelSuperior() {
+        assertFalse(AppDestination.PLANNED in AppDestination.topLevel)
+        assertEquals("planned", AppDestination.PLANNED.route)
+        assertEquals(AppDestination.PLANNED, AppDestination.fromRoute("planned"))
+    }
+
+    @Test
+    fun topLevel_noCambia() {
+        assertEquals(
+            listOf(
+                AppDestination.MY_DAY,
+                AppDestination.INBOX,
+                AppDestination.WORKSPACES,
+                AppDestination.SETTINGS,
+            ),
+            AppDestination.topLevel,
+        )
+    }
 }

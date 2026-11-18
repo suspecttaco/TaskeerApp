@@ -40,6 +40,19 @@ class NavigationPolicyTest {
     }
 
     @Test
+    fun volverDesdePlanificado_sinAnterior_navegaAMiDia() {
+        assertEquals(
+            BackStep.Navigate("my_day"),
+            backStep(AppDestination.PLANNED, null, hasPrevious = false),
+        )
+    }
+
+    @Test
+    fun volverDesdePlanificado_conAnterior_hacePop() {
+        assertEquals(BackStep.Pop, backStep(AppDestination.PLANNED, null, hasPrevious = true))
+    }
+
+    @Test
     fun volver_enColumnas_conservaSuComportamiento() {
         assertEquals(BackStep.Pop, backStep(AppDestination.BOARD_COLUMNS, "b1", hasPrevious = true))
         assertEquals(

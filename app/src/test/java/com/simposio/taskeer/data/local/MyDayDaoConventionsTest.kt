@@ -14,7 +14,10 @@ class MyDayDaoConventionsTest {
 
     @Test
     fun consultasReactivas_devuelvenFlow() {
-        listOf("observeMarkedIds", "observePinned", "observeAssigned", "observeOverdueCount").forEach {
+        listOf(
+            "observeMarkedIds", "observePinned", "observeAssigned", "observeSuggestions",
+            "observeDated", "observeOverdueCount",
+        ).forEach {
             assertEquals(it, Flow::class.java, method(it).returnType)
         }
     }
@@ -30,16 +33,66 @@ class MyDayDaoConventionsTest {
     }
 
     @Test
-    fun visible_usaCompletedAtYNoIsDoneColumn() {
-        listOf("observePinned", "observeAssigned", "observeOverdueCount").forEach { name ->
-            assertTrue("$name: condición de visibilidad compartida", querySource(name).contains("VISIBLE"))
-        }
-        val visible = constantSource("VISIBLE")
-        assertTrue("tareas completadas", visible.contains("t.completedAt IS NULL"))
+    fun consultas_usanVisibleAnyYLaRamaDeBandeja() {
+        listOf("observePinned", "observeAssigned", "observeSuggestions", "observeDated", "observeOverdueCount")
+            .forEach { name ->
+                assertTrue("$name: condición de visibilidad compartida", querySource(name).contains("VISIBLE_ANY"))
+            }
+        val visible = constantSource("VISIBLE_ANY")
         assertTrue("tarea borrada", visible.contains("t.deletedAt IS NULL"))
         assertTrue("columna borrada", visible.contains("c.deletedAt IS NULL"))
         assertTrue("tablero borrado", visible.contains("b.deletedAt IS NULL"))
+        assertTrue("bandeja visible", visible.contains("t.columnId IS NULL OR"))
+        assertFalse("la visibilidad ya no decide la completada", visible.contains("completedAt"))
         assertFalse("ya no depende de la columna de cierre", visible.contains("isDoneColumn"))
+        assertEquals("t.completedAt IS NULL", constantValue("OPEN"))
+        assertTrue(constantValue("OPEN_OR_DONE_TODAY").contains("t.completedAt >= :dayStart"))
+    }
+
+    @Test
+    fun pinned_exigeMarcaDeHoyYCompletadaHoyOPendiente() {
+        val pinned = querySource("observePinned")
+
+        assertTrue(pinned.contains("m.addedAt >= :dayStart"))
+        assertTrue(pinned.contains("OPEN_OR_DONE_TODAY"))
+        assertTrue(querySource("observeMarkedIds").contains("addedAt >= :dayStart"))
+    }
+
+    @Test
+    fun assigned_limitaDueAtAFinDeHoy() {
+        val assigned = querySource("observeAssigned")
+
+        assertTrue(assigned.contains("t.dueAt < :dayEnd"))
+        assertTrue(assigned.contains("t.dueAt IS NOT NULL"))
+        assertTrue(assigned.contains("OPEN_OR_DONE_TODAY"))
+    }
+
+    @Test
+    fun suggestions_exigeMarcaAnteriorYPendiente() {
+        val suggestions = querySource("observeSuggestions")
+
+        assertTrue(suggestions.contains("m.addedAt < :dayStart"))
+        assertTrue(suggestions.contains("m.deletedAt IS NULL"))
+        assertTrue(suggestions.contains("+ OPEN +"))
+        assertTrue(suggestions.contains("ORDER BY m.addedAt DESC, t.id ASC"))
+    }
+
+    @Test
+    fun observeDated_filtraCompletadasYExigeFecha() {
+        val dated = querySource("observeDated")
+
+        assertTrue(dated.contains("+ OPEN +"))
+        assertTrue(dated.contains("t.dueAt IS NOT NULL"))
+        assertTrue(dated.contains("t.assigneeId = :assigneeId"))
+        assertTrue(dated.contains("ORDER BY t.dueAt ASC, t.id ASC"))
+    }
+
+    @Test
+    fun overdueCount_filtraCompletadasExplicitamente() {
+        val count = querySource("observeOverdueCount")
+
+        assertTrue(count.contains("+ OPEN +"))
+        assertFalse("el conteo no cuenta completadas de hoy", count.contains("OPEN_OR_DONE_TODAY"))
     }
 
     @Test
@@ -48,28 +101,22 @@ class MyDayDaoConventionsTest {
 
         assertTrue(from.contains("LEFT JOIN columns c ON t.columnId = c.id"))
         assertTrue(from.contains("LEFT JOIN boards b ON c.boardId = b.id"))
-        assertTrue(constantSource("VISIBLE").contains("t.columnId IS NULL OR"))
-        assertTrue(querySource("observePinned").contains("LEFT JOIN columns c ON t.columnId = c.id"))
+                assertTrue(querySource("observePinned").contains("LEFT JOIN columns c ON t.columnId = c.id"))
         assertTrue(querySource("observeAssigned").contains("FROM_TASKS"))
         assertTrue(querySource("observeOverdueCount").contains("FROM_TASKS"))
+        assertTrue(querySource("observeDated").contains("FROM_TASKS"))
     }
 
     @Test
     fun consultas_exigenColumnaYTableroExistentesParaTareasConColumna() {
-        assertTrue(constantSource("VISIBLE").contains("c.id IS NOT NULL AND c.deletedAt IS NULL AND b.id IS NOT NULL"))
-    }
-
-    @Test
-    fun consultas_comparteLaCondicionDeVisibilidad() {
-        listOf("observePinned", "observeAssigned", "observeOverdueCount").forEach { name ->
-            assertFalse("$name no duplica la condición", querySource(name).contains("c.isDoneColumn"))
-        }
+        assertTrue(constantSource("VISIBLE_ANY").contains("c.id IS NOT NULL AND c.deletedAt IS NULL AND b.id IS NOT NULL"))
     }
 
     @Test
     fun ordenes_sonEstablesConDesempatePorId() {
         assertTrue(querySource("observePinned").contains("ORDER BY m.addedAt DESC, t.id ASC"))
         assertTrue(querySource("observeAssigned").contains("ORDER BY t.dueAt ASC, t.id ASC"))
+        assertTrue(querySource("observeSuggestions").contains("ORDER BY m.addedAt DESC, t.id ASC"))
     }
 
     @Test
@@ -80,10 +127,13 @@ class MyDayDaoConventionsTest {
     }
 
     private fun constantSource(name: String): String {
-        val start = source.indexOf("private const val $name")
+        val start = source.indexOf("private const val $name =")
         assertTrue("falta la constante $name", start >= 0)
         return source.substring(start, source.indexOf("\n\n", start).takeIf { it > 0 } ?: source.length)
     }
+
+    private fun constantValue(name: String): String =
+        constantSource(name).substringAfter("=").trim().removeSurrounding("\"")
 
     private fun querySource(name: String): String {
         val start = source.indexOf("abstract fun $name(")

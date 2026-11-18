@@ -164,6 +164,18 @@
         <item quantity="one">%d vencida</item>
         <item quantity="other">%d vencidas</item>
     </plurals>
+    <string name="my_day_suggestions_title">Sugerencias de ayer (%1$d)</string>
+    <string name="my_day_suggestions_collapse">Ocultar sugerencias</string>
+    <string name="my_day_suggestions_expand">Mostrar sugerencias</string>
+    <string name="my_day_suggestion_add">Añadir a hoy</string>
+    <string name="my_day_suggestion_dismiss">Descartar</string>
+    <string name="nav_planned">Planificado</string>
+    <string name="planned_title">Planificado</string>
+    <string name="planned_overdue">Vencidas</string>
+    <string name="planned_today">Hoy</string>
+    <string name="planned_tomorrow">Mañana</string>
+    <string name="planned_upcoming">Próximos días</string>
+    <string name="planned_empty">No hay tareas planificadas</string>
     <string name="nav_notifications">Avisos</string>
     <string name="notifications_title">Avisos</string>
     <string name="notifications_empty">No hay avisos todavía</string>

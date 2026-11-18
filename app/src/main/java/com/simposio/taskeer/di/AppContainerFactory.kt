@@ -18,6 +18,7 @@ import com.simposio.taskeer.data.repository.BoardRepositoryImpl
 import com.simposio.taskeer.data.repository.ColumnRepositoryImpl
 import com.simposio.taskeer.data.repository.MyDayRepositoryImpl
 import com.simposio.taskeer.data.repository.NotificationHistoryRepositoryImpl
+import com.simposio.taskeer.data.repository.PlannedRepositoryImpl
 import com.simposio.taskeer.data.repository.PreferencesRepositoryImpl
 import com.simposio.taskeer.data.repository.ReminderCheckpointStoreImpl
 import com.simposio.taskeer.data.repository.ReminderRepositoryImpl
@@ -59,7 +60,13 @@ fun createAppContainer(context: Context): AppContainer {
         ),
         taskRepository = taskRepository,
         subtaskRepository = SubtaskRepositoryImpl(database.subtaskDao(), database.taskDao()),
-        myDayRepository = MyDayRepositoryImpl(database.myDayDao(), database.taskDao()),
+        myDayRepository = MyDayRepositoryImpl(
+            database.myDayDao(),
+            database.taskDao(),
+            clock = Instant::now,
+            timeZone = SystemTimeZoneProvider,
+        ),
+        plannedRepository = PlannedRepositoryImpl(database.myDayDao(), SystemTimeZoneProvider),
         reminderRepository = reminderRepository,
         reminderReconciler = ReminderReconciler(
             tasks = taskRepository,

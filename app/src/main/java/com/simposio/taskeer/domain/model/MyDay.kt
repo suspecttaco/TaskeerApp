@@ -12,4 +12,5 @@ data class MyDayTask(
 data class MyDay(
     val pinned: List<MyDayTask>,
     val assigned: List<MyDayTask>,
+    val suggestions: List<MyDayTask> = emptyList(),
 )

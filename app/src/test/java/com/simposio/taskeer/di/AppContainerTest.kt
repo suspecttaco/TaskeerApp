@@ -4,6 +4,7 @@ import com.simposio.taskeer.data.reminder.ReminderReconciler
 import com.simposio.taskeer.data.repository.BoardRepository
 import com.simposio.taskeer.data.repository.ColumnRepository
 import com.simposio.taskeer.data.repository.MyDayRepository
+import com.simposio.taskeer.data.repository.PlannedRepository
 import com.simposio.taskeer.data.repository.PreferencesRepository
 import com.simposio.taskeer.data.repository.ReminderRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
@@ -21,6 +22,7 @@ import com.simposio.taskeer.domain.model.ReminderCandidate
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskCreation
 import com.simposio.taskeer.domain.model.TaskDraft
+import com.simposio.taskeer.domain.planned.PlannedView
 import com.simposio.taskeer.testing.FakePreferencesRepository
 import com.simposio.taskeer.testing.FakeReminderRepository
 import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
@@ -97,6 +99,15 @@ class AppContainerTest {
     }
 
     @Test
+    fun container_exponePlannedRepository() {
+        val planned = FakePlannedRepository()
+
+        val container = container(plannedRepository = planned)
+
+        assertSame(planned, container.plannedRepository)
+    }
+
+    @Test
     fun conversorUsaLaZonaEntregada() {
         val container = container()
 
@@ -126,6 +137,7 @@ class AppContainerTest {
         taskRepository: TaskRepository = FakeTaskRepository(),
         subtaskRepository: SubtaskRepository = FakeSubtaskRepository(),
         myDayRepository: MyDayRepository = FakeMyDayRepository(),
+        plannedRepository: PlannedRepository = FakePlannedRepository(),
         reminderRepository: ReminderRepository = FakeReminderRepository(),
         reminderReconciler: ReminderReconciler =
             reconciler(preferencesRepository, taskRepository, reminderRepository),
@@ -137,6 +149,7 @@ class AppContainerTest {
         taskRepository = taskRepository,
         subtaskRepository = subtaskRepository,
         myDayRepository = myDayRepository,
+        plannedRepository = plannedRepository,
         reminderRepository = reminderRepository,
         reminderReconciler = reminderReconciler,
         notificationHistoryRepository = FakeNotificationHistoryRepository(),
@@ -235,6 +248,10 @@ class AppContainerTest {
 
         override suspend fun setMarked(taskId: String, marked: Boolean): DomainResult<Unit> =
             DomainResult.Success(Unit)
+    }
+
+    private class FakePlannedRepository : PlannedRepository {
+        override fun observePlanned(): Flow<PlannedView> = emptyFlow()
     }
 
     private class FakeSubtaskRepository : SubtaskRepository {

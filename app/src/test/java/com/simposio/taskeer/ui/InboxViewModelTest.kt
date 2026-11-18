@@ -77,6 +77,18 @@ class InboxViewModelTest {
     }
 
     @Test
+    fun estrella_marcaAnterior_apareceVacia() = runTest {
+        tasks.inbox.value = listOf(task("ayer"), task("hoy"))
+        val viewModel = viewModel()
+
+        myDay.marked.value = setOf("hoy")
+
+        assertEquals(mapOf("ayer" to false, "hoy" to true), viewModel.uiState.value.items.associate { it.id to it.isMarked })
+        viewModel.toggleMarked("ayer")
+        assertEquals(listOf("ayer" to true), myDay.calls)
+    }
+
+    @Test
     fun toggleMarked_delegaEnMyDayRepository() = runTest {
         tasks.inbox.value = listOf(task("a"))
         val viewModel = viewModel()

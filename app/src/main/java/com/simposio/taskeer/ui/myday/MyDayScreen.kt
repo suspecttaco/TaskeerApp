@@ -14,7 +14,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Inbox
@@ -37,6 +41,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,10 +53,12 @@ import com.simposio.taskeer.domain.myday.MyDaySort
 import com.simposio.taskeer.ui.board.color
 import com.simposio.taskeer.ui.board.labelRes
 import com.simposio.taskeer.ui.components.ActionIcon
+import com.simposio.taskeer.ui.components.AppDivider
 import com.simposio.taskeer.ui.components.DecorativeIcon
 import com.simposio.taskeer.ui.components.CompleteCheckbox
 import com.simposio.taskeer.ui.components.IconLabel
 import com.simposio.taskeer.ui.components.MyDayToggle
+import com.simposio.taskeer.ui.components.SectionHeader
 import com.simposio.taskeer.ui.tasks.DestinationPickerDialog
 import com.simposio.taskeer.ui.tasks.rememberAssignToBoardHost
 import com.simposio.taskeer.ui.tasks.rememberTaskEditorHost
@@ -74,6 +81,9 @@ fun MyDayScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifier 
         onToggleMarked = viewModel::toggleMarked,
         onToggleCompleted = viewModel::toggleCompleted,
         onAssign = openAssign,
+        onAddSuggestion = viewModel::addSuggestion,
+        onDismissSuggestion = viewModel::dismissSuggestion,
+        onToggleSuggestions = viewModel::toggleSuggestions,
         modifier = modifier,
         quickAdd = {
             QuickAddBar(
@@ -106,6 +116,9 @@ fun MyDayContent(
     onToggleMarked: (String) -> Unit,
     onToggleCompleted: (String) -> Unit,
     onAssign: (String) -> Unit,
+    onAddSuggestion: (String) -> Unit,
+    onDismissSuggestion: (String) -> Unit,
+    onToggleSuggestions: () -> Unit,
     modifier: Modifier = Modifier,
     quickAdd: @Composable () -> Unit = {},
 ) {
@@ -159,7 +172,7 @@ fun MyDayContent(
                 )
             }
         }
-        if (state.items.isEmpty()) {
+        if (state.items.isEmpty() && state.suggestions.isEmpty()) {
             Text(
                 text = stringResource(
                     if (state.totalCount == 0) R.string.my_day_empty else R.string.my_day_filter_empty,
@@ -171,6 +184,21 @@ fun MyDayContent(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap),
         ) {
+            if (state.suggestions.isNotEmpty()) {
+                item(key = SUGGESTIONS_HEADER_KEY) {
+                    SuggestionsHeader(
+                        count = state.suggestions.size,
+                        expanded = state.suggestionsExpanded,
+                        onToggle = onToggleSuggestions,
+                    )
+                }
+                if (state.suggestionsExpanded) {
+                    items(state.suggestions, key = { SUGGESTION_KEY_PREFIX + it.id }) { suggestion ->
+                        SuggestionRow(suggestion, onAddSuggestion, onDismissSuggestion)
+                    }
+                }
+                item(key = SUGGESTIONS_DIVIDER_KEY) { AppDivider() }
+            }
             items(state.items, key = { it.id }) { task ->
                 MyDayTaskCard(
                     task = task,
@@ -182,6 +210,61 @@ fun MyDayContent(
             }
         }
         quickAdd()
+    }
+}
+
+private const val SUGGESTIONS_HEADER_KEY = "suggestions-header"
+private const val SUGGESTIONS_DIVIDER_KEY = "suggestions-divider"
+private const val SUGGESTION_KEY_PREFIX = "suggestion-"
+
+@Composable
+private fun SuggestionsHeader(count: Int, expanded: Boolean, onToggle: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SectionHeader(
+            text = stringResource(R.string.my_day_suggestions_title, count),
+            modifier = Modifier.weight(1f),
+        )
+        ActionIcon(
+            icon = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+            contentDescription = stringResource(
+                if (expanded) R.string.my_day_suggestions_collapse else R.string.my_day_suggestions_expand,
+            ),
+            onClick = onToggle,
+        )
+    }
+}
+
+@Composable
+private fun SuggestionRow(
+    suggestion: MyDaySuggestionUi,
+    onAdd: (String) -> Unit,
+    onDismiss: (String) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap)) {
+            Text(text = suggestion.title, style = MaterialTheme.typography.bodyLarge)
+            if (suggestion.boardName == null) {
+                IconLabel(icon = Icons.Filled.Inbox, text = stringResource(R.string.inbox_title))
+            } else {
+                IconLabel(icon = Icons.Filled.Dashboard, text = suggestion.boardName)
+            }
+        }
+        ActionIcon(
+            icon = Icons.Filled.Add,
+            contentDescription = stringResource(R.string.my_day_suggestion_add),
+            onClick = { onAdd(suggestion.id) },
+        )
+        ActionIcon(
+            icon = Icons.Filled.Close,
+            contentDescription = stringResource(R.string.my_day_suggestion_dismiss),
+            onClick = { onDismiss(suggestion.id) },
+        )
     }
 }
 
@@ -238,6 +321,7 @@ private fun MyDayTaskCard(
                 Text(
                     text = task.title,
                     style = MaterialTheme.typography.bodyLarge,
+                    textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null,
                     modifier = Modifier.weight(1f),
                 )
                 if (task.isInbox) {
@@ -300,11 +384,13 @@ private fun MyDayContentPreview() {
                     ),
                     MyDayTaskUi(
                         "t3", "Comprar pan", TaskPriority.MEDIUM, null,
-                        null, isOverdue = false, isMarked = true, isAssigned = false,
+                        null, isOverdue = false, isMarked = true, isAssigned = false, isCompleted = true,
                     ),
                 ),
                 overdueCount = 1,
                 totalCount = 3,
+                completedCount = 1,
+                suggestions = listOf(MyDaySuggestionUi("s1", "Revisar el presupuesto", "Proyecto")),
             ),
             onSort = {},
             onFilter = {},
@@ -312,6 +398,9 @@ private fun MyDayContentPreview() {
             onToggleMarked = {},
             onToggleCompleted = {},
             onAssign = {},
+            onAddSuggestion = {},
+            onDismissSuggestion = {},
+            onToggleSuggestions = {},
         )
     }
 }

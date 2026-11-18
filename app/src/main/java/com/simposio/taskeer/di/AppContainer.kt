@@ -5,6 +5,7 @@ import com.simposio.taskeer.data.repository.BoardRepository
 import com.simposio.taskeer.data.repository.ColumnRepository
 import com.simposio.taskeer.data.repository.MyDayRepository
 import com.simposio.taskeer.data.repository.NotificationHistoryRepository
+import com.simposio.taskeer.data.repository.PlannedRepository
 import com.simposio.taskeer.data.repository.PreferencesRepository
 import com.simposio.taskeer.data.repository.ReminderRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
@@ -20,6 +21,7 @@ class AppContainer(
     val taskRepository: TaskRepository,
     val subtaskRepository: SubtaskRepository,
     val myDayRepository: MyDayRepository,
+    val plannedRepository: PlannedRepository,
     val reminderRepository: ReminderRepository,
     val reminderReconciler: ReminderReconciler,
     val notificationHistoryRepository: NotificationHistoryRepository,

@@ -24,7 +24,8 @@ sealed interface BackStep {
 
 fun backStep(destination: AppDestination?, boardId: String?, hasPrevious: Boolean): BackStep {
     val fallback = when {
-        destination == AppDestination.NOTIFICATIONS -> AppDestination.MY_DAY.route
+        destination == AppDestination.NOTIFICATIONS || destination == AppDestination.PLANNED ->
+            AppDestination.MY_DAY.route
         boardId != null -> destination?.upRoute(boardId)
         else -> null
     } ?: return BackStep.None
