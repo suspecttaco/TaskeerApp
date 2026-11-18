@@ -387,6 +387,11 @@ class ReminderRepositoryImplTest {
     }
 
     private class FakeTaskDao : TaskDao() {
+        override suspend fun findActiveByList(listId: String): List<TaskEntity> = error("no se usa")
+
+        override suspend fun restoreSubtasksOfTask(taskId: String, deletedAt: Long, now: Long) = error("no se usa")
+
+        override suspend fun restoreRemindersOfTask(taskId: String, deletedAt: Long, now: Long): Int = error("no se usa")
         override fun observeByList(listId: String): Flow<List<TaskEntity>> = emptyFlow()
 
         override fun observeActiveCountsByList(): Flow<List<ListCountRow>> = emptyFlow()

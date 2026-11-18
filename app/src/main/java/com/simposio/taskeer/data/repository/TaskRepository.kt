@@ -44,5 +44,7 @@ interface TaskRepository {
 
     suspend fun deleteTask(id: String): DomainResult<Unit>
 
-    suspend fun deleteCompleted(): DomainResult<Int>
+    suspend fun deleteCompleted(): DomainResult<List<String>>
+
+    suspend fun restoreTasks(ids: List<String>): DomainResult<Unit>
 }

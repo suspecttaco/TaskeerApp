@@ -22,6 +22,9 @@ abstract class TaskDao {
     @Query("SELECT * FROM tasks WHERE listId = :listId AND deletedAt IS NULL ORDER BY createdAt DESC, id ASC")
     abstract fun observeByList(listId: String): Flow<List<TaskEntity>>
 
+    @Query("SELECT * FROM tasks WHERE listId = :listId AND deletedAt IS NULL")
+    abstract suspend fun findActiveByList(listId: String): List<TaskEntity>
+
     @Query("SELECT COUNT(*) FROM tasks WHERE listId = :listId AND deletedAt IS NULL")
     abstract suspend fun countInList(listId: String): Int
 
@@ -100,12 +103,36 @@ abstract class TaskDao {
 
     // Reutiliza la cascada de deleteTask (subtareas y recordatorios) para que ambos caminos no diverjan.
     @Transaction
-    open suspend fun softDeleteCompleted(deletedAt: Long): Int {
+    open suspend fun softDeleteCompleted(deletedAt: Long): List<String> {
         val completed = findCompleted()
         completed.forEach { task ->
             upsertDeletedWithSubtasks(task.copy(deletedAt = deletedAt, updatedAt = deletedAt, pending = true), deletedAt)
         }
-        return completed.size
+        return completed.map { it.id }
+    }
+
+    // deletedAt = :deletedAt aísla las subtareas que borró este mismo borrado de las borradas antes.
+    @Query(
+        "UPDATE subtasks SET deletedAt = NULL, updatedAt = :now, pending = 1 " +
+            "WHERE taskId = :taskId AND deletedAt = :deletedAt",
+    )
+    abstract suspend fun restoreSubtasksOfTask(taskId: String, deletedAt: Long, now: Long)
+
+    // El borrado escribió el mismo milisegundo en updatedAt del recordatorio; remindAt > now evita una alarma inmediata.
+    @Query(
+        "UPDATE reminders SET status = 'PENDING', updatedAt = :now, pending = 1 " +
+            "WHERE taskId = :taskId AND status = 'DISMISSED' AND updatedAt = :deletedAt AND remindAt > :now",
+    )
+    abstract suspend fun restoreRemindersOfTask(taskId: String, deletedAt: Long, now: Long): Int
+
+    @Transaction
+    open suspend fun upsertRestoredWithSubtasks(tasks: List<TaskEntity>, deletedAtById: Map<String, Long>, now: Long) {
+        upsertAll(tasks)
+        tasks.forEach { task ->
+            val deletedAt = deletedAtById.getValue(task.id)
+            restoreSubtasksOfTask(task.id, deletedAt, now)
+            restoreRemindersOfTask(task.id, deletedAt, now)
+        }
     }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE, entity = SubtaskEntity::class)

@@ -951,6 +951,11 @@ class MyDayRepositoryImplTest {
     }
 
     private class WritingTaskDao(private val myDayDao: FakeMyDayDao) : TaskDao() {
+        override suspend fun findActiveByList(listId: String): List<TaskEntity> = error("no se usa")
+
+        override suspend fun restoreSubtasksOfTask(taskId: String, deletedAt: Long, now: Long) = error("no se usa")
+
+        override suspend fun restoreRemindersOfTask(taskId: String, deletedAt: Long, now: Long): Int = error("no se usa")
         override fun observeByList(listId: String): Flow<List<TaskEntity>> = emptyFlow()
 
         override fun observeActiveCountsByList(): Flow<List<ListCountRow>> = emptyFlow()
@@ -989,6 +994,11 @@ class MyDayRepositoryImplTest {
     }
 
     private class FakeTaskDao(private val myDayDao: FakeMyDayDao) : TaskDao() {
+        override suspend fun findActiveByList(listId: String): List<TaskEntity> = error("no se usa")
+
+        override suspend fun restoreSubtasksOfTask(taskId: String, deletedAt: Long, now: Long) = error("no se usa")
+
+        override suspend fun restoreRemindersOfTask(taskId: String, deletedAt: Long, now: Long): Int = error("no se usa")
         override fun observeByList(listId: String): Flow<List<TaskEntity>> = emptyFlow()
 
         override fun observeActiveCountsByList(): Flow<List<ListCountRow>> = emptyFlow()

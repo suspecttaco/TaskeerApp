@@ -396,6 +396,11 @@ class TaskListRepositoryImplTest {
 
     // Solo el conteo por lista lo usa el repositorio de listas; el resto de la API del DAO no se toca.
     private class CountingTaskDao(private val store: FakeTaskStore) : TaskDao() {
+        override suspend fun findActiveByList(listId: String): List<TaskEntity> = error("no se usa")
+
+        override suspend fun restoreSubtasksOfTask(taskId: String, deletedAt: Long, now: Long) = error("no se usa")
+
+        override suspend fun restoreRemindersOfTask(taskId: String, deletedAt: Long, now: Long): Int = error("no se usa")
         override fun observeActiveCountsByList(): Flow<List<ListCountRow>> = store.rows.map { rows ->
             rows.values
                 .filter { it.deletedAt == null && it.completedAt == null && it.listId != null }

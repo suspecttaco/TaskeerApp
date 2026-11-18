@@ -27,6 +27,7 @@ import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.model.TaskList
 import com.simposio.taskeer.domain.task.TASK_IN_INBOX
 import com.simposio.taskeer.domain.task.TASK_NO_OPEN_COLUMN
+import com.simposio.taskeer.domain.task.TASK_NOT_DELETED
 import com.simposio.taskeer.domain.task.TASK_NOT_FOUND
 import com.simposio.taskeer.domain.task.TaskPlacement
 import com.simposio.taskeer.domain.task.assignedToColumn
@@ -40,6 +41,8 @@ import com.simposio.taskeer.domain.task.newTaskWithExtras
 import com.simposio.taskeer.domain.task.reopened
 import com.simposio.taskeer.domain.task.reopeningColumn
 import com.simposio.taskeer.domain.task.resolvePlacement
+import com.simposio.taskeer.domain.task.restoredAt
+import com.simposio.taskeer.domain.task.restoredPosition
 import com.simposio.taskeer.domain.task.softDeleted
 import com.simposio.taskeer.domain.task.successor
 import com.simposio.taskeer.domain.task.successorReminder
@@ -329,8 +332,54 @@ class TaskRepositoryImpl(
         return DomainResult.Success(Unit)
     }
 
-    override suspend fun deleteCompleted(): DomainResult<Int> =
+    override suspend fun deleteCompleted(): DomainResult<List<String>> =
         DomainResult.Success(dao.softDeleteCompleted(now().toEpochMilli()))
+
+    // Todo se valida antes de escribir: un fallo en cualquier tarea del lote no deja nada restaurado.
+    override suspend fun restoreTasks(ids: List<String>): DomainResult<Unit> {
+        val deleted = ids.distinct().map { id ->
+            val task = dao.findById(id)?.toTask() ?: return taskNotFound()
+            if (!task.isDeleted) return taskNotDeleted()
+            task
+        }
+        val at = now()
+        val byColumn = deleted.filter { it.columnId != null }.groupBy { requireNotNull(it.columnId) }
+        val restored = mutableListOf<Task>()
+        for ((columnId, tasks) in byColumn) {
+            val column = activeColumn(columnId) ?: return columnNotFound()
+            val occupied = dao.findActiveByColumn(columnId).map { it.position }.toMutableSet()
+            checkWipLimit(column, occupied.size + tasks.size - 1)?.let { return DomainResult.Failure(it) }
+            tasks.sortedWith(compareBy({ it.position }, { it.id })).forEach { task ->
+                val position = restoredPosition(task.position, occupied, (occupied.maxOrNull() ?: -1) + 1)
+                occupied += position
+                restored += task.restoredAt(columnId, null, position, at)
+            }
+        }
+        val inLists = deleted.filter { it.columnId == null }
+        if (inLists.isNotEmpty()) {
+            val defaultId = defaultListId()
+            val targets = inLists.map { task -> task to (task.listId?.takeIf { activeList(it) != null } ?: defaultId) }
+            for ((listId, group) in targets.groupBy({ it.second }, { it.first })) {
+                val occupied = dao.findActiveByList(listId).map { it.position }.toMutableSet()
+                group.sortedWith(compareBy({ it.position }, { it.id })).forEach { task ->
+                    val keepsList = task.listId == listId
+                    val position = if (keepsList) {
+                        restoredPosition(task.position, occupied, (occupied.maxOrNull() ?: -1) + 1)
+                    } else {
+                        (occupied.maxOrNull() ?: -1) + 1
+                    }
+                    occupied += position
+                    restored += task.restoredAt(null, listId, position, at)
+                }
+            }
+        }
+        dao.upsertRestoredWithSubtasks(
+            restored.map { it.toEntity() },
+            deleted.associate { it.id to requireNotNull(it.sync.deletedAt).toEpochMilli() },
+            at.toEpochMilli(),
+        )
+        return DomainResult.Success(Unit)
+    }
 
     private suspend fun activeColumn(id: String): Column? =
         columnDao.findById(id)?.takeIf { it.deletedAt == null }?.toColumn()
@@ -364,6 +413,9 @@ class TaskRepositoryImpl(
     private fun noOpenColumn(): DomainResult.Failure = DomainResult.Failure(
         DomainError.Conflict(TASK_NO_OPEN_COLUMN, "El tablero no tiene una columna a la que devolver la tarea"),
     )
+
+    private fun taskNotDeleted(): DomainResult.Failure =
+        DomainResult.Failure(DomainError.Conflict(TASK_NOT_DELETED, "La tarea no está borrada"))
 
     private fun taskNotFound(): DomainResult.Failure =
         DomainResult.Failure(DomainError.NotFound(TASK_NOT_FOUND, "La tarea no existe"))
