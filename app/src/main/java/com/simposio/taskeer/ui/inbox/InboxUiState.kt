@@ -16,5 +16,6 @@ data class InboxTaskUi(
 
 data class InboxUiState(
     val items: List<InboxTaskUi> = emptyList(),
+    val listId: String? = null,
     val error: DomainError? = null,
 )

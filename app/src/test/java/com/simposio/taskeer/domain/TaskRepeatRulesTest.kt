@@ -303,7 +303,7 @@ class TaskRepeatRulesTest {
         val original = task(dueAt = at("2026-11-10T09:00:00Z"), repeat = RepeatPresets.daily(10))
             .copy(completedAt = now, repeatSuccessorId = "otra", description = "Detalle", assigneeId = "yo")
 
-        val next = requireNotNull(original.successor(now, utc, columnId = "columna-2", position = 4))
+        val next = requireNotNull(original.successor(now, utc, columnId = "columna-2", listId = null, position = 4))
 
         assertEquals(successorIdFor("tarea-1"), next.id)
         assertEquals("Tarea", next.title)
@@ -324,15 +324,37 @@ class TaskRepeatRulesTest {
     fun nextTask_sinReglaOSinFecha_devuelveNull() {
         val now = at("2026-11-10T10:00:00Z")
 
-        assertNull(task(dueAt = at("2026-11-10T09:00:00Z"), repeat = null).successor(now, utc, null, 0))
-        assertNull(task(dueAt = null, repeat = RepeatPresets.daily(10)).successor(now, utc, null, 0))
+        assertNull(task(dueAt = at("2026-11-10T09:00:00Z"), repeat = null).successor(now, utc, null, null, 0))
+        assertNull(task(dueAt = null, repeat = RepeatPresets.daily(10)).successor(now, utc, null, null, 0))
+    }
+
+    @Test
+    fun nextTask_enLista_conservaListId() {
+        val now = at("2026-11-10T10:00:00Z")
+        val original = task(dueAt = at("2026-11-10T09:00:00Z"), repeat = RepeatPresets.daily(10)).copy(columnId = null, listId = "lista-1")
+
+        val next = requireNotNull(original.successor(now, utc, columnId = null, listId = "lista-1", position = 2))
+
+        assertEquals("lista-1", next.listId)
+        assertNull(next.columnId)
+    }
+
+    @Test
+    fun nextTask_enColumna_noTieneListId() {
+        val now = at("2026-11-10T10:00:00Z")
+        val original = task(dueAt = at("2026-11-10T09:00:00Z"), repeat = RepeatPresets.daily(10))
+
+        val next = requireNotNull(original.successor(now, utc, columnId = "columna-1", listId = null, position = 0))
+
+        assertNull(next.listId)
+        assertEquals("columna-1", next.columnId)
     }
 
     @Test
     fun nextSubtasks_vuelvenSinCompletarYDesplazanLaFecha() {
         val now = at("2026-11-10T10:00:00Z")
         val original = task(dueAt = at("2026-11-10T09:00:00Z"), repeat = RepeatPresets.weekly(10))
-        val next = requireNotNull(original.successor(now, utc, "columna-1", 0))
+        val next = requireNotNull(original.successor(now, utc, "columna-1", null, 0))
         val done = subtask("s1", position = 0, completed = true, dueAt = at("2026-11-11T18:00:00Z"))
         val open = subtask("s2", position = 1, completed = false, dueAt = null)
         val deleted = subtask("s3", position = 2, completed = false, dueAt = null, deleted = true)
@@ -352,7 +374,7 @@ class TaskRepeatRulesTest {
     fun nextReminder_conservaElDesfaseRespectoALaFecha() {
         val now = at("2026-11-10T10:00:00Z")
         val original = task(dueAt = at("2026-11-10T09:00:00Z"), repeat = RepeatPresets.daily(10))
-        val next = requireNotNull(original.successor(now, utc, "columna-1", 0))
+        val next = requireNotNull(original.successor(now, utc, "columna-1", null, 0))
         val reminder = reminder(remindAt = at("2026-11-10T08:00:00Z"), status = ReminderStatus.SENT)
 
         val created = requireNotNull(original.successorReminder(next, reminder, now))
@@ -367,7 +389,7 @@ class TaskRepeatRulesTest {
     fun nextReminder_pasado_noSeCrea() {
         val now = at("2026-11-10T10:00:00Z")
         val original = task(dueAt = at("2026-11-10T09:00:00Z"), repeat = RepeatPresets.daily(10))
-        val next = requireNotNull(original.successor(now, utc, "columna-1", 0))
+        val next = requireNotNull(original.successor(now, utc, "columna-1", null, 0))
         val farBefore = reminder(remindAt = at("2026-11-08T09:00:00Z"), status = ReminderStatus.PENDING)
 
         assertNull(original.successorReminder(next, farBefore, now))

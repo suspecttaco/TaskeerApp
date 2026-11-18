@@ -1,12 +1,15 @@
 package com.simposio.taskeer.ui
 
 import com.simposio.taskeer.domain.date.DateTimeConverter
+import com.simposio.taskeer.domain.list.SEEDED_TASK_LIST_ID
 import com.simposio.taskeer.domain.date.TimeZoneProvider
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.testing.FakeDestinationBoardRepository
 import com.simposio.taskeer.testing.FakeDestinationColumnRepository
 import com.simposio.taskeer.testing.FakeDestinationTaskRepository
+import com.simposio.taskeer.testing.FakeTaskListRepository
+import com.simposio.taskeer.testing.listSummary
 import com.simposio.taskeer.testing.testBoard
 import com.simposio.taskeer.testing.testColumn
 import com.simposio.taskeer.ui.quickadd.BackResult
@@ -41,6 +44,9 @@ class QuickAddViewModelTest {
     private val boards = FakeDestinationBoardRepository()
     private val columns = FakeDestinationColumnRepository()
     private val tasks = FakeDestinationTaskRepository()
+    private val lists = FakeTaskListRepository(
+        listOf(listSummary(SEEDED_TASK_LIST_ID, "Tareas", 3), listSummary("compras", "Compras", 2, position = 1)),
+    )
     private val madrid = DateTimeConverter(TimeZoneProvider { ZoneId.of("Europe/Madrid") })
 
     @Before
@@ -60,13 +66,13 @@ class QuickAddViewModelTest {
     }
 
     @Test
-    fun estadoInicial_cerradoDestinoBandejaYTituloVacio() = runTest {
+    fun estadoInicial_cerradoDestinoListaPorDefectoYTituloVacio() = runTest {
         val viewModel = viewModel()
 
         assertFalse(viewModel.uiState.value.isOpen)
-        assertEquals(QuickAddDestination.Inbox, viewModel.uiState.value.destination)
+        assertEquals(QuickAddDestination.InList(SEEDED_TASK_LIST_ID), viewModel.uiState.value.destination)
         assertEquals("", viewModel.uiState.value.title)
-        assertNull(viewModel.uiState.value.destinationLabel)
+        assertEquals("Tareas", viewModel.uiState.value.destinationLabel)
         assertNull(viewModel.uiState.value.panel)
     }
 
@@ -165,7 +171,7 @@ class QuickAddViewModelTest {
     @Test
     fun contextoTareas_noMarcaEnMiDia() = runTest {
         val viewModel = viewModel()
-        viewModel.open(QuickAddContext.Inbox)
+        viewModel.open(QuickAddContext.List(SEEDED_TASK_LIST_ID))
         viewModel.onTitleChange("Comprar pan")
 
         viewModel.add()
@@ -190,13 +196,13 @@ class QuickAddViewModelTest {
     }
 
     @Test
-    fun contextoTablero_sinColumnas_caeEnBandeja() = runTest {
+    fun contextoTablero_sinColumnas_caeEnLaListaPorDefecto() = runTest {
         columns.columns.value = emptyList()
         val viewModel = viewModel()
 
         viewModel.open(QuickAddContext.Board("b1"))
 
-        assertEquals(QuickAddDestination.Inbox, viewModel.uiState.value.destination)
+        assertEquals(QuickAddDestination.InList(SEEDED_TASK_LIST_ID), viewModel.uiState.value.destination)
     }
 
     @Test
@@ -239,7 +245,7 @@ class QuickAddViewModelTest {
         val state = viewModel.uiState.value
         assertFalse(state.isOpen)
         assertEquals("", state.title)
-        assertEquals(QuickAddDestination.Inbox, state.destination)
+        assertEquals(QuickAddDestination.InList(SEEDED_TASK_LIST_ID), state.destination)
         assertEquals(TaskPriority.MEDIUM, state.priority)
         assertNull(state.dueDate)
         assertNull(state.error)
@@ -311,14 +317,14 @@ class QuickAddViewModelTest {
     }
 
     @Test
-    fun destinoQueDesaparece_vuelveABandeja() = runTest {
+    fun columnaQueDesaparece_vuelveALaListaPorDefecto() = runTest {
         val viewModel = viewModel()
         viewModel.selectColumn("c1")
 
         columns.columns.value = emptyList()
 
-        assertEquals(QuickAddDestination.Inbox, viewModel.uiState.value.destination)
-        assertNull(viewModel.uiState.value.destinationLabel)
+        assertEquals(QuickAddDestination.InList(SEEDED_TASK_LIST_ID), viewModel.uiState.value.destination)
+        assertEquals("Tareas", viewModel.uiState.value.destinationLabel)
     }
 
     @Test
@@ -344,9 +350,85 @@ class QuickAddViewModelTest {
         val viewModel = viewModel()
         viewModel.togglePanel(QuickAddPanel.DESTINATION)
 
-        viewModel.selectInbox()
+        viewModel.selectList(SEEDED_TASK_LIST_ID)
 
         assertNull(viewModel.uiState.value.panel)
+    }
+
+    @Test
+    fun destinoInicial_desdeMiDia_esLaListaPorDefectoActual() = runTest {
+        val viewModel = viewModel()
+
+        viewModel.open(QuickAddContext.MyDay)
+
+        assertEquals(QuickAddDestination.InList(SEEDED_TASK_LIST_ID), viewModel.uiState.value.destination)
+    }
+
+    @Test
+    fun destinoInicial_desdeLaPantallaTareas_esLaListaAbierta() = runTest {
+        val viewModel = viewModel()
+
+        viewModel.open(QuickAddContext.List("compras"))
+
+        assertEquals(QuickAddDestination.InList("compras"), viewModel.uiState.value.destination)
+        assertEquals("Compras", viewModel.uiState.value.destinationLabel)
+    }
+
+    @Test
+    fun seleccionarLista_creaEnEsaLista() = runTest {
+        val viewModel = viewModel()
+        viewModel.open(QuickAddContext.MyDay)
+        viewModel.selectList("compras")
+        viewModel.onTitleChange("Leche")
+
+        viewModel.add()
+
+        assertNull(tasks.creations.single().first)
+        assertEquals(listOf<String?>("compras"), tasks.creationListIds)
+    }
+
+    @Test
+    fun listaBorrada_vuelveALaPorDefectoActual() = runTest {
+        val viewModel = viewModel()
+        viewModel.open(QuickAddContext.List("compras"))
+
+        lists.lists.value = lists.lists.value.filter { it.list.id != "compras" }
+
+        assertEquals(QuickAddDestination.InList(SEEDED_TASK_LIST_ID), viewModel.uiState.value.destination)
+        assertEquals("Tareas", viewModel.uiState.value.destinationLabel)
+    }
+
+    @Test
+    fun destinoInicial_esLaDeMenorPosicion_noUnaConstante() = runTest {
+        lists.lists.value = listOf(listSummary("compras", "Compras", 2, position = 4), listSummary("viajes", "Viajes", 0, position = 9))
+        val viewModel = viewModel()
+
+        viewModel.open(QuickAddContext.MyDay)
+
+        assertEquals(QuickAddDestination.InList("compras"), viewModel.uiState.value.destination)
+        assertEquals("Compras", viewModel.uiState.value.destinationLabel)
+    }
+
+    @Test
+    fun seleccionarColumna_creaEnLaColumnaSinListId() = runTest {
+        val viewModel = viewModel()
+        viewModel.open(QuickAddContext.MyDay)
+        viewModel.selectColumn("c2")
+        viewModel.onTitleChange("Informe")
+
+        viewModel.add()
+
+        assertEquals("c2", tasks.creations.single().first)
+        assertEquals(listOf<String?>(null), tasks.creationListIds)
+    }
+
+    @Test
+    fun destinos_incluyenListasConContador() = runTest {
+        val viewModel = viewModel()
+
+        val offered = viewModel.uiState.value.lists.map { it.list.name to it.activeCount }
+
+        assertEquals(listOf("Tareas" to 3, "Compras" to 2), offered)
     }
 
     @Test
@@ -357,7 +439,7 @@ class QuickAddViewModelTest {
     @Test
     fun prioridadElegida_seEnviaEnElDraft() = runTest {
         val viewModel = viewModel()
-        viewModel.open(QuickAddContext.Inbox)
+        viewModel.open(QuickAddContext.List(SEEDED_TASK_LIST_ID))
         viewModel.selectPriority(TaskPriority.URGENT)
         viewModel.onTitleChange("Informe")
 
@@ -369,7 +451,7 @@ class QuickAddViewModelTest {
     @Test
     fun fechaHoy_creaConDueAtDeHoyA09() = runTest {
         val viewModel = viewModel()
-        viewModel.open(QuickAddContext.Inbox)
+        viewModel.open(QuickAddContext.List(SEEDED_TASK_LIST_ID))
         viewModel.selectPreset(QuickAddDatePreset.TODAY)
         viewModel.onTitleChange("Informe")
 
@@ -381,7 +463,7 @@ class QuickAddViewModelTest {
     @Test
     fun fechaMañana_creaConDueAtDeMañana() = runTest {
         val viewModel = viewModel()
-        viewModel.open(QuickAddContext.Inbox)
+        viewModel.open(QuickAddContext.List(SEEDED_TASK_LIST_ID))
         viewModel.selectPreset(QuickAddDatePreset.TOMORROW)
         viewModel.onTitleChange("Informe")
 
@@ -393,7 +475,7 @@ class QuickAddViewModelTest {
     @Test
     fun proximaSemana_creaConDueAtDeHoyMasSieteDias() = runTest {
         val viewModel = viewModel()
-        viewModel.open(QuickAddContext.Inbox)
+        viewModel.open(QuickAddContext.List(SEEDED_TASK_LIST_ID))
         viewModel.selectPreset(QuickAddDatePreset.NEXT_WEEK)
         viewModel.onTitleChange("Informe")
 
@@ -405,7 +487,7 @@ class QuickAddViewModelTest {
     @Test
     fun sinFecha_creaSinDueAt() = runTest {
         val viewModel = viewModel()
-        viewModel.open(QuickAddContext.Inbox)
+        viewModel.open(QuickAddContext.List(SEEDED_TASK_LIST_ID))
         viewModel.selectPreset(QuickAddDatePreset.TODAY)
         viewModel.selectPreset(QuickAddDatePreset.NONE)
         viewModel.onTitleChange("Informe")
@@ -418,7 +500,7 @@ class QuickAddViewModelTest {
     @Test
     fun horaElegida_sustituyeA09() = runTest {
         val viewModel = viewModel()
-        viewModel.open(QuickAddContext.Inbox)
+        viewModel.open(QuickAddContext.List(SEEDED_TASK_LIST_ID))
         viewModel.selectDate(LocalDate.of(2026, 12, 1))
         viewModel.selectTime(LocalTime.of(17, 45))
         viewModel.onTitleChange("Informe")
@@ -441,7 +523,7 @@ class QuickAddViewModelTest {
     }
 
     private fun TestScope.viewModel(): QuickAddViewModel {
-        val viewModel = QuickAddViewModel(tasks, boards, columns, madrid) { LocalDate.of(2026, 11, 17) }
+        val viewModel = QuickAddViewModel(tasks, lists, boards, columns, madrid) { LocalDate.of(2026, 11, 17) }
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }

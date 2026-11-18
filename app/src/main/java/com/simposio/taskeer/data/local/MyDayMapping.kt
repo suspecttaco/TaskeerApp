@@ -7,5 +7,6 @@ fun MyDayRow.toMyDayTask(): MyDayTask = MyDayTask(
     task = task.toTask(),
     boardId = boardId,
     boardName = boardName,
+    listName = listName,
     addedAt = addedAt?.let(Instant::ofEpochMilli),
 )

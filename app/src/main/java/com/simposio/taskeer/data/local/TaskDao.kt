@@ -19,11 +19,19 @@ abstract class TaskDao {
     @Query("SELECT * FROM tasks WHERE columnId = :columnId AND deletedAt IS NULL ORDER BY position ASC, id ASC")
     abstract suspend fun findActiveByColumn(columnId: String): List<TaskEntity>
 
-    @Query("SELECT * FROM tasks WHERE columnId IS NULL AND deletedAt IS NULL ORDER BY createdAt DESC, id ASC")
-    abstract fun observeInbox(): Flow<List<TaskEntity>>
+    @Query("SELECT * FROM tasks WHERE listId = :listId AND deletedAt IS NULL ORDER BY createdAt DESC, id ASC")
+    abstract fun observeByList(listId: String): Flow<List<TaskEntity>>
 
-    @Query("SELECT COUNT(*) FROM tasks WHERE columnId IS NULL AND deletedAt IS NULL")
-    abstract suspend fun countInbox(): Int
+    @Query("SELECT COUNT(*) FROM tasks WHERE listId = :listId AND deletedAt IS NULL")
+    abstract suspend fun countInList(listId: String): Int
+
+    // Solo pendientes: el contador de una lista es «N tareas por hacer». observeCountsByColumn, en
+    // cambio, cuenta también las completadas porque el WIP y la columna de cierre las incluyen.
+    @Query(
+        "SELECT listId AS listId, COUNT(*) AS count FROM tasks " +
+            "WHERE deletedAt IS NULL AND completedAt IS NULL AND listId IS NOT NULL GROUP BY listId",
+    )
+    abstract fun observeActiveCountsByList(): Flow<List<ListCountRow>>
 
     @Query(
         "SELECT columnId AS columnId, COUNT(*) AS count FROM tasks " +

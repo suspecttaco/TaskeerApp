@@ -19,6 +19,7 @@ class AppDatabaseSchemaTest {
     private val schemaV11: String = resolveSchema(version = 11).readText()
     private val schemaV12: String = resolveSchema(version = 12).readText()
     private val schemaV13: String = resolveSchema(version = 13).readText()
+    private val schemaV14: String = resolveSchema(version = 14).readText()
 
     @Test
     fun esquemaVersion1_sigueExportado() {
@@ -435,7 +436,8 @@ class AppDatabaseSchemaTest {
     @Test
     fun json13_coincideConLaEntidad() {
         val tasks = tableV13("tasks")
-        val entityFields = TaskEntity::class.java.declaredFields.map { it.name }.filter { !it.contains('$') }
+        val entityFields = TaskEntity::class.java.declaredFields.map { it.name }
+            .filter { !it.contains('$') && it != "listId" }
 
         entityFields.forEach { assertTrue("13.json debe declarar $it", tasks.contains("\"columnName\": \"$it\"")) }
         assertEquals(entityFields.size, Regex("\"columnName\"").findAll(tasks.substringBefore("\"primaryKey\"")).count())
@@ -458,7 +460,7 @@ class AppDatabaseSchemaTest {
     fun json12_conservaLasColumnasPrevias() {
         val tasks = tableV12("tasks")
         val entityFields = TaskEntity::class.java.declaredFields.map { it.name }
-            .filter { !it.contains('$') && !it.startsWith("repeat") }
+            .filter { !it.contains('$') && !it.startsWith("repeat") && it != "listId" }
 
         entityFields.forEach { assertTrue("12.json debe declarar $it", tasks.contains("\"columnName\": \"$it\"")) }
         assertEquals(entityFields.size, Regex("\"columnName\"").findAll(tasks.substringBefore("\"primaryKey\"")).count())
@@ -468,6 +470,90 @@ class AppDatabaseSchemaTest {
     fun v12_mantieneElRestoDeColumnasDeTasksQueV11() {
         listOf("id", "columnId", "title", "description", "priority", "dueAt", "assigneeId", "position", "createdAt", "updatedAt", "pending", "deletedAt")
             .forEach { assertEquals(it, column(tableV11("tasks"), it), column(tableV12("tasks"), it)) }
+    }
+
+    @Test
+    fun version_es14() {
+        assertTrue(
+            "el esquema debe declarar la versión 14 de la base de datos",
+            Regex("\"version\"\\s*:\\s*14\\b").containsMatchIn(schemaV14),
+        )
+    }
+
+    @Test
+    fun json14_coincideConLasEntidades() {
+        listOf("tasks" to TaskEntity::class.java, "task_lists" to TaskListEntity::class.java).forEach { (table, entity) ->
+            val json = tableV14(table)
+            val fields = entity.declaredFields.map { it.name }.filter { !it.contains('$') }
+
+            fields.forEach { assertTrue("14.json debe declarar $it en $table", json.contains("\"columnName\": \"$it\"")) }
+            assertEquals(table, fields.size, Regex("\"columnName\"").findAll(json.substringBefore("\"primaryKey\"")).count())
+        }
+    }
+
+    @Test
+    fun v14_taskLists_tieneLasColumnasDelModelo() {
+        val lists = tableV14("task_lists")
+
+        assertEquals(ColumnSchema("TEXT", true), column(lists, "id"))
+        assertEquals(ColumnSchema("TEXT", true), column(lists, "name"))
+        assertEquals(ColumnSchema("INTEGER", true), column(lists, "position"))
+        assertEquals(ColumnSchema("INTEGER", true), column(lists, "createdAt"))
+        assertEquals(ColumnSchema("INTEGER", true), column(lists, "updatedAt"))
+        assertEquals(ColumnSchema("INTEGER", true), column(lists, "pending"))
+        assertEquals(ColumnSchema("INTEGER", false), column(lists, "deletedAt"))
+    }
+
+    @Test
+    fun v14_taskLists_declaraElIndice() {
+        val lists = tableV14("task_lists")
+
+        assertTrue(lists.contains("\"name\": \"index_task_lists_deletedAt_position\""))
+        assertTrue(lists.substring(lists.indexOf("index_task_lists_deletedAt_position")).contains("`deletedAt`, `position`"))
+    }
+
+    @Test
+    fun v14_tasks_listIdAdmiteNull() {
+        val tasks = tableV14("tasks")
+
+        assertEquals(ColumnSchema("TEXT", false), column(tasks, "listId"))
+        assertTrue(tasks.contains("\"name\": \"index_tasks_listId\""))
+        assertTrue(tasks.substring(tasks.indexOf("index_tasks_listId")).contains("`listId`"))
+    }
+
+    @Test
+    fun v14_mantieneLasColumnasDeTasksDeV13() {
+        listOf(
+            "id", "columnId", "title", "description", "priority", "dueAt", "assigneeId", "position",
+            "createdAt", "completedAt", "updatedAt", "pending", "deletedAt",
+            "repeatUnit", "repeatInterval", "repeatWeekdays", "repeatAnchorDay", "repeatSuccessorId",
+        ).forEach { assertEquals(it, column(tableV13("tasks"), it), column(tableV14("tasks"), it)) }
+        assertTrue(tableV14("tasks").contains("index_tasks_columnId_position"))
+    }
+
+    @Test
+    fun v14_soloAnadeTaskListsYListIdRespectoAv13() {
+        val tablesV13 = Regex("\"tableName\": \"(\\w+)\"").findAll(schemaV13).map { it.groupValues[1] }.toSet()
+        val tablesV14 = Regex("\"tableName\": \"(\\w+)\"").findAll(schemaV14).map { it.groupValues[1] }.toSet()
+
+        assertEquals(tablesV13 + "task_lists", tablesV14)
+        (tablesV13 - "tasks").forEach { table ->
+            assertEquals(
+                table,
+                tableV13(table).substringBefore("\n      }"),
+                tableV14(table).substringBefore("\n      }"),
+            )
+        }
+        val columnsV13 = Regex("\"columnName\": \"(\\w+)\"").findAll(tableV13("tasks").substringBefore("\"primaryKey\"")).map { it.groupValues[1] }.toSet()
+        val columnsV14 = Regex("\"columnName\": \"(\\w+)\"").findAll(tableV14("tasks").substringBefore("\"primaryKey\"")).map { it.groupValues[1] }.toSet()
+        assertEquals(columnsV13 + "listId", columnsV14)
+    }
+
+    private fun tableV14(name: String): String {
+        val start = schemaV14.indexOf("\"tableName\": \"$name\"")
+        assertTrue("el esquema v14 debe declarar la tabla $name", start >= 0)
+        val nextTable = schemaV14.indexOf("\"tableName\":", start + 1)
+        return schemaV14.substring(start, if (nextTable < 0) schemaV14.length else nextTable)
     }
 
     private fun tableV13(name: String): String {

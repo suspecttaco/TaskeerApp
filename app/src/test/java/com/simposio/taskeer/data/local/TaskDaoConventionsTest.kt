@@ -226,16 +226,62 @@ class TaskDaoConventionsTest {
     }
 
     @Test
-    fun observeInbox_filtraSinColumnaYNoBorradas() {
-        val query = querySource("observeInbox")
+    fun observeByList_filtraPorListIdYNoBorradas() {
+        val query = querySource("observeByList")
 
-        assertTrue(query.contains("WHERE columnId IS NULL AND deletedAt IS NULL"))
-        assertEquals(Flow::class.java, method("observeInbox").returnType)
+        assertTrue(query.contains("WHERE listId = :listId AND deletedAt IS NULL"))
+        assertEquals(Flow::class.java, method("observeByList").returnType)
+        assertFalse("observeInbox desaparece", taskDaoSource().contains("observeInbox"))
     }
 
     @Test
-    fun observeInbox_ordenaPorCreacionDescendente() {
-        assertTrue(querySource("observeInbox").contains("ORDER BY createdAt DESC, id ASC"))
+    fun observeByList_ordenaPorCreacionDescendente() {
+        assertTrue(querySource("observeByList").contains("ORDER BY createdAt DESC, id ASC"))
+    }
+
+    @Test
+    fun countInList_cuentaLasNoBorradasDeLaLista() {
+        val query = querySource("countInList")
+
+        assertTrue(query.contains("WHERE listId = :listId AND deletedAt IS NULL"))
+        assertTrue(method("countInList").isSuspend())
+        assertFalse("countInbox desaparece", taskDaoSource().contains("countInbox"))
+    }
+
+    @Test
+    fun observeActiveCountsByList_cuentaPendientesNoBorradas() {
+        val query = querySource("observeActiveCountsByList")
+
+        assertTrue(query.contains("deletedAt IS NULL"))
+        assertTrue("solo pendientes", query.contains("completedAt IS NULL"))
+        assertTrue(query.contains("listId IS NOT NULL"))
+        assertTrue(query.contains("GROUP BY listId"))
+        assertEquals(Flow::class.java, method("observeActiveCountsByList").returnType)
+    }
+
+    @Test
+    fun observeCountsByColumn_excluyeTareasDeLista() {
+        val query = querySource("observeCountsByColumn")
+
+        assertTrue(query.contains("columnId IS NOT NULL"))
+        assertFalse(query.contains("listId"))
+    }
+
+    @Test
+    fun countByColumn_noCuentaTareasDeLista() {
+        val query = querySource("countByColumn")
+
+        assertTrue(query.contains("WHERE columnId = :columnId"))
+        assertFalse(query.contains("listId"))
+    }
+
+    @Test
+    fun observeReminderCandidates_incluyeTareasDeLista() {
+        val query = querySource("observeReminderCandidates")
+
+        assertFalse("no depende de la ubicación", query.contains("columnId"))
+        assertFalse(query.contains("listId"))
+        assertTrue(query.contains("tasks.dueAt IS NOT NULL AND tasks.deletedAt IS NULL"))
     }
 
     @Test
@@ -310,9 +356,11 @@ class TaskDaoConventionsTest {
         parameterTypes.lastOrNull()?.name == "kotlin.coroutines.Continuation"
 
     private class FakeTaskDao(private val columnDao: FakeColumnDao) : TaskDao() {
-        override fun observeInbox(): Flow<List<TaskEntity>> = emptyFlow()
+        override fun observeByList(listId: String): Flow<List<TaskEntity>> = emptyFlow()
 
-        override suspend fun countInbox(): Int = 0
+        override fun observeActiveCountsByList(): Flow<List<ListCountRow>> = emptyFlow()
+
+        override suspend fun countInList(listId: String): Int = 0
 
         override fun observeCountsByColumn(): Flow<List<ColumnCountRow>> = emptyFlow()
 

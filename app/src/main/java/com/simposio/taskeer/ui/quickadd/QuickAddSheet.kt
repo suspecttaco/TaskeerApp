@@ -79,7 +79,7 @@ class QuickAddActions(
     val onBack: () -> BackResult,
     val onTitleChange: (String) -> Unit,
     val onTogglePanel: (QuickAddPanel) -> Unit,
-    val onSelectInbox: () -> Unit,
+    val onSelectList: (String) -> Unit,
     val onSelectColumn: (String) -> Unit,
     val onSelectPriority: (TaskPriority) -> Unit,
     val onSelectPreset: (QuickAddDatePreset) -> Unit,
@@ -100,7 +100,7 @@ fun rememberQuickAddHost(viewModelFactory: ViewModelProvider.Factory, context: Q
                 onBack = viewModel::onBack,
                 onTitleChange = viewModel::onTitleChange,
                 onTogglePanel = viewModel::togglePanel,
-                onSelectInbox = viewModel::selectInbox,
+                onSelectList = viewModel::selectList,
                 onSelectColumn = viewModel::selectColumn,
                 onSelectPriority = viewModel::selectPriority,
                 onSelectPreset = viewModel::selectPreset,
@@ -222,9 +222,10 @@ private fun QuickAddRows(state: QuickAddUiState, actions: QuickAddActions) {
     ) {
         DestinationOptions(
             destinations = state.destinations,
-            allowInbox = true,
+            lists = state.lists,
+            selectedListId = (state.destination as? QuickAddDestination.InList)?.listId,
             selectedColumnId = (state.destination as? QuickAddDestination.InColumn)?.columnId,
-            onSelectInbox = actions.onSelectInbox,
+            onSelectList = actions.onSelectList,
             onSelectColumn = actions.onSelectColumn,
         )
     }

@@ -1,6 +1,7 @@
 package com.simposio.taskeer.data.repository
 
 import com.simposio.taskeer.data.local.ColumnCountRow
+import com.simposio.taskeer.data.local.ListCountRow
 import com.simposio.taskeer.data.local.MyDayEntryEntity
 import com.simposio.taskeer.data.local.SubtaskDao
 import com.simposio.taskeer.data.local.SubtaskEntity
@@ -332,9 +333,11 @@ class SubtaskRepositoryImplTest {
     }
 
     private class FakeTaskDao(private val task: TaskEntity) : TaskDao() {
-        override fun observeInbox(): Flow<List<TaskEntity>> = emptyFlow()
+        override fun observeByList(listId: String): Flow<List<TaskEntity>> = emptyFlow()
 
-        override suspend fun countInbox(): Int = 0
+        override fun observeActiveCountsByList(): Flow<List<ListCountRow>> = emptyFlow()
+
+        override suspend fun countInList(listId: String): Int = 0
 
         override fun observeCountsByColumn(): Flow<List<ColumnCountRow>> = emptyFlow()
 

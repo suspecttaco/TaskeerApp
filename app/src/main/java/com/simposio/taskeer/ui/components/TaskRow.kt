@@ -199,7 +199,7 @@ private fun RowContent(
 @Composable
 private fun SecondLine(row: TaskRowUi) {
     val due = row.due
-    val board = if (row.showBoard) row.boardName ?: stringResource(R.string.inbox_title) else null
+    val board = if (row.showBoard) row.boardName ?: row.listName ?: stringResource(R.string.inbox_title) else null
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val style = MaterialTheme.typography.labelMedium
     Row(

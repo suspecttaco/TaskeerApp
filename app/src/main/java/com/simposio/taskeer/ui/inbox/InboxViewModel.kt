@@ -3,8 +3,10 @@ package com.simposio.taskeer.ui.inbox
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.simposio.taskeer.data.repository.MyDayRepository
+import com.simposio.taskeer.data.repository.TaskListRepository
 import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.date.DateTimeConverter
+import com.simposio.taskeer.domain.list.effectiveListId
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.Task
@@ -15,31 +17,49 @@ import com.simposio.taskeer.ui.tasks.DUE_DATE_TIME_FORMATTER
 import com.simposio.taskeer.ui.tasks.TaskRescheduler
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class InboxViewModel(
     private val taskRepository: TaskRepository,
+    taskListRepository: TaskListRepository,
     private val myDayRepository: MyDayRepository,
     private val dateTimeConverter: DateTimeConverter,
     private val rescheduler: TaskRescheduler = TaskRescheduler(taskRepository, dateTimeConverter),
     private val now: () -> Instant = Instant::now,
+    selectedListId: StateFlow<String?> = MutableStateFlow(null),
 ) : ViewModel() {
 
     private val error = MutableStateFlow<DomainError?>(null)
 
+    // La lista elegida, o la por defecto si no hay elegida o se borró.
+    private val currentListId: Flow<String?> = combine(selectedListId, taskListRepository.observeLists()) { selected, lists ->
+        effectiveListId(selected, lists.map { it.list })
+    }.distinctUntilChanged()
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<InboxUiState> = combine(
-        taskRepository.observeInbox(),
+        currentListId.flatMapLatest { listId -> if (listId == null) flowOf(emptyList()) else taskRepository.observeList(listId) },
+        currentListId,
         myDayRepository.observeMarkedTaskIds(),
         error,
-    ) { tasks, marked, error ->
+    ) { tasks, listId, marked, error ->
         val instant = now()
         val (pending, completed) = tasks.partition { !it.isCompleted }
-        InboxUiState(items = (pending + completed).map { it.toUi(it.id in marked, instant) }, error = error)
+        InboxUiState(
+            items = (pending + completed).map { it.toUi(it.id in marked, instant) },
+            listId = listId,
+            error = error,
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), InboxUiState())
 
     fun toggleMarked(taskId: String) {
@@ -62,7 +82,7 @@ class InboxViewModel(
         }
     }
 
-    // PICK_DATE y ASSIGN_TO_BOARD abren superficies de la pantalla y no pasan por aquí.
+    // PICK_DATE, ASSIGN_TO_BOARD y MOVE_TO_LIST abren superficies de la pantalla y no pasan por aquí.
     fun onRowAction(taskId: String, action: RowAction) {
         when (action) {
             RowAction.COMPLETE, RowAction.REOPEN -> toggleCompleted(taskId)

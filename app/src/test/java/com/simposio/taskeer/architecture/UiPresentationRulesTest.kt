@@ -174,7 +174,7 @@ class UiPresentationRulesTest {
         val sheetFiles = uiFiles().filter { it.readText().contains("ModalBottomSheet(") }
         val names = sheetFiles.map { it.name }.toSet()
 
-        assertEquals(setOf("QuickAddSheet.kt", "TaskActionsSheet.kt", "AssignToBoardHost.kt"), names)
+        assertEquals(setOf("QuickAddSheet.kt", "TaskActionsSheet.kt", "AssignToBoardHost.kt", "MoveToListHost.kt"), names)
         sheetFiles.forEach { file ->
             val text = file.readText()
             assertTrue("${file.name}: asa", text.contains("dragHandle ="))
@@ -290,6 +290,10 @@ class UiPresentationRulesTest {
             "ui/quickadd/QuickAddSheet.kt",
             "ui/tasks/TaskActionsSheet.kt",
             "ui/tasks/AssignToBoardHost.kt",
+            "ui/tasks/MoveToListHost.kt",
+            "ui/lists/TaskListSelector.kt",
+            "ui/lists/TaskListNameDialog.kt",
+            "ui/lists/ConfirmDeleteListDialog.kt",
             "ui/myday/MyDaySortMenu.kt",
             "ui/myday/MyDayScreen.kt",
             "ui/inbox/InboxScreen.kt",

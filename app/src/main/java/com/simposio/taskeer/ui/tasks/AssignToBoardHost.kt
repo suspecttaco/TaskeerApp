@@ -72,9 +72,7 @@ fun rememberAssignToBoardHost(viewModelFactory: ViewModelProvider.Factory): (Str
                 }
                 DestinationOptions(
                     destinations = state.destinations,
-                    allowInbox = false,
                     selectedColumnId = null,
-                    onSelectInbox = {},
                     onSelectColumn = viewModel::choose,
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                     error = state.error,

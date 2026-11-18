@@ -5,7 +5,7 @@ import com.simposio.taskeer.domain.model.Task
 import java.time.LocalDate
 import java.time.ZoneId
 
-data class PlannedItem(val task: Task, val boardId: String?, val boardName: String?)
+data class PlannedItem(val task: Task, val boardId: String?, val boardName: String?, val listName: String? = null)
 
 data class PlannedDay(val date: LocalDate, val items: List<PlannedItem>)
 

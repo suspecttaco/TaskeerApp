@@ -1,6 +1,7 @@
 package com.simposio.taskeer.di
 
 import com.simposio.taskeer.data.local.ColumnCountRow
+import com.simposio.taskeer.data.local.ListCountRow
 import com.simposio.taskeer.data.local.MyDayEntryEntity
 import com.simposio.taskeer.data.local.ReminderCandidateRow
 import com.simposio.taskeer.data.local.ReminderEntity
@@ -20,12 +21,14 @@ import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.date.TimeZoneProvider
 import com.simposio.taskeer.testing.FakeDestinationTaskRepository
 import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
+import com.simposio.taskeer.testing.FakeTaskListRepository
 import com.simposio.taskeer.testing.InMemoryCheckpointStore
 import com.simposio.taskeer.testing.RecordingNotifier
 import com.simposio.taskeer.testing.RecordingReminderScheduler
 import com.simposio.taskeer.testing.UnusedColumnDao
 import com.simposio.taskeer.testing.UnusedReminderDao
 import com.simposio.taskeer.testing.UnusedSubtaskDao
+import com.simposio.taskeer.testing.UnusedTaskListDao
 import com.simposio.taskeer.ui.myday.MyDayViewModel
 import com.simposio.taskeer.ui.tasks.RemindersViewModel
 import com.simposio.taskeer.ui.tasks.SubtasksViewModel
@@ -65,6 +68,8 @@ class AppContainerFactoryTest {
             UnusedColumnDao(),
             UnusedSubtaskDao(),
             UnusedReminderDao(),
+            UnusedTaskListDao(),
+            { "lista" },
             zone,
         )
 
@@ -73,6 +78,23 @@ class AppContainerFactoryTest {
         assertTrue(
             "el contenedor debe cablear el proveedor del sistema",
             factorySource().contains("timeZone = SystemTimeZoneProvider"),
+        )
+    }
+
+    @Test
+    fun taskListRepository_seConstruyeConElDao() {
+        val listDao = UnusedTaskListDao()
+        val taskDao = FakeTaskDao()
+
+        val repository = createTaskListRepository(listDao, taskDao)
+
+        val listField = repository.javaClass.getDeclaredField("listDao").apply { isAccessible = true }
+        val taskField = repository.javaClass.getDeclaredField("taskDao").apply { isAccessible = true }
+        assertSame(listDao, listField.get(repository))
+        assertSame(taskDao, taskField.get(repository))
+        assertTrue(
+            "el contenedor debe construir el repositorio de listas con los DAOs de la base",
+            factorySource().contains("createTaskListRepository(database.taskListDao(), database.taskDao())"),
         )
     }
 
@@ -93,6 +115,7 @@ class AppContainerFactoryTest {
             boardRepository = stub<BoardRepository>(),
             columnRepository = stub<ColumnRepository>(),
             taskRepository = stub<TaskRepository>(),
+            taskListRepository = FakeTaskListRepository(),
             subtaskRepository = stub<SubtaskRepository>(),
             myDayRepository = stub<MyDayRepository>(),
             plannedRepository = stub<PlannedRepository>(),
@@ -121,6 +144,7 @@ class AppContainerFactoryTest {
             boardRepository = stub<BoardRepository>(),
             columnRepository = stub<ColumnRepository>(),
             taskRepository = tasks,
+            taskListRepository = FakeTaskListRepository(),
             subtaskRepository = stub<SubtaskRepository>(),
             myDayRepository = myDay,
             plannedRepository = stub<PlannedRepository>(),
@@ -147,6 +171,7 @@ class AppContainerFactoryTest {
             boardRepository = stub<BoardRepository>(),
             columnRepository = stub<ColumnRepository>(),
             taskRepository = stub<TaskRepository>(),
+            taskListRepository = FakeTaskListRepository(),
             subtaskRepository = stub<SubtaskRepository>(),
             myDayRepository = stub<MyDayRepository>(),
             plannedRepository = planned,
@@ -169,6 +194,7 @@ class AppContainerFactoryTest {
             boardRepository = stub<BoardRepository>(),
             columnRepository = stub<ColumnRepository>(),
             taskRepository = stub<TaskRepository>(),
+            taskListRepository = FakeTaskListRepository(),
             subtaskRepository = stub<SubtaskRepository>(),
             myDayRepository = stub<MyDayRepository>(),
             plannedRepository = stub<PlannedRepository>(),
@@ -199,9 +225,11 @@ class AppContainerFactoryTest {
     ) { _, method, _ -> error("${method.name} no se usa en este test") } as T
 
     private class FakeTaskDao : TaskDao() {
-        override fun observeInbox(): Flow<List<TaskEntity>> = emptyFlow()
+        override fun observeByList(listId: String): Flow<List<TaskEntity>> = emptyFlow()
 
-        override suspend fun countInbox(): Int = 0
+        override fun observeActiveCountsByList(): Flow<List<ListCountRow>> = emptyFlow()
+
+        override suspend fun countInList(listId: String): Int = 0
 
         override fun observeCountsByColumn(): Flow<List<ColumnCountRow>> = emptyFlow()
 

@@ -21,7 +21,7 @@ class PlannedRepositoryImpl(
         dayWindows.observe(),
         myDayDao.observeDated(LocalUser.ID),
     ) { window, rows ->
-        val items = rows.map { row -> row.toMyDayTask().let { PlannedItem(it.task, it.boardId, it.boardName) } }
+        val items = rows.map { row -> row.toMyDayTask().let { PlannedItem(it.task, it.boardId, it.boardName, it.listName) } }
         groupPlanned(items, window, timeZone.current())
     }
 }

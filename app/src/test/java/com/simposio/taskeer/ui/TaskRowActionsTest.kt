@@ -28,6 +28,22 @@ class TaskRowActionsTest {
     )
 
     @Test
+    fun tareaDeLista_ofreceMoverALista() {
+        val inbox = actions(RowContext.INBOX, inbox = true).sheet
+
+        assertTrue(RowAction.MOVE_TO_LIST in inbox)
+        assertEquals(RowAction.ASSIGN_TO_BOARD, inbox.last())
+        assertEquals(inbox.indexOf(RowAction.MOVE_TO_LIST) + 1, inbox.indexOf(RowAction.ASSIGN_TO_BOARD))
+    }
+
+    @Test
+    fun moverALista_soloEnLaPantallaTareas() {
+        listOf(RowContext.MY_DAY, RowContext.PLANNED, RowContext.SUGGESTION).forEach { context ->
+            assertFalse(context.name, RowAction.MOVE_TO_LIST in actions(context, marked = true, inbox = true).sheet)
+        }
+    }
+
+    @Test
     fun miDia_derecha_completa() {
         assertEquals(RowAction.COMPLETE, actions(RowContext.MY_DAY, marked = true).swipeEnd)
     }

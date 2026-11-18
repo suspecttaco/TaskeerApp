@@ -2,6 +2,7 @@ package com.simposio.taskeer.data.repository
 
 import com.simposio.taskeer.data.local.BoardEntity
 import com.simposio.taskeer.data.local.ColumnCountRow
+import com.simposio.taskeer.data.local.ListCountRow
 import com.simposio.taskeer.data.local.ColumnDao
 import com.simposio.taskeer.data.local.ColumnEntity
 import com.simposio.taskeer.data.local.MyDayDao
@@ -15,6 +16,7 @@ import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.TaskEntity
 import com.simposio.taskeer.domain.date.dayWindowAt
 import com.simposio.taskeer.testing.UnusedReminderDao
+import com.simposio.taskeer.testing.UnusedTaskListDao
 import com.simposio.taskeer.testing.UnusedSubtaskDao
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
@@ -466,7 +468,7 @@ class MyDayRepositoryImplTest {
             override suspend fun upsertAll(columns: List<ColumnEntity>) = Unit
             override suspend fun insertBoard(board: BoardEntity) = Unit
         }
-        val taskRepository = TaskRepositoryImpl(WritingTaskDao(fixture.dao), columns, UnusedSubtaskDao(), UnusedReminderDao(), now = { now })
+        val taskRepository = TaskRepositoryImpl(WritingTaskDao(fixture.dao), columns, UnusedSubtaskDao(), UnusedReminderDao(), UnusedTaskListDao(), { error("no se usa") }, now = { now })
 
         taskRepository.createTask("c1", TaskDraft(title = "Vencida", dueAt = now.minusSeconds(60)))
 
@@ -949,9 +951,11 @@ class MyDayRepositoryImplTest {
     }
 
     private class WritingTaskDao(private val myDayDao: FakeMyDayDao) : TaskDao() {
-        override fun observeInbox(): Flow<List<TaskEntity>> = emptyFlow()
+        override fun observeByList(listId: String): Flow<List<TaskEntity>> = emptyFlow()
 
-        override suspend fun countInbox(): Int = 0
+        override fun observeActiveCountsByList(): Flow<List<ListCountRow>> = emptyFlow()
+
+        override suspend fun countInList(listId: String): Int = 0
 
         override fun observeCountsByColumn(): Flow<List<ColumnCountRow>> = emptyFlow()
 
@@ -981,9 +985,11 @@ class MyDayRepositoryImplTest {
     }
 
     private class FakeTaskDao(private val myDayDao: FakeMyDayDao) : TaskDao() {
-        override fun observeInbox(): Flow<List<TaskEntity>> = emptyFlow()
+        override fun observeByList(listId: String): Flow<List<TaskEntity>> = emptyFlow()
 
-        override suspend fun countInbox(): Int = 0
+        override fun observeActiveCountsByList(): Flow<List<ListCountRow>> = emptyFlow()
+
+        override suspend fun countInList(listId: String): Int = 0
 
         override fun observeCountsByColumn(): Flow<List<ColumnCountRow>> = emptyFlow()
 

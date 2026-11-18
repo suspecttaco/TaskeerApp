@@ -4,6 +4,7 @@ import java.time.Instant
 
 data class Task(
     val columnId: String?,
+    val listId: String? = null,
     val title: String,
     val description: String?,
     val priority: TaskPriority,
@@ -18,6 +19,6 @@ data class Task(
 ) {
     val id: String get() = sync.clientId
     val isDeleted: Boolean get() = sync.isDeleted
-    val isInbox: Boolean get() = columnId == null
+    val isInList: Boolean get() = columnId == null
     val isCompleted: Boolean get() = completedAt != null
 }

@@ -17,6 +17,7 @@ data class MyDayItem(
     val boardName: String?,
     val markedAt: Instant?,
     val isAssigned: Boolean,
+    val listName: String? = null,
 ) {
     val isMarked: Boolean get() = markedAt != null
 }
@@ -70,6 +71,7 @@ private fun MyDayTask.toItem(isAssigned: Boolean) = MyDayItem(
     boardName = boardName,
     markedAt = addedAt,
     isAssigned = isAssigned,
+    listName = listName,
 )
 
 private fun TaskPriority.rank(): Int = when (this) {

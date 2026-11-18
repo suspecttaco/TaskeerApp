@@ -8,6 +8,7 @@ import com.simposio.taskeer.data.repository.PlannedRepository
 import com.simposio.taskeer.data.repository.PreferencesRepository
 import com.simposio.taskeer.data.repository.ReminderRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
+import com.simposio.taskeer.data.repository.TaskListRepository
 import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.date.TimeZoneProvider
 import com.simposio.taskeer.domain.model.Board
@@ -26,6 +27,7 @@ import com.simposio.taskeer.domain.planned.PlannedView
 import com.simposio.taskeer.testing.FakePreferencesRepository
 import com.simposio.taskeer.testing.FakeReminderRepository
 import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
+import com.simposio.taskeer.testing.FakeTaskListRepository
 import com.simposio.taskeer.testing.InMemoryCheckpointStore
 import com.simposio.taskeer.testing.RecordingNotifier
 import com.simposio.taskeer.testing.RecordingReminderScheduler
@@ -78,6 +80,15 @@ class AppContainerTest {
         val container = container(taskRepository = tasks)
 
         assertSame(tasks, container.taskRepository)
+    }
+
+    @Test
+    fun taskListRepository_noEsNulo() {
+        val lists = FakeTaskListRepository()
+
+        val container = container(taskListRepository = lists)
+
+        assertSame(lists, container.taskListRepository)
     }
 
     @Test
@@ -135,6 +146,7 @@ class AppContainerTest {
         boardRepository: BoardRepository = FakeBoardRepository(),
         columnRepository: ColumnRepository = FakeColumnRepository(),
         taskRepository: TaskRepository = FakeTaskRepository(),
+        taskListRepository: TaskListRepository = FakeTaskListRepository(),
         subtaskRepository: SubtaskRepository = FakeSubtaskRepository(),
         myDayRepository: MyDayRepository = FakeMyDayRepository(),
         plannedRepository: PlannedRepository = FakePlannedRepository(),
@@ -147,6 +159,7 @@ class AppContainerTest {
         boardRepository = boardRepository,
         columnRepository = columnRepository,
         taskRepository = taskRepository,
+        taskListRepository = taskListRepository,
         subtaskRepository = subtaskRepository,
         myDayRepository = myDayRepository,
         plannedRepository = plannedRepository,
@@ -203,7 +216,7 @@ class AppContainerTest {
     }
 
     private class FakeTaskRepository : TaskRepository {
-        override fun observeInbox(): Flow<List<Task>> = emptyFlow()
+        override fun observeList(listId: String): Flow<List<Task>> = emptyFlow()
 
         override fun observeActiveCountsByColumn(): Flow<Map<String, Int>> = emptyFlow()
 
@@ -220,12 +233,15 @@ class AppContainerTest {
 
         override suspend fun getTask(id: String): DomainResult<Task> = unused()
 
-        override suspend fun createTask(columnId: String?, draft: TaskDraft): DomainResult<Task> = unused()
+        override suspend fun createTask(columnId: String?, draft: TaskDraft, listId: String?): DomainResult<Task> = unused()
 
         override suspend fun createTaskWithExtras(
             columnId: String?,
             creation: TaskCreation,
+            listId: String?,
         ): DomainResult<Task> = unused()
+
+        override suspend fun moveToList(id: String, listId: String): DomainResult<Task> = unused()
 
         override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> = unused()
 

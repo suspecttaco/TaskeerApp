@@ -19,6 +19,7 @@ import com.simposio.taskeer.ui.components.RowAction
 import com.simposio.taskeer.ui.planned.PlannedSectionKind
 import com.simposio.taskeer.ui.planned.PlannedViewModel
 import com.simposio.taskeer.ui.tasks.TaskRescheduler
+import com.simposio.taskeer.ui.tasks.toRow
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -183,6 +184,21 @@ class PlannedViewModelTest {
 
         assertEquals(listOf("a" to true), tasks.completions)
         assertNull(tasks.updates.single().second.dueAt)
+    }
+
+    @Test
+    fun tareaDeLista_muestraElNombreDeLaLista() = runTest {
+        val shopping = item("leche", "2026-11-18T09:00:00Z").let {
+            it.copy(task = it.task.copy(columnId = null, listId = "compras"), boardId = null, boardName = null, listName = "Compras")
+        }
+        repository.set(shopping)
+        val viewModel = viewModel()
+
+        val row = viewModel.uiState.value.sections.single().items.single()
+
+        assertEquals("Compras", row.listName)
+        assertNull(row.boardName)
+        assertEquals("Compras", row.toRow().listName)
     }
 
     private fun TestScope.viewModel(): PlannedViewModel {

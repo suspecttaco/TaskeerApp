@@ -3,6 +3,7 @@ package com.simposio.taskeer.ui
 import com.simposio.taskeer.data.repository.MyDayRepository
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.date.TimeZoneProvider
+import com.simposio.taskeer.domain.list.SEEDED_TASK_LIST_ID
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.MyDay
@@ -14,6 +15,8 @@ import com.simposio.taskeer.domain.model.TaskRepeat
 import com.simposio.taskeer.domain.task.RescheduleTarget
 import com.simposio.taskeer.domain.task.successorIdFor
 import com.simposio.taskeer.testing.FakeDestinationTaskRepository
+import com.simposio.taskeer.testing.FakeTaskListRepository
+import com.simposio.taskeer.testing.listSummary
 import com.simposio.taskeer.ui.components.RowAction
 import com.simposio.taskeer.ui.inbox.InboxViewModel
 import com.simposio.taskeer.ui.tasks.TaskRescheduler
@@ -45,6 +48,9 @@ class InboxViewModelTest {
     private val madrid = DateTimeConverter(TimeZoneProvider { ZoneId.of("Europe/Madrid") })
     private val tasks = FakeDestinationTaskRepository()
     private val myDay = FakeMarkedRepository()
+    private val lists = FakeTaskListRepository(
+        listOf(listSummary(SEEDED_TASK_LIST_ID, "Tareas"), listSummary("compras", "Compras", position = 1)),
+    )
 
     @Before
     fun setUp() {
@@ -136,7 +142,7 @@ class InboxViewModelTest {
     }
 
     @Test
-    fun completadas_vanDespuesDeLasPendientes() = runTest {
+    fun tareas_pendientesYLuegoCompletadas() = runTest {
         tasks.inbox.value = listOf(task("hecha", completedAt = now), task("p1"), task("p2"))
 
         val items = viewModel().uiState.value.items
@@ -220,8 +226,71 @@ class InboxViewModelTest {
         assertEquals(Instant.parse("2026-11-09T17:30:00Z"), tasks.updates.single().second.dueAt)
     }
 
-    private fun task(id: String, dueAt: Instant? = null, completedAt: Instant? = null) = Task(
+    @Test
+    fun estadoInicial_esLaListaPorDefecto() = runTest {
+        tasks.inbox.value = listOf(task("a"), task("b", listId = "compras"))
+
+        val state = viewModel().uiState.value
+
+        assertEquals(SEEDED_TASK_LIST_ID, state.listId)
+        assertEquals(listOf("a"), state.items.map { it.id })
+    }
+
+    @Test
+    fun cambiarDeLista_observaLasTareasDeLaLista() = runTest {
+        tasks.inbox.value = listOf(task("a"), task("b", listId = "compras"))
+        val selected = MutableStateFlow<String?>(null)
+        val viewModel = viewModel(selected)
+
+        selected.value = "compras"
+
+        assertEquals("compras", viewModel.uiState.value.listId)
+        assertEquals(listOf("b"), viewModel.uiState.value.items.map { it.id })
+    }
+
+    @Test
+    fun listaSeleccionadaBorrada_muestraLaPorDefectoResultante() = runTest {
+        tasks.inbox.value = listOf(task("a"), task("b", listId = "compras"))
+        val selected = MutableStateFlow<String?>("compras")
+        val viewModel = viewModel(selected)
+        assertEquals(listOf("b"), viewModel.uiState.value.items.map { it.id })
+
+        lists.lists.value = lists.lists.value.filter { it.list.id != "compras" }
+
+        assertEquals(SEEDED_TASK_LIST_ID, viewModel.uiState.value.listId)
+        assertEquals(listOf("a"), viewModel.uiState.value.items.map { it.id })
+    }
+
+    @Test
+    fun laListaPorDefectoEsLaDeMenorPosicion_noLaSembrada() = runTest {
+        lists.lists.value = listOf(listSummary("compras", "Compras", position = 1))
+        tasks.inbox.value = listOf(task("a"), task("b", listId = "compras"))
+
+        val state = viewModel().uiState.value
+
+        assertEquals("compras", state.listId)
+        assertEquals(listOf("b"), state.items.map { it.id })
+    }
+
+    @Test
+    fun moverALista_laTareaSaleDeLaLista() = runTest {
+        tasks.inbox.value = listOf(task("a"), task("b"))
+        val viewModel = viewModel()
+
+        tasks.moveToList("a", "compras")
+
+        assertEquals(listOf("b"), viewModel.uiState.value.items.map { it.id })
+        assertEquals(listOf("a" to "compras"), tasks.listMoves)
+    }
+
+    private fun task(
+        id: String,
+        dueAt: Instant? = null,
+        completedAt: Instant? = null,
+        listId: String = SEEDED_TASK_LIST_ID,
+    ) = Task(
         columnId = null,
+        listId = listId,
         title = "Tarea $id",
         description = null,
         priority = TaskPriority.MEDIUM,
@@ -233,9 +302,9 @@ class InboxViewModelTest {
         sync = SyncMetadata(id, Instant.EPOCH, pending = false, deletedAt = null),
     )
 
-    private fun TestScope.viewModel(): InboxViewModel {
+    private fun TestScope.viewModel(selected: MutableStateFlow<String?> = MutableStateFlow(null)): InboxViewModel {
         val rescheduler = TaskRescheduler(tasks, madrid) { LocalDate.of(2026, 11, 2) }
-        val viewModel = InboxViewModel(tasks, myDay, madrid, rescheduler) { now }
+        val viewModel = InboxViewModel(tasks, lists, myDay, madrid, rescheduler, { now }, selected)
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }

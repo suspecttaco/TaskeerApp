@@ -49,6 +49,25 @@ class TaskRowMappingTest {
     }
 
     @Test
+    fun contexto_listaOTablero() {
+        val inList = MyDayTaskUi(
+            "t1", "Leche", TaskPriority.LOW, null, "x", isOverdue = false, isMarked = false, isAssigned = false,
+            listName = "Compras",
+        ).toRow()
+        val inBoard = myDay().toRow()
+        val planned = PlannedTaskUi("t3", "Leche", TaskPriority.LOW, null, "10:30", isOverdue = false, listName = "Compras").toRow()
+        val suggestion = MyDaySuggestionUi("s1", "Leche", null, listName = "Compras").toRow()
+
+        assertEquals("Compras", inList.listName)
+        assertNull(inList.boardName)
+        assertTrue(inList.showBoard)
+        assertEquals("Proyecto", inBoard.boardName)
+        assertNull(inBoard.listName)
+        assertEquals("Compras", planned.listName)
+        assertEquals("Compras", suggestion.listName)
+    }
+
+    @Test
     fun planificado_muestraSoloLaHora() {
         val row = PlannedTaskUi("t3", "Banco", TaskPriority.URGENT, "Casa", "10:30", isOverdue = false).toRow()
 

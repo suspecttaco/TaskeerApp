@@ -656,7 +656,7 @@ class BoardViewModelTest {
     }
 
     private class FakeTaskRepository(private val tasks: MutableStateFlow<List<Task>>) : TaskRepository {
-        override fun observeInbox(): Flow<List<Task>> = emptyFlow()
+        override fun observeList(listId: String): Flow<List<Task>> = emptyFlow()
 
         override fun observeActiveCountsByColumn(): Flow<Map<String, Int>> = emptyFlow()
 
@@ -691,12 +691,15 @@ class BoardViewModelTest {
 
         override suspend fun getTask(id: String): DomainResult<Task> = error("no se usa")
 
-        override suspend fun createTask(columnId: String?, draft: TaskDraft): DomainResult<Task> = error("no se usa")
+        override suspend fun createTask(columnId: String?, draft: TaskDraft, listId: String?): DomainResult<Task> = error("no se usa")
 
         override suspend fun createTaskWithExtras(
             columnId: String?,
             creation: TaskCreation,
+            listId: String?,
         ): DomainResult<Task> = error("no se usa")
+
+        override suspend fun moveToList(id: String, listId: String): DomainResult<Task> = error("no se usa")
 
         override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> = error("no se usa")
 
@@ -708,7 +711,7 @@ class BoardViewModelTest {
             val current = tasks.value.first { it.id == id }
             // Emula R8: la sucesora nace en el mismo paso que la original completada.
             val successor = current.takeIf { completed && it.repeatSuccessorId == null }
-                ?.successor(Instant.EPOCH, ZoneOffset.UTC, current.columnId, tasks.value.count { it.columnId == current.columnId })
+                ?.successor(Instant.EPOCH, ZoneOffset.UTC, current.columnId, current.listId, tasks.value.count { it.columnId == current.columnId })
             val updated = current.copy(
                 completedAt = if (completed) Instant.EPOCH else null,
                 repeatSuccessorId = successor?.id ?: current.repeatSuccessorId,

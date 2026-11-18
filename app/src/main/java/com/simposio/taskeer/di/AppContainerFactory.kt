@@ -10,6 +10,7 @@ import com.simposio.taskeer.data.local.ColumnDao
 import com.simposio.taskeer.data.local.ReminderDao
 import com.simposio.taskeer.data.local.SubtaskDao
 import com.simposio.taskeer.data.local.TaskDao
+import com.simposio.taskeer.data.local.TaskListDao
 import com.simposio.taskeer.data.reminder.AlarmReminderScheduler
 import com.simposio.taskeer.data.reminder.HistoryRecordingNotifier
 import com.simposio.taskeer.data.reminder.NotificationReminderNotifier
@@ -23,6 +24,8 @@ import com.simposio.taskeer.data.repository.PreferencesRepositoryImpl
 import com.simposio.taskeer.data.repository.ReminderCheckpointStoreImpl
 import com.simposio.taskeer.data.repository.ReminderRepositoryImpl
 import com.simposio.taskeer.data.repository.SubtaskRepositoryImpl
+import com.simposio.taskeer.data.repository.TaskListRepository
+import com.simposio.taskeer.data.repository.TaskListRepositoryImpl
 import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.data.repository.TaskRepositoryImpl
 import com.simposio.taskeer.domain.date.TimeZoneProvider
@@ -40,11 +43,14 @@ fun createAppContainer(context: Context): AppContainer {
     )
     val database = AppDatabase.create(context)
     val preferencesRepository = PreferencesRepositoryImpl(dataStore)
+    val taskListRepository = createTaskListRepository(database.taskListDao(), database.taskDao())
     val taskRepository = createTaskRepository(
         taskDao = database.taskDao(),
         columnDao = database.columnDao(),
         subtaskDao = database.subtaskDao(),
         reminderDao = database.reminderDao(),
+        taskListDao = database.taskListDao(),
+        defaultListId = taskListRepository::defaultListId,
         timeZone = SystemTimeZoneProvider,
     )
     val reminderRepository = ReminderRepositoryImpl(database.reminderDao(), database.taskDao())
@@ -59,6 +65,7 @@ fun createAppContainer(context: Context): AppContainer {
             columnTaskCount = taskCountByColumn(database.taskDao()),
         ),
         taskRepository = taskRepository,
+        taskListRepository = taskListRepository,
         subtaskRepository = SubtaskRepositoryImpl(database.subtaskDao(), database.taskDao()),
         myDayRepository = MyDayRepositoryImpl(
             database.myDayDao(),
@@ -96,5 +103,11 @@ fun createTaskRepository(
     columnDao: ColumnDao,
     subtaskDao: SubtaskDao,
     reminderDao: ReminderDao,
+    taskListDao: TaskListDao,
+    defaultListId: suspend () -> String,
     timeZone: TimeZoneProvider,
-): TaskRepository = TaskRepositoryImpl(taskDao, columnDao, subtaskDao, reminderDao, timeZone = timeZone)
+): TaskRepository =
+    TaskRepositoryImpl(taskDao, columnDao, subtaskDao, reminderDao, taskListDao, defaultListId, timeZone = timeZone)
+
+fun createTaskListRepository(taskListDao: TaskListDao, taskDao: TaskDao): TaskListRepository =
+    TaskListRepositoryImpl(taskListDao, taskDao)

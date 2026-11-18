@@ -16,8 +16,9 @@ fun newTaskWithExtras(
     position: Int,
     now: Instant,
     clientId: String = newClientId(),
+    listId: String? = null,
 ): DomainResult<NewTaskBundle> {
-    val task = when (val result = newTask(columnId, creation.task, position, now, clientId)) {
+    val task = when (val result = newTask(columnId, creation.task, position, now, clientId, listId)) {
         is DomainResult.Failure -> return result
         is DomainResult.Success -> result.value
     }

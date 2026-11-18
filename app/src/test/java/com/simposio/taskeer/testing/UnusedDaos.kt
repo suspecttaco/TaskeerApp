@@ -7,6 +7,9 @@ import com.simposio.taskeer.data.local.ReminderDao
 import com.simposio.taskeer.data.local.ReminderEntity
 import com.simposio.taskeer.data.local.SubtaskDao
 import com.simposio.taskeer.data.local.SubtaskEntity
+import com.simposio.taskeer.data.local.TaskEntity
+import com.simposio.taskeer.data.local.TaskListDao
+import com.simposio.taskeer.data.local.TaskListEntity
 import kotlinx.coroutines.flow.Flow
 
 class UnusedColumnDao : ColumnDao() {
@@ -59,6 +62,22 @@ class UnusedReminderDao : ReminderDao() {
     override suspend fun markSent(id: String, now: Long): Int = unused()
 
     override suspend fun markDismissed(id: String, now: Long): Int = unused()
+}
+
+class UnusedTaskListDao : TaskListDao() {
+    override fun observeActive(): Flow<List<TaskListEntity>> = unused()
+
+    override suspend fun findActive(): List<TaskListEntity> = unused()
+
+    override suspend fun findById(id: String): TaskListEntity? = unused()
+
+    override suspend fun upsert(list: TaskListEntity) = unused()
+
+    override suspend fun findActiveTasks(listId: String): List<TaskEntity> = unused()
+
+    override suspend fun countTasks(listId: String): Int = unused()
+
+    override suspend fun upsertTasks(tasks: List<TaskEntity>) = unused()
 }
 
 private fun unused(): Nothing = error("este DAO no se usa en el test")

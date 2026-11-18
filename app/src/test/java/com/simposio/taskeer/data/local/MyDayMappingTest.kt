@@ -32,9 +32,27 @@ class MyDayMappingTest {
         assertNull(mapped.addedAt)
     }
 
-    private fun taskEntity(columnId: String?) = TaskEntity(
+    @Test
+    fun filaDeLista_mapeaListName() {
+        val row = MyDayRow(
+            taskEntity(columnId = null, listId = "compras"),
+            boardId = null,
+            boardName = null,
+            addedAt = null,
+            listName = "Compras",
+        )
+
+        val mapped = row.toMyDayTask()
+
+        assertEquals("Compras", mapped.listName)
+        assertEquals("compras", mapped.task.listId)
+        assertNull(mapped.boardName)
+    }
+
+    private fun taskEntity(columnId: String?, listId: String? = null) = TaskEntity(
         id = "t1",
         columnId = columnId,
+        listId = listId,
         title = "Tarea",
         description = null,
         priority = "MEDIUM",

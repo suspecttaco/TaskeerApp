@@ -19,6 +19,7 @@ import com.simposio.taskeer.domain.model.Column
 import com.simposio.taskeer.domain.model.ColumnDestination
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.SyncMetadata
+import com.simposio.taskeer.domain.model.TaskListSummary
 import com.simposio.taskeer.ui.components.AppDivider
 import com.simposio.taskeer.ui.components.SectionHeader
 import com.simposio.taskeer.ui.theme.Spacing
@@ -29,9 +30,10 @@ import java.time.Instant
 fun DestinationPickerDialog(
     title: String,
     destinations: List<BoardDestination>,
-    allowInbox: Boolean,
+    lists: List<TaskListSummary>,
+    selectedListId: String?,
     selectedColumnId: String?,
-    onSelectInbox: () -> Unit,
+    onSelectList: (String) -> Unit,
     onSelectColumn: (String) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
@@ -44,9 +46,10 @@ fun DestinationPickerDialog(
         text = {
             DestinationOptions(
                 destinations = destinations,
-                allowInbox = allowInbox,
+                lists = lists,
+                selectedListId = selectedListId,
                 selectedColumnId = selectedColumnId,
-                onSelectInbox = onSelectInbox,
+                onSelectList = onSelectList,
                 onSelectColumn = onSelectColumn,
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 error = error,
@@ -61,11 +64,13 @@ fun DestinationPickerDialog(
 @Composable
 internal fun DestinationOptions(
     destinations: List<BoardDestination>,
-    allowInbox: Boolean,
     selectedColumnId: String?,
-    onSelectInbox: () -> Unit,
     onSelectColumn: (String) -> Unit,
     modifier: Modifier = Modifier,
+    lists: List<TaskListSummary> = emptyList(),
+    selectedListId: String? = null,
+    onSelectList: (String) -> Unit = {},
+    showBoards: Boolean = true,
     error: DomainError? = null,
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap)) {
@@ -76,14 +81,17 @@ internal fun DestinationOptions(
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
-        if (allowInbox) {
-            RadioOption(
-                label = stringResource(R.string.destination_inbox),
-                selected = selectedColumnId == null,
-                onSelect = onSelectInbox,
-            )
+        if (lists.isNotEmpty()) {
+            SectionHeader(text = stringResource(R.string.destination_lists_title))
+            lists.forEach { summary ->
+                RadioOption(
+                    label = stringResource(R.string.destination_count, summary.list.name, summary.activeCount),
+                    selected = summary.list.id == selectedListId,
+                    onSelect = { onSelectList(summary.list.id) },
+                )
+            }
         }
-        if (destinations.isEmpty()) {
+        if (showBoards && destinations.isEmpty()) {
             Text(
                 text = stringResource(R.string.destination_no_boards),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -141,9 +149,10 @@ private fun DestinationPickerDialogPreview() {
         DestinationPickerDialog(
             title = "Elige destino",
             destinations = listOf(BoardDestination(board, listOf(ColumnDestination(todo, activeCount = 3)))),
-            allowInbox = true,
+            lists = emptyList(),
+            selectedListId = null,
             selectedColumnId = null,
-            onSelectInbox = {},
+            onSelectList = {},
             onSelectColumn = {},
             onDismiss = {},
         )
