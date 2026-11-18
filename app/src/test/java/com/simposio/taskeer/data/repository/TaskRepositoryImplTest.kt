@@ -8,6 +8,8 @@ import com.simposio.taskeer.data.local.MyDayEntryEntity
 import com.simposio.taskeer.data.local.ReminderCandidateRow
 import com.simposio.taskeer.data.local.ReminderEntity
 import com.simposio.taskeer.data.local.ReminderTaskStateRow
+import com.simposio.taskeer.data.local.ReminderDao
+import com.simposio.taskeer.data.local.SubtaskDao
 import com.simposio.taskeer.data.local.SubtaskEntity
 import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.TaskEntity
@@ -23,9 +25,11 @@ import com.simposio.taskeer.domain.model.SubtaskDraft
 import com.simposio.taskeer.domain.model.TaskCreation
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.model.TaskPriority
+import com.simposio.taskeer.domain.task.successorIdFor
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
@@ -52,7 +56,7 @@ class TaskRepositoryImplTest {
         val taskDao = FakeTaskDao(columnDao)
         taskDao.put(taskEntity("t0", columnId = "columna-1", position = 0))
         taskDao.put(taskEntity("t1", columnId = "columna-1", position = 1))
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now })
 
         val result = repository.createTask("columna-1", TaskDraft(title = "  Tarea nueva  "))
 
@@ -80,7 +84,7 @@ class TaskRepositoryImplTest {
     fun createTask_sinTitulo_noEscribeEnElDao() = runTest {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
         val taskDao = FakeTaskDao(columnDao)
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now })
 
         val result = repository.createTask("columna-1", TaskDraft(title = "   "))
 
@@ -95,7 +99,7 @@ class TaskRepositoryImplTest {
     fun createTask_deUnaColumnaDesconocida_fallaConNotFound() = runTest {
         val columnDao = FakeColumnDao()
         val taskDao = FakeTaskDao(columnDao)
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now })
 
         val result = repository.createTask("columna-x", TaskDraft(title = "Tarea"))
 
@@ -117,7 +121,7 @@ class TaskRepositoryImplTest {
     fun createTask_persisteLaPrioridadYElAsignadoElegidos() = runTest {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
         val taskDao = FakeTaskDao(columnDao)
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now })
 
         val result = repository.createTask(
             "columna-1",
@@ -148,7 +152,7 @@ class TaskRepositoryImplTest {
     fun createTask_sinAsignado_persisteLocalUser() = runTest {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
         val taskDao = FakeTaskDao(columnDao)
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now })
 
         val created = (repository.createTask("columna-1", TaskDraft(title = "Tarea")) as DomainResult.Success).value
 
@@ -160,7 +164,7 @@ class TaskRepositoryImplTest {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
         val taskDao = FakeTaskDao(columnDao)
         taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0, updatedAt = now))
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { later })
 
         repository.updateTask("t1", TaskDraft(title = "Tarea", assigneeId = null))
 
@@ -171,7 +175,7 @@ class TaskRepositoryImplTest {
     fun createTask_persisteElDueAtEnUtcSinDesplazarLaZona() = runTest {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
         val taskDao = FakeTaskDao(columnDao)
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now })
         val local = LocalDateTime.of(2026, 10, 22, 12, 30)
         val instant = madrid.toInstant(local)
 
@@ -192,7 +196,7 @@ class TaskRepositoryImplTest {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
         val taskDao = FakeTaskDao(columnDao)
         taskDao.put(taskEntity("t0", columnId = "columna-1", position = 0))
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now })
         val dueAt = now.plusSeconds(7200)
 
         val result = repository.createTaskWithExtras(
@@ -294,7 +298,7 @@ class TaskRepositoryImplTest {
     fun createTaskWithExtras_conColumnaInexistente_devuelveNotFoundSinEscribir() = runTest {
         val columnDao = FakeColumnDao()
         val taskDao = FakeTaskDao(columnDao)
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now })
 
         val error = failureOf(
             repository.createTaskWithExtras(
@@ -347,7 +351,7 @@ class TaskRepositoryImplTest {
     private fun extrasRepository(wipLimit: Int? = null): Pair<TaskRepositoryImpl, FakeTaskDao> {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1", wipLimit = wipLimit)) }
         val taskDao = FakeTaskDao(columnDao)
-        return TaskRepositoryImpl(taskDao, columnDao, now = { now }) to taskDao
+        return TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now }) to taskDao
     }
 
     private fun failureOf(result: DomainResult<*>): DomainError = (result as DomainResult.Failure).error
@@ -365,7 +369,7 @@ class TaskRepositoryImplTest {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
         val taskDao = FakeTaskDao(columnDao)
         taskDao.put(taskEntity("t1", columnId = "columna-1", position = 3, updatedAt = now))
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { later })
         val dueAt = Instant.parse("2026-10-23T09:00:00Z")
 
         val result = repository.updateTask(
@@ -409,7 +413,7 @@ class TaskRepositoryImplTest {
         val taskDao = FakeTaskDao(columnDao)
         taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0, updatedAt = now))
         val before = taskDao.stored.getValue("t1")
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { later })
 
         val result = repository.updateTask("t1", TaskDraft(title = "  "))
 
@@ -424,7 +428,7 @@ class TaskRepositoryImplTest {
     fun updateTask_deUnaTareaDesconocida_fallaConNotFound() = runTest {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
         val taskDao = FakeTaskDao(columnDao)
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { later })
 
         val result = repository.updateTask("no-existe", TaskDraft(title = "Tarea"))
 
@@ -438,7 +442,7 @@ class TaskRepositoryImplTest {
     fun getTask_deUnaTareaDesconocida_fallaConNotFound() = runTest {
         val columnDao = FakeColumnDao()
         val taskDao = FakeTaskDao(columnDao)
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now })
 
         val result = repository.getTask("no-existe")
 
@@ -453,7 +457,7 @@ class TaskRepositoryImplTest {
         val taskDao = FakeTaskDao(columnDao)
         taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0, updatedAt = now))
         taskDao.put(taskEntity("t2", columnId = "columna-1", position = 1, updatedAt = now))
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { later })
 
         val result = repository.deleteTask("t1")
 
@@ -478,7 +482,7 @@ class TaskRepositoryImplTest {
         taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
         taskDao.putSubtask(subtaskEntity("s1", taskId = "t1"))
         taskDao.putSubtask(subtaskEntity("s2", taskId = "t1"))
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { later })
 
         repository.deleteTask("t1")
 
@@ -500,7 +504,7 @@ class TaskRepositoryImplTest {
         val alreadyDeleted = subtaskEntity("vieja", taskId = "t1", deletedAt = now.toEpochMilli())
         taskDao.putSubtask(other)
         taskDao.putSubtask(alreadyDeleted)
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { later })
 
         repository.deleteTask("t1")
 
@@ -514,7 +518,7 @@ class TaskRepositoryImplTest {
         val taskDao = FakeTaskDao(columnDao)
         val subtask = subtaskEntity("s1", taskId = "t1")
         taskDao.putSubtask(subtask)
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { later })
 
         val result = repository.deleteTask("t1")
 
@@ -528,7 +532,7 @@ class TaskRepositoryImplTest {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
         val taskDao = FakeTaskDao(columnDao)
         taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { later })
         val writesBefore = taskDao.writeCalls
 
         repository.deleteTask("t1")
@@ -545,7 +549,7 @@ class TaskRepositoryImplTest {
         taskDao.putReminder(reminderEntity("r1", taskId = "t1", status = "PENDING"))
         taskDao.putReminder(reminderEntity("r2", taskId = "t1", status = "SENT"))
         taskDao.putReminder(reminderEntity("r3", taskId = "t2", status = "PENDING"))
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { later })
 
         repository.deleteTask("t1")
 
@@ -561,7 +565,7 @@ class TaskRepositoryImplTest {
         val columnDao = FakeColumnDao()
         val taskDao = FakeTaskDao(columnDao)
         taskDao.putReminder(reminderEntity("r1", taskId = "t1", status = "PENDING"))
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { later })
 
         repository.deleteTask("t1")
 
@@ -595,7 +599,7 @@ class TaskRepositoryImplTest {
             put(taskEntity("hecha", columnId = "columna-1", position = 1, dueAt = DUE, completedAt = now))
             put(taskEntity("bandeja-hecha", columnId = null, position = 0, dueAt = DUE, completedAt = now))
         }
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { later })
 
         assertEquals(listOf("abierta"), repository.reminderCandidates().map { it.taskId })
         assertEquals(1, repository.activeTaskCount())
@@ -612,7 +616,7 @@ class TaskRepositoryImplTest {
             put(taskEntity("abierta", columnId = "columna-1", position = 0))
             put(taskEntity("hecha", columnId = "columna-1", position = 1, completedAt = now))
         }
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { later })
 
         assertEquals(mapOf("columna-1" to 2), repository.observeActiveCountsByColumn().first())
     }
@@ -665,7 +669,7 @@ class TaskRepositoryImplTest {
             put(taskEntity("borrada", columnId = "columna-1", position = 2, dueAt = DUE, deletedAt = now))
             put(taskEntity("completada", columnId = "columna-hecha", position = 0, dueAt = DUE, completedAt = now))
         }
-        return TaskRepositoryImpl(taskDao, columnDao, now = { later })
+        return TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { later })
     }
 
     @Test
@@ -673,7 +677,7 @@ class TaskRepositoryImplTest {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
         val taskDao = FakeTaskDao(columnDao)
         taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0, updatedAt = now))
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { later })
         repository.deleteTask("t1")
         val afterDelete = taskDao.stored.getValue("t1")
         val writesAfterDelete = taskDao.writeCalls
@@ -700,7 +704,7 @@ class TaskRepositoryImplTest {
         taskDao.put(taskEntity("borrada", columnId = "columna-1", position = 0, deletedAt = later))
         taskDao.put(taskEntity("enColumnaBorrada", columnId = "columna-borrada", position = 0))
         taskDao.put(taskEntity("ajena", columnId = "columna-2", position = 0))
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now })
 
         val tasks = repository.observeTasks(BOARD_ID).first()
 
@@ -853,7 +857,7 @@ class TaskRepositoryImplTest {
         taskDao.put(taskEntity("b", columnId = "columna-1", position = 5))
         taskDao.put(taskEntity("c", columnId = "columna-1", position = 5))
         taskDao.put(taskEntity("x", columnId = "columna-2", position = 3))
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { later })
 
         repository.moveTask("a", "columna-2", 0)
 
@@ -866,7 +870,7 @@ class TaskRepositoryImplTest {
         val (taskDao, repository) = moveFixture()
         repository.moveTask("a", "columna-2", 0)
 
-        val reopened = TaskRepositoryImpl(taskDao, taskDao.columnDao, now = { later })
+        val reopened = TaskRepositoryImpl(taskDao, taskDao.columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { later })
         val tasks = reopened.observeTasks(BOARD_ID).first()
 
         assertEquals(
@@ -883,7 +887,7 @@ class TaskRepositoryImplTest {
         val taskDao = FakeTaskDao(columnDao)
         taskDao.put(taskEntity("t0", columnId = "columna-1", position = 0))
         taskDao.put(taskEntity("t1", columnId = "columna-1", position = 1))
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now })
         val writesBefore = taskDao.writeCalls
 
         val error = (repository.createTask("columna-1", TaskDraft(title = "Nueva")) as DomainResult.Failure).error
@@ -898,7 +902,7 @@ class TaskRepositoryImplTest {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1", wipLimit = 2)) }
         val taskDao = FakeTaskDao(columnDao)
         taskDao.put(taskEntity("t0", columnId = "columna-1", position = 0))
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now })
 
         val result = repository.createTask("columna-1", TaskDraft(title = "Nueva"))
 
@@ -910,7 +914,7 @@ class TaskRepositoryImplTest {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
         val taskDao = FakeTaskDao(columnDao)
         repeat(5) { taskDao.put(taskEntity("t$it", columnId = "columna-1", position = it)) }
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now })
 
         assertTrue(repository.createTask("columna-1", TaskDraft(title = "Nueva")) is DomainResult.Success)
     }
@@ -920,7 +924,7 @@ class TaskRepositoryImplTest {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1", wipLimit = 1)) }
         val taskDao = FakeTaskDao(columnDao)
         taskDao.put(taskEntity("t0", columnId = "columna-1", position = 0, deletedAt = now))
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now })
 
         assertTrue(repository.createTask("columna-1", TaskDraft(title = "Nueva")) is DomainResult.Success)
     }
@@ -930,7 +934,7 @@ class TaskRepositoryImplTest {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1", wipLimit = 1)) }
         val taskDao = FakeTaskDao(columnDao)
         taskDao.put(taskEntity("t0", columnId = "columna-1", position = 0))
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now })
 
         val result = repository.createTask("columna-1", TaskDraft(title = "  "))
 
@@ -940,7 +944,8 @@ class TaskRepositoryImplTest {
     @Test
     fun createTask_columnaInexistenteConLimite_devuelveColumnNotFound() = runTest {
         val columnDao = FakeColumnDao()
-        val repository = TaskRepositoryImpl(FakeTaskDao(columnDao), columnDao, now = { now })
+        val taskDao = FakeTaskDao(columnDao)
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now })
 
         val result = repository.createTask("nada", TaskDraft(title = "Nueva"))
 
@@ -1033,7 +1038,7 @@ class TaskRepositoryImplTest {
         taskDao.put(taskEntity("x", columnId = "columna-2", position = 0))
         taskDao.put(taskEntity("y", columnId = "columna-2", position = 1))
         taskDao.put(taskEntity("borrada", columnId = "columna-1", position = 3, deletedAt = now))
-        return taskDao to TaskRepositoryImpl(taskDao, columnDao, now = { later })
+        return taskDao to TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { later })
     }
 
     private fun completionFixture(
@@ -1041,6 +1046,7 @@ class TaskRepositoryImplTest {
         doneWip: Int? = null,
         withDone: Boolean = true,
         withOpen: Boolean = true,
+        zone: ZoneId = ZoneOffset.UTC,
     ): Pair<FakeTaskDao, TaskRepositoryImpl> {
         val columnDao = FakeColumnDao().apply {
             if (withOpen) {
@@ -1053,7 +1059,14 @@ class TaskRepositoryImplTest {
             }
         }
         val taskDao = FakeTaskDao(columnDao)
-        return taskDao to TaskRepositoryImpl(taskDao, columnDao, now = { later })
+        return taskDao to TaskRepositoryImpl(
+            taskDao,
+            columnDao,
+            taskDao.subtaskDao,
+            taskDao.reminderDao,
+            now = { later },
+            timeZone = { zone },
+        )
     }
 
     @Test
@@ -1260,6 +1273,238 @@ class TaskRepositoryImplTest {
         assertEquals(now, toOpen.completedAt)
     }
 
+    private fun repeating(id: String, columnId: String?, position: Int, dueAt: Instant? = REPEAT_DUE): TaskEntity =
+        taskEntity(id, columnId, position, dueAt = dueAt).copy(
+            repeatUnit = "DAY",
+            repeatInterval = 1,
+            repeatWeekdays = 0,
+            repeatAnchorDay = 21,
+        )
+
+    private fun FakeTaskDao.successorOf(id: String): TaskEntity = stored.getValue(successorIdFor(id))
+
+    @Test
+    fun setCompleted_tareaRepetida_creaLaSiguienteConNuevaFecha() = runTest {
+        val (taskDao, repository) = completionFixture(withDone = false)
+        taskDao.put(repeating("a", "todo", 0))
+
+        repository.setCompleted("a", true)
+
+        val next = taskDao.successorOf("a")
+        assertEquals(Instant.parse("2026-10-22T09:00:00Z").toEpochMilli(), next.dueAt)
+        assertNull(next.completedAt)
+        assertNull(next.repeatSuccessorId)
+        assertEquals("Tarea a", next.title)
+        assertEquals(successorIdFor("a"), taskDao.stored.getValue("a").repeatSuccessorId)
+        assertEquals(later.toEpochMilli(), taskDao.stored.getValue("a").completedAt)
+        assertEquals(1, taskDao.successorCalls)
+    }
+
+    @Test
+    fun setCompleted_tareaRepetida_enColumnaDeCierre_laSiguienteQuedaEnLaColumnaDeOrigen() = runTest {
+        val (taskDao, repository) = completionFixture()
+        taskDao.put(taskEntity("a", columnId = "todo", position = 0))
+        taskDao.put(repeating("b", "todo", 1))
+        taskDao.put(taskEntity("c", columnId = "todo", position = 2))
+
+        repository.setCompleted("b", true)
+
+        assertEquals("done", taskDao.stored.getValue("b").columnId)
+        assertEquals(listOf("a" to 0, "c" to 1, successorIdFor("b") to 2), taskDao.column("todo"))
+        assertEquals(1, taskDao.successorCalls)
+    }
+
+    @Test
+    fun setCompleted_tareaRepetidaEnBandeja_laSiguienteQuedaEnBandeja() = runTest {
+        val (taskDao, repository) = completionFixture()
+        taskDao.put(repeating("i", null, 0))
+
+        repository.setCompleted("i", true)
+
+        assertNull(taskDao.successorOf("i").columnId)
+        assertNull(taskDao.stored.getValue("i").columnId)
+    }
+
+    @Test
+    fun setCompleted_tareaRepetida_sinColumnaDeCierre_laSiguienteVaAlFinalDeLaColumna() = runTest {
+        val (taskDao, repository) = completionFixture(withDone = false)
+        taskDao.put(repeating("a", "todo", 0))
+        taskDao.put(taskEntity("b", columnId = "todo", position = 1))
+
+        repository.setCompleted("a", true)
+
+        assertEquals(listOf("a" to 0, "b" to 1, successorIdFor("a") to 2), taskDao.column("todo"))
+    }
+
+    @Test
+    fun setCompleted_tareaRepetida_columnaConWipLleno_creaLaSiguienteSinFallar() = runTest {
+        val (taskDao, repository) = completionFixture(todoWip = 2, withDone = false)
+        taskDao.put(repeating("a", "todo", 0))
+        taskDao.put(taskEntity("b", columnId = "todo", position = 1))
+
+        val result = repository.setCompleted("a", true)
+
+        assertTrue(result is DomainResult.Success)
+        assertEquals("todo", taskDao.successorOf("a").columnId)
+        assertEquals(3, taskDao.column("todo").size)
+    }
+
+    @Test
+    fun setCompleted_tareaRepetida_noAnadeLaSiguienteAMiDia() = runTest {
+        val (taskDao, repository) = completionFixture()
+        taskDao.put(repeating("a", "todo", 0))
+
+        repository.setCompleted("a", true)
+
+        assertTrue(taskDao.myDayEntries.isEmpty())
+    }
+
+    @Test
+    fun setCompleted_dosVeces_noDuplicaLaSiguiente() = runTest {
+        val (taskDao, repository) = completionFixture(withDone = false)
+        taskDao.put(repeating("a", "todo", 0))
+
+        repository.setCompleted("a", true)
+        repository.setCompleted("a", true)
+
+        assertEquals(1, taskDao.successorCalls)
+        assertEquals(setOf("a", successorIdFor("a")), taskDao.stored.keys)
+    }
+
+    @Test
+    fun setCompleted_completarDesmarcarYCompletar_noCreaOtraSucesora() = runTest {
+        val (taskDao, repository) = completionFixture(withDone = false)
+        taskDao.put(repeating("a", "todo", 0))
+
+        repository.setCompleted("a", true)
+        repository.setCompleted("a", false)
+        repository.setCompleted("a", true)
+
+        assertEquals(1, taskDao.successorCalls)
+        assertEquals(2, taskDao.stored.size)
+    }
+
+    @Test
+    fun setCompleted_false_tareaRepetida_conservaLaSucesora() = runTest {
+        val (taskDao, repository) = completionFixture(withDone = false)
+        taskDao.put(repeating("a", "todo", 0))
+        repository.setCompleted("a", true)
+        val successorBefore = taskDao.successorOf("a")
+
+        repository.setCompleted("a", false)
+
+        assertEquals(successorBefore, taskDao.successorOf("a"))
+        assertEquals(successorIdFor("a"), taskDao.stored.getValue("a").repeatSuccessorId)
+        assertNull(taskDao.stored.getValue("a").completedAt)
+    }
+
+    @Test
+    fun setCompleted_tareaRepetidaSinFecha_completaSinCrearSiguiente() = runTest {
+        val (taskDao, repository) = completionFixture(withDone = false)
+        taskDao.put(repeating("a", "todo", 0, dueAt = null))
+
+        val result = repository.setCompleted("a", true)
+
+        assertEquals(later, (result as DomainResult.Success).value.completedAt)
+        assertEquals(0, taskDao.successorCalls)
+        assertEquals(setOf("a"), taskDao.stored.keys)
+    }
+
+    @Test
+    fun setCompleted_tareaRepetida_copiaSubtareasActivasSinCompletar() = runTest {
+        val (taskDao, repository) = completionFixture(withDone = false)
+        taskDao.put(repeating("a", "todo", 0))
+        taskDao.putSubtask(subtaskEntity("s1", "a").copy(completed = true, position = 0))
+        taskDao.putSubtask(subtaskEntity("s2", "a", deletedAt = now.toEpochMilli()))
+
+        repository.setCompleted("a", true)
+
+        val copies = taskDao.subtasks.values.filter { it.taskId == successorIdFor("a") }
+        assertEquals(1, copies.size)
+        assertEquals("Subtarea s1", copies.single().title)
+        assertFalse(copies.single().completed)
+        assertFalse(copies.single().id == "s1")
+        assertTrue(taskDao.subtasks.getValue("s1").completed)
+    }
+
+    @Test
+    fun setCompleted_tareaRepetida_copiaElRecordatorioConElMismoDesfase() = runTest {
+        val (taskDao, repository) = completionFixture(withDone = false)
+        taskDao.put(repeating("a", "todo", 0))
+        taskDao.putReminder(reminderEntity("r1", "a", "SENT"))
+
+        repository.setCompleted("a", true)
+
+        val copy = taskDao.reminders.values.single { it.taskId == successorIdFor("a") }
+        assertEquals("PENDING", copy.status)
+        assertEquals(Instant.parse("2026-10-22T10:01:00Z").toEpochMilli(), copy.remindAt)
+        assertEquals("SENT", taskDao.reminders.getValue("r1").status)
+    }
+
+    @Test
+    fun setCompleted_tareaRepetida_sinRecordatorio_noCreaRecordatorio() = runTest {
+        val (taskDao, repository) = completionFixture(withDone = false)
+        taskDao.put(repeating("a", "todo", 0))
+
+        repository.setCompleted("a", true)
+
+        assertTrue(taskDao.reminders.isEmpty())
+    }
+
+    @Test
+    fun setCompleted_tareaRepetida_usaLaZonaInyectada() = runTest {
+        val dueAt = Instant.parse("2026-10-20T03:00:00Z")
+        val (utcDao, utcRepository) = completionFixture(withDone = false)
+        val (mexicoDao, mexicoRepository) = completionFixture(withDone = false, zone = ZoneId.of("America/Mexico_City"))
+        utcDao.put(repeating("a", "todo", 0, dueAt))
+        mexicoDao.put(repeating("a", "todo", 0, dueAt))
+
+        utcRepository.setCompleted("a", true)
+        mexicoRepository.setCompleted("a", true)
+
+        assertEquals(Instant.parse("2026-10-21T03:00:00Z").toEpochMilli(), utcDao.successorOf("a").dueAt)
+        assertEquals(Instant.parse("2026-10-22T03:00:00Z").toEpochMilli(), mexicoDao.successorOf("a").dueAt)
+    }
+
+    @Test
+    fun moveTask_aColumnaDeCierre_tareaRepetida_creaLaSiguiente() = runTest {
+        val (taskDao, repository) = completionFixture()
+        taskDao.put(repeating("a", "todo", 0))
+        taskDao.put(taskEntity("b", columnId = "todo", position = 1))
+
+        repository.moveTask("a", "done", 0)
+
+        assertEquals(listOf("b" to 0, successorIdFor("a") to 1), taskDao.column("todo"))
+        assertEquals(successorIdFor("a"), taskDao.stored.getValue("a").repeatSuccessorId)
+        assertEquals(1, taskDao.successorCalls)
+    }
+
+    @Test
+    fun assignToColumn_aColumnaDeCierre_tareaRepetida_creaLaSiguiente() = runTest {
+        val (taskDao, repository) = completionFixture()
+        taskDao.put(repeating("i", null, 0))
+
+        repository.assignToColumn("i", "done")
+
+        assertEquals("done", taskDao.stored.getValue("i").columnId)
+        assertNull(taskDao.successorOf("i").columnId)
+        assertEquals(successorIdFor("i"), taskDao.stored.getValue("i").repeatSuccessorId)
+        assertEquals(1, taskDao.successorCalls)
+    }
+
+    @Test
+    fun deleteTask_deLaOriginal_noTocaLaSucesora() = runTest {
+        val (taskDao, repository) = completionFixture(withDone = false)
+        taskDao.put(repeating("a", "todo", 0))
+        repository.setCompleted("a", true)
+        val successorBefore = taskDao.successorOf("a")
+
+        repository.deleteTask("a")
+
+        assertEquals(successorBefore, taskDao.successorOf("a"))
+        assertNull(taskDao.successorOf("a").deletedAt)
+    }
+
     private fun FakeTaskDao.column(columnId: String): List<Pair<String, Int>> =
         stored.values
             .filter { it.columnId == columnId && it.deletedAt == null }
@@ -1290,7 +1535,7 @@ class TaskRepositoryImplTest {
     fun createTask_tituloDe201_noEscribeYNombraElLimite() = runTest {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
         val taskDao = FakeTaskDao(columnDao)
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now })
 
         val result = repository.createTask("columna-1", TaskDraft(title = "x".repeat(201)))
 
@@ -1304,7 +1549,7 @@ class TaskRepositoryImplTest {
     fun createTask_descripcionDe5001_noEscribe() = runTest {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
         val taskDao = FakeTaskDao(columnDao)
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now })
 
         val result = repository.createTask("columna-1", TaskDraft(title = "T", description = "d".repeat(5001)))
 
@@ -1320,7 +1565,7 @@ class TaskRepositoryImplTest {
         val taskDao = FakeTaskDao(columnDao)
         taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
         val writesBefore = taskDao.writeCalls
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { later })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { later })
 
         val result = repository.updateTask("t1", TaskDraft(title = "x".repeat(201)))
 
@@ -1333,7 +1578,7 @@ class TaskRepositoryImplTest {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
         val taskDao = FakeTaskDao(columnDao)
         var clock = now
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { clock })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { clock })
 
         val created = (repository.createTask("columna-1", TaskDraft(title = "T")) as DomainResult.Success).value
         clock = later
@@ -1391,7 +1636,7 @@ class TaskRepositoryImplTest {
     fun createTaskWithExtras_enBandeja_noConsultaColumnas() = runTest {
         val columnDao = FakeColumnDao()
         val taskDao = FakeTaskDao(columnDao)
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now })
 
         val created = (
             repository.createTaskWithExtras(null, TaskCreation(TaskDraft(title = "Pan"), addToMyDay = true))
@@ -1410,7 +1655,7 @@ class TaskRepositoryImplTest {
         taskDao.put(taskEntity("b0", columnId = null, position = 0))
         taskDao.put(taskEntity("b1", columnId = null, position = 1))
         taskDao.put(taskEntity("borrada", columnId = null, position = 2, deletedAt = now))
-        val repository = TaskRepositoryImpl(taskDao, columnDao, now = { now })
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, now = { now })
 
         val created = (
             repository.createTaskWithExtras(null, TaskCreation(TaskDraft(title = "Pan")))
@@ -1721,6 +1966,63 @@ class TaskRepositoryImplTest {
 
         val reminders: MutableMap<String, ReminderEntity> = mutableMapOf()
 
+        val subtaskDao: SubtaskDao = object : SubtaskDao() {
+            override fun observeByTask(taskId: String): Flow<List<SubtaskEntity>> = error("no se usa")
+
+            override suspend fun findActiveByTask(taskId: String): List<SubtaskEntity> =
+                subtasks.values
+                    .filter { it.taskId == taskId && it.deletedAt == null }
+                    .sortedWith(compareBy({ it.position }, { it.id }))
+
+            override suspend fun findById(id: String): SubtaskEntity? = subtasks[id]
+
+            override fun observeTotalCount(taskId: String): Flow<Int> = error("no se usa")
+
+            override fun observeCompletedCount(taskId: String): Flow<Int> = error("no se usa")
+
+            override suspend fun upsert(subtask: SubtaskEntity) {
+                subtasks[subtask.id] = subtask
+            }
+        }
+
+        val reminderDao: ReminderDao = object : ReminderDao() {
+            override fun observePendingByTask(taskId: String): Flow<ReminderEntity?> = error("no se usa")
+
+            override fun observeAllPending(): Flow<List<ReminderEntity>> = error("no se usa")
+
+            override suspend fun findPendingByTask(taskId: String): ReminderEntity? = error("no se usa")
+
+            override suspend fun findLatestByTask(taskId: String): ReminderEntity? =
+                reminders.values.filter { it.taskId == taskId && it.deletedAt == null }.maxByOrNull { it.createdAt }
+
+            override suspend fun findById(id: String): ReminderEntity? = reminders[id]
+
+            override suspend fun findPendingUpTo(limit: Long): List<ReminderEntity> = error("no se usa")
+
+            override suspend fun minPendingAfter(after: Long): Long? = error("no se usa")
+
+            override suspend fun upsert(reminder: ReminderEntity) {
+                reminders[reminder.id] = reminder
+            }
+
+            override suspend fun markSent(id: String, now: Long): Int = error("no se usa")
+
+            override suspend fun markDismissed(id: String, now: Long): Int = error("no se usa")
+        }
+
+        var successorCalls: Int = 0
+            private set
+
+        override suspend fun upsertAllWithSuccessor(
+            tasks: List<TaskEntity>,
+            successor: TaskEntity,
+            subtasks: List<SubtaskEntity>,
+            reminder: ReminderEntity?,
+        ) {
+            successorCalls++
+            super.upsertAllWithSuccessor(tasks, successor, subtasks, reminder)
+        }
+
         fun putReminder(reminder: ReminderEntity) {
             reminders[reminder.id] = reminder
         }
@@ -1823,5 +2125,6 @@ class TaskRepositoryImplTest {
     private companion object {
         const val BOARD_ID = "tablero-1"
         val DUE: Instant = Instant.parse("2026-11-01T12:00:00Z")
+        val REPEAT_DUE: Instant = Instant.parse("2026-10-21T09:00:00Z")
     }
 }

@@ -2,13 +2,18 @@ package com.simposio.taskeer.data.repository
 
 import com.simposio.taskeer.data.local.ColumnDao
 import com.simposio.taskeer.data.local.MyDayEntryEntity
+import com.simposio.taskeer.data.local.ReminderDao
+import com.simposio.taskeer.data.local.SubtaskDao
 import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.toEntity
 import com.simposio.taskeer.data.local.toColumn
 import com.simposio.taskeer.data.local.toTask
 import com.simposio.taskeer.data.local.toCandidate
+import com.simposio.taskeer.data.local.toReminder
+import com.simposio.taskeer.data.local.toSubtask
 import com.simposio.taskeer.domain.column.COLUMN_NOT_FOUND
 import com.simposio.taskeer.domain.column.checkWipLimit
+import com.simposio.taskeer.domain.date.TimeZoneProvider
 import com.simposio.taskeer.domain.model.Column
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
@@ -29,9 +34,13 @@ import com.simposio.taskeer.domain.task.newTaskWithExtras
 import com.simposio.taskeer.domain.task.reopened
 import com.simposio.taskeer.domain.task.reopeningColumn
 import com.simposio.taskeer.domain.task.softDeleted
+import com.simposio.taskeer.domain.task.successor
+import com.simposio.taskeer.domain.task.successorReminder
+import com.simposio.taskeer.domain.task.successorSubtasks
 import com.simposio.taskeer.domain.task.updated
 import com.simposio.taskeer.domain.task.withCompletionFor
 import java.time.Instant
+import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -39,7 +48,10 @@ import kotlinx.coroutines.flow.map
 class TaskRepositoryImpl(
     private val dao: TaskDao,
     private val columnDao: ColumnDao,
+    private val subtaskDao: SubtaskDao,
+    private val reminderDao: ReminderDao,
     private val now: () -> Instant = Instant::now,
+    private val timeZone: TimeZoneProvider = TimeZoneProvider { ZoneId.systemDefault() },
 ) : TaskRepository {
 
     override fun observeTasks(boardId: String): Flow<List<Task>> =
@@ -145,10 +157,17 @@ class TaskRepositoryImpl(
                         else -> task
                     }
                 }
-                if (changed.isNotEmpty()) {
-                    dao.upsertAll(changed.map { it.toEntity() })
+                val completedNow = destination.isDoneColumn && !current.isCompleted
+                val written = when {
+                    completedNow -> {
+                        val sourcePosition =
+                            if (toColumnId == sourceColumnId) source.size else source.count { it.id != id }
+                        persistCompletion(current, changed, sourceColumnId, sourcePosition)
+                    }
+                    changed.isNotEmpty() -> changed.also { dao.upsertAll(it.map { task -> task.toEntity() }) }
+                    else -> changed
                 }
-                DomainResult.Success(changed.firstOrNull { it.id == id } ?: current)
+                DomainResult.Success(written.firstOrNull { it.id == id } ?: current)
             }
         }
     }
@@ -162,8 +181,13 @@ class TaskRepositoryImpl(
             is DomainResult.Success -> {
                 checkWipLimit(destination, position)?.let { return DomainResult.Failure(it) }
                 val assigned = result.value.withCompletionFor(destination, now())
-                dao.upsert(assigned.toEntity())
-                DomainResult.Success(assigned)
+                if (assigned.isCompleted && !current.isCompleted) {
+                    val written = persistCompletion(current, listOf(assigned), null, dao.countInbox() - 1)
+                    DomainResult.Success(written.single())
+                } else {
+                    dao.upsert(assigned.toEntity())
+                    DomainResult.Success(assigned)
+                }
             }
         }
     }
@@ -172,14 +196,15 @@ class TaskRepositoryImpl(
         val current = activeTask(id) ?: return taskNotFound()
         if (current.isCompleted == completed) return DomainResult.Success(current)
         val inPlace = if (completed) current.completed(now()) else current.reopened(now())
-        val sourceColumn = current.columnId?.let { activeColumn(it) } ?: return saveInPlace(inPlace)
+        val sourceColumn = current.columnId?.let { activeColumn(it) }
+            ?: return completeInPlace(current, inPlace, completed)
         val columns = columnDao.findActiveByBoard(sourceColumn.boardId).map { it.toColumn() }
         val destination = when {
             completed -> closingColumn(columns).takeUnless { sourceColumn.isDoneColumn }
             sourceColumn.isDoneColumn -> reopeningColumn(columns) ?: return noOpenColumn()
             else -> null
         }
-        if (destination == null) return saveInPlace(inPlace)
+        if (destination == null) return completeInPlace(current, inPlace, completed)
         val source = dao.findActiveByColumn(sourceColumn.id).map { it.toTask() }
         val target = dao.findActiveByColumn(destination.id).map { it.toTask() }
         checkWipLimit(destination, target.size)?.let { return DomainResult.Failure(it) }
@@ -190,13 +215,50 @@ class TaskRepositoryImpl(
         val changed = moved.map { task ->
             if (task.id != id) task else if (completed) task.completed(now()) else task.reopened(now())
         }
-        dao.upsertAll(changed.map { it.toEntity() })
-        return DomainResult.Success(changed.first { it.id == id })
+        val written = if (completed) {
+            persistCompletion(current, changed, sourceColumn.id, source.count { it.id != id })
+        } else {
+            changed.also { dao.upsertAll(it.map { task -> task.toEntity() }) }
+        }
+        return DomainResult.Success(written.first { it.id == id })
     }
 
-    private suspend fun saveInPlace(task: Task): DomainResult<Task> {
-        dao.upsert(task.toEntity())
-        return DomainResult.Success(task)
+    private suspend fun completeInPlace(current: Task, inPlace: Task, completed: Boolean): DomainResult<Task> {
+        if (!completed) {
+            dao.upsert(inPlace.toEntity())
+            return DomainResult.Success(inPlace)
+        }
+        return DomainResult.Success(
+            persistCompletion(current, listOf(inPlace), current.columnId, nextPosition(current.columnId)).single(),
+        )
+    }
+
+    // La sucesora se escribe en la misma transacción que la original completada; su id determinista
+    // y repeatSuccessorId evitan duplicados si se completa dos veces. No aplica el límite WIP.
+    private suspend fun persistCompletion(
+        original: Task,
+        changed: List<Task>,
+        sourceColumnId: String?,
+        sourcePosition: Int,
+    ): List<Task> {
+        val at = now()
+        val zone = timeZone.current()
+        val successor = original.takeIf { it.repeatSuccessorId == null }
+            ?.successor(at, zone, sourceColumnId, sourcePosition)
+        if (successor == null) {
+            dao.upsertAll(changed.map { it.toEntity() })
+            return changed
+        }
+        val subtasks = subtaskDao.findActiveByTask(original.id).map { it.toSubtask() }
+        val reminder = reminderDao.findLatestByTask(original.id)?.toReminder()
+        val written = changed.map { if (it.id == original.id) it.copy(repeatSuccessorId = successor.id) else it }
+        dao.upsertAllWithSuccessor(
+            tasks = written.map { it.toEntity() },
+            successor = successor.toEntity(),
+            subtasks = original.successorSubtasks(successor, subtasks, zone, at).map { it.toEntity() },
+            reminder = original.successorReminder(successor, reminder, at)?.toEntity(),
+        )
+        return written
     }
 
     override suspend fun deleteTask(id: String): DomainResult<Unit> {

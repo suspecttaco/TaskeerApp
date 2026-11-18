@@ -16,14 +16,19 @@ import com.simposio.taskeer.data.repository.PreferencesRepository
 import com.simposio.taskeer.data.repository.ReminderRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskRepository
+import com.simposio.taskeer.domain.date.TimeZoneProvider
 import com.simposio.taskeer.testing.FakeDestinationTaskRepository
 import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
 import com.simposio.taskeer.testing.InMemoryCheckpointStore
 import com.simposio.taskeer.testing.RecordingNotifier
 import com.simposio.taskeer.testing.RecordingReminderScheduler
+import com.simposio.taskeer.testing.UnusedColumnDao
+import com.simposio.taskeer.testing.UnusedReminderDao
+import com.simposio.taskeer.testing.UnusedSubtaskDao
 import com.simposio.taskeer.ui.myday.MyDayViewModel
 import com.simposio.taskeer.ui.tasks.RemindersViewModel
 import com.simposio.taskeer.ui.tasks.SubtasksViewModel
+import java.io.File
 import java.lang.reflect.Proxy
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -31,6 +36,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AppContainerFactoryTest {
@@ -47,6 +53,35 @@ class AppContainerFactoryTest {
         assertEquals(1, count("columna-2"))
         assertEquals(0, count("columna-3"))
         assertEquals(listOf("columna-1", "columna-2", "columna-3"), dao.countedColumns)
+    }
+
+    @Test
+    fun taskRepository_recibeElProveedorDeZonaHoraria() {
+        val zone = TimeZoneProvider { java.time.ZoneOffset.UTC }
+
+        val repository = createTaskRepository(
+            FakeTaskDao(),
+            UnusedColumnDao(),
+            UnusedSubtaskDao(),
+            UnusedReminderDao(),
+            zone,
+        )
+
+        val field = repository.javaClass.getDeclaredField("timeZone").apply { isAccessible = true }
+        assertSame(zone, field.get(repository))
+        assertTrue(
+            "el contenedor debe cablear el proveedor del sistema",
+            factorySource().contains("timeZone = SystemTimeZoneProvider"),
+        )
+    }
+
+    private fun factorySource(): String {
+        val relative = "app/src/main/java/com/simposio/taskeer/di/AppContainerFactory.kt"
+        val start = File(requireNotNull(System.getProperty("user.dir"))).absoluteFile
+        return generateSequence(start) { it.parentFile }
+            .map { File(it, relative) }
+            .first { it.isFile }
+            .readText()
     }
 
     @Test
