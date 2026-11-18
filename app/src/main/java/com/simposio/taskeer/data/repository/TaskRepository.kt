@@ -14,6 +14,8 @@ interface TaskRepository {
 
     fun observeActiveCountsByColumn(): Flow<Map<String, Int>>
 
+    fun observeCompletedCount(): Flow<Int>
+
     fun observeReminderCandidates(): Flow<List<ReminderCandidate>>
 
     suspend fun reminderCandidates(): List<ReminderCandidate>
@@ -41,4 +43,6 @@ interface TaskRepository {
     suspend fun setCompleted(id: String, completed: Boolean): DomainResult<Task>
 
     suspend fun deleteTask(id: String): DomainResult<Unit>
+
+    suspend fun deleteCompleted(): DomainResult<Int>
 }

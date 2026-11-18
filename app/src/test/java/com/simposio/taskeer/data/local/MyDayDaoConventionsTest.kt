@@ -16,7 +16,7 @@ class MyDayDaoConventionsTest {
     fun consultasReactivas_devuelvenFlow() {
         listOf(
             "observeMarkedIds", "observePinned", "observeAssigned", "observeSuggestions",
-            "observeDated", "observeOverdueCount",
+            "observeOpen", "observeOverdueCount",
         ).forEach {
             assertEquals(it, Flow::class.java, method(it).returnType)
         }
@@ -34,7 +34,7 @@ class MyDayDaoConventionsTest {
 
     @Test
     fun consultas_usanVisibleAnyYLaRamaDeBandeja() {
-        listOf("observePinned", "observeAssigned", "observeSuggestions", "observeDated", "observeOverdueCount")
+        listOf("observePinned", "observeAssigned", "observeSuggestions", "observeOpen", "observeOverdueCount")
             .forEach { name ->
                 assertTrue("$name: condición de visibilidad compartida", querySource(name).contains("VISIBLE_ANY"))
             }
@@ -64,7 +64,7 @@ class MyDayDaoConventionsTest {
         listOf("observePinned", "observeSuggestions").forEach { name ->
             assertTrue("$name une task_lists", querySource(name).contains("LEFT JOIN task_lists l ON t.listId = l.id"))
         }
-        listOf("observePinned", "observeAssigned", "observeSuggestions", "observeDated").forEach { name ->
+        listOf("observePinned", "observeAssigned", "observeSuggestions", "observeOpen").forEach { name ->
             assertTrue("$name expone listName", querySource(name).contains("l.name AS listName"))
         }
     }
@@ -98,13 +98,18 @@ class MyDayDaoConventionsTest {
     }
 
     @Test
-    fun observeDated_filtraCompletadasYExigeFecha() {
-        val dated = querySource("observeDated")
+    fun observeOpen_usaVisibleAnyYOpenSinExigirFecha() {
+        val open = querySource("observeOpen")
 
-        assertTrue(dated.contains("+ OPEN +"))
-        assertTrue(dated.contains("t.dueAt IS NOT NULL"))
-        assertTrue(dated.contains("t.assigneeId = :assigneeId"))
-        assertTrue(dated.contains("ORDER BY t.dueAt ASC, t.id ASC"))
+        assertTrue(open.contains("VISIBLE_ANY"))
+        assertTrue(open.contains("+ OPEN +"))
+        assertTrue(open.contains("t.assigneeId = :assigneeId"))
+        assertFalse(open.contains("dueAt IS NOT NULL"))
+    }
+
+    @Test
+    fun observeOpen_ordenaPorDueAtYId() {
+        assertTrue(querySource("observeOpen").contains("ORDER BY t.dueAt ASC, t.id ASC"))
     }
 
     @Test
@@ -124,7 +129,7 @@ class MyDayDaoConventionsTest {
                 assertTrue(querySource("observePinned").contains("LEFT JOIN columns c ON t.columnId = c.id"))
         assertTrue(querySource("observeAssigned").contains("FROM_TASKS"))
         assertTrue(querySource("observeOverdueCount").contains("FROM_TASKS"))
-        assertTrue(querySource("observeDated").contains("FROM_TASKS"))
+        assertTrue(querySource("observeOpen").contains("FROM_TASKS"))
     }
 
     @Test

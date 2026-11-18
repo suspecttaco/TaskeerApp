@@ -3,23 +3,21 @@ package com.simposio.taskeer.ui
 import com.simposio.taskeer.data.repository.PlannedRepository
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.date.TimeZoneProvider
-import com.simposio.taskeer.domain.date.dayWindowAt
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.SyncMetadata
-import com.simposio.taskeer.domain.model.RepeatUnit
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskPriority
-import com.simposio.taskeer.domain.model.TaskRepeat
+import com.simposio.taskeer.domain.planned.AllTasksView
+import com.simposio.taskeer.domain.planned.DayLabel
 import com.simposio.taskeer.domain.planned.PlannedItem
-import com.simposio.taskeer.domain.planned.PlannedView
-import com.simposio.taskeer.domain.planned.groupPlanned
+import com.simposio.taskeer.domain.planned.UpcomingDay
+import com.simposio.taskeer.domain.planned.groupAllTasks
+import com.simposio.taskeer.domain.planned.groupUpcoming
 import com.simposio.taskeer.domain.task.RescheduleTarget
 import com.simposio.taskeer.testing.FakeDestinationTaskRepository
 import com.simposio.taskeer.ui.components.RowAction
-import com.simposio.taskeer.ui.planned.PlannedSectionKind
-import com.simposio.taskeer.ui.planned.PlannedViewModel
 import com.simposio.taskeer.ui.tasks.TaskRescheduler
-import com.simposio.taskeer.ui.tasks.toRow
+import com.simposio.taskeer.ui.upcoming.UpcomingViewModel
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -27,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -42,7 +41,7 @@ import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class PlannedViewModelTest {
+class UpcomingViewModelTest {
 
     private val zone = ZoneId.of("Europe/Madrid")
     private val now: Instant = Instant.parse("2026-11-17T10:00:00Z")
@@ -61,92 +60,115 @@ class PlannedViewModelTest {
     }
 
     @Test
-    fun estado_exponeSeccionesEnOrden() = runTest {
+    fun uiState_agrupaEnSieteDias() = runTest {
         repository.set(
-            item("lejos", "2026-11-25T09:00:00Z"),
+            item("lejos", "2026-11-23T09:00:00Z"),
             item("manana", "2026-11-18T09:00:00Z"),
             item("hoy", "2026-11-17T18:00:00Z"),
-            item("ayer", "2026-11-16T09:00:00Z"),
         )
 
-        val sections = viewModel().uiState.value.sections
+        val days = viewModel().uiState.value.days
 
-        assertEquals(
-            listOf(
-                PlannedSectionKind.OVERDUE,
-                PlannedSectionKind.TODAY,
-                PlannedSectionKind.TOMORROW,
-                PlannedSectionKind.UPCOMING,
-            ),
-            sections.map { it.kind },
-        )
-        assertEquals(listOf("ayer"), sections[0].items.map { it.id })
-        assertEquals(listOf("lejos"), sections[3].days.single().items.map { it.id })
+        assertEquals(7, days.size)
+        assertEquals(listOf("hoy"), days[0].items.map { it.id })
+        assertEquals(listOf("manana"), days[1].items.map { it.id })
+        assertEquals(listOf("lejos"), days[6].items.map { it.id })
+        assertEquals(DayLabel.Today, days[0].label)
     }
 
     @Test
-    fun seccionesVacias_noSeExponen() = runTest {
-        repository.set(item("hoy", "2026-11-17T18:00:00Z"), item("lejos", "2026-11-25T09:00:00Z"))
+    fun uiState_marcaVencidasEnHoy() = runTest {
+        repository.set(item("ayer", "2026-11-16T09:00:00Z"), item("futura-de-hoy", "2026-11-17T18:00:00Z"))
 
-        val kinds = viewModel().uiState.value.sections.map { it.kind }
+        val today = viewModel().uiState.value.days.first().items.associate { it.id to it.isOverdue }
 
-        assertEquals(listOf(PlannedSectionKind.TODAY, PlannedSectionKind.UPCOMING), kinds)
+        assertEquals(mapOf("ayer" to true, "futura-de-hoy" to false), today)
     }
 
     @Test
-    fun sinTareas_estadoVacio() = runTest {
+    fun uiState_expuestaElEstadoVacio() = runTest {
         repository.set()
 
-        assertTrue(viewModel().uiState.value.sections.isEmpty())
+        val viewModel = viewModel()
+
+        assertTrue(viewModel.uiState.value.isEmpty)
+        assertEquals(7, viewModel.uiState.value.days.size)
+        repository.set(item("hoy", "2026-11-17T18:00:00Z"))
+        assertFalse(viewModel.uiState.value.isEmpty)
     }
 
     @Test
-    fun fila_vencidaSeMarcaConIsOverdue() = runTest {
-        repository.set(item("pasada-de-hoy", "2026-11-17T08:00:00Z"), item("futura-de-hoy", "2026-11-17T18:00:00Z"))
-
-        val rows = viewModel().uiState.value.sections.single().items.associate { it.id to it.isOverdue }
-
-        assertEquals(mapOf("pasada-de-hoy" to true, "futura-de-hoy" to false), rows)
-    }
-
-    @Test
-    fun toggleCompleted_llamaASetCompleted() = runTest {
+    fun onRowAction_completar_llamaAlRepositorio() = runTest {
         val planned = item("a", "2026-11-17T18:00:00Z")
         repository.set(planned)
         tasks.inbox.value = listOf(planned.task)
         val viewModel = viewModel()
 
-        viewModel.toggleCompleted("a")
+        viewModel.onRowAction("a", RowAction.COMPLETE)
 
         assertEquals(listOf("a" to true), tasks.completions)
         assertNull(viewModel.uiState.value.error)
     }
 
     @Test
-    fun toggleCompleted_conFallo_exponeError() = runTest {
+    fun onRowAction_completar_conFallo_exponeError() = runTest {
         val failure = DomainError.NotFound("TASK_NOT_FOUND", "La tarea no existe")
         tasks.completeFailure = failure
         repository.set(item("a", "2026-11-17T18:00:00Z"))
         val viewModel = viewModel()
 
-        viewModel.toggleCompleted("a")
+        viewModel.onRowAction("a", RowAction.COMPLETE)
 
         assertEquals(failure, viewModel.uiState.value.error)
-        assertFalse(viewModel.uiState.value.sections.isEmpty())
     }
 
     @Test
-    fun manana_soloReprograma() = runTest {
+    fun onRowAction_reprogramar_manana() = runTest {
         val planned = item("a", "2026-11-17T18:00:00Z")
         repository.set(planned)
         tasks.inbox.value = listOf(planned.task)
         val viewModel = viewModel()
 
-        viewModel.reschedule("a", RescheduleTarget.TOMORROW)
+        viewModel.onRowAction("a", RowAction.RESCHEDULE_TOMORROW)
 
         assertEquals(Instant.parse("2026-11-18T18:00:00Z"), tasks.updates.single().second.dueAt)
         assertTrue(tasks.completions.isEmpty())
-        assertNull(viewModel.uiState.value.error)
+    }
+
+    @Test
+    fun onRowAction_reprogramar_semanaQueViene() = runTest {
+        val planned = item("a", "2026-11-17T18:00:00Z")
+        repository.set(planned)
+        tasks.inbox.value = listOf(planned.task)
+        val viewModel = viewModel()
+
+        viewModel.onRowAction("a", RowAction.RESCHEDULE_NEXT_WEEK)
+
+        assertEquals(Instant.parse("2026-11-24T18:00:00Z"), tasks.updates.single().second.dueAt)
+    }
+
+    @Test
+    fun onRowAction_reprogramar_sinFecha() = runTest {
+        val planned = item("a", "2026-11-17T18:00:00Z")
+        repository.set(planned)
+        tasks.inbox.value = listOf(planned.task)
+        val viewModel = viewModel()
+
+        viewModel.onRowAction("a", RowAction.RESCHEDULE_SOMEDAY)
+
+        assertNull(tasks.updates.single().second.dueAt)
+    }
+
+    @Test
+    fun onRowAction_reprogramar_elegirFecha() = runTest {
+        val planned = item("a", "2026-11-17T18:00:00Z")
+        repository.set(planned)
+        tasks.inbox.value = listOf(planned.task)
+        val viewModel = viewModel()
+
+        viewModel.rescheduleTo("a", LocalDate.of(2026, 12, 1))
+
+        assertEquals(LocalDate.of(2026, 12, 1), tasks.updates.single().second.dueAt?.atZone(zone)?.toLocalDate())
     }
 
     @Test
@@ -164,46 +186,46 @@ class PlannedViewModelTest {
     }
 
     @Test
-    fun fila_tareaRepetida_exponeIsRepeating() = runTest {
-        val repeating = item("a", "2026-11-17T18:00:00Z")
-            .let { it.copy(task = it.task.copy(repeat = TaskRepeat(RepeatUnit.DAY, 1, emptySet(), 17))) }
-        repository.set(repeating)
-
-        assertTrue(viewModel().uiState.value.sections.single().items.single().isRepeating)
-    }
-
-    @Test
-    fun onRowAction_completarYSinFecha() = runTest {
+    fun reschedule_manana_reprograma() = runTest {
         val planned = item("a", "2026-11-17T18:00:00Z")
         repository.set(planned)
         tasks.inbox.value = listOf(planned.task)
-        val viewModel = viewModel()
 
-        viewModel.onRowAction("a", RowAction.COMPLETE)
-        viewModel.onRowAction("a", RowAction.RESCHEDULE_SOMEDAY)
+        viewModel().reschedule("a", RescheduleTarget.TOMORROW)
 
-        assertEquals(listOf("a" to true), tasks.completions)
-        assertNull(tasks.updates.single().second.dueAt)
+        assertEquals(Instant.parse("2026-11-18T18:00:00Z"), tasks.updates.single().second.dueAt)
     }
 
     @Test
-    fun tareaDeLista_muestraElNombreDeLaLista() = runTest {
+    fun uiState_alCambiarElDia_cambianLasEtiquetas() = runTest {
+        repository.set(item("t", "2026-11-18T09:00:00Z"))
+        val viewModel = viewModel()
+        assertEquals(DayLabel.Tomorrow, viewModel.uiState.value.days[1].label)
+
+        repository.today.value = LocalDate.of(2026, 11, 18)
+
+        val days = viewModel.uiState.value.days
+        assertEquals(LocalDate.of(2026, 11, 18), days[0].date)
+        assertEquals(DayLabel.Today, days[0].label)
+        assertEquals(listOf("t"), days[0].items.map { it.id })
+    }
+
+    @Test
+    fun uiState_tareaDeLista_muestraElNombreDeLaLista() = runTest {
         val shopping = item("leche", "2026-11-18T09:00:00Z").let {
             it.copy(task = it.task.copy(columnId = null, listId = "compras"), boardId = null, boardName = null, listName = "Compras")
         }
         repository.set(shopping)
-        val viewModel = viewModel()
 
-        val row = viewModel.uiState.value.sections.single().items.single()
+        val row = viewModel().uiState.value.days[1].items.single()
 
         assertEquals("Compras", row.listName)
         assertNull(row.boardName)
-        assertEquals("Compras", row.toRow().listName)
     }
 
-    private fun TestScope.viewModel(): PlannedViewModel {
+    private fun TestScope.viewModel(): UpcomingViewModel {
         val rescheduler = TaskRescheduler(tasks, converter) { LocalDate.of(2026, 11, 17) }
-        val viewModel = PlannedViewModel(repository, tasks, converter, rescheduler) { now }
+        val viewModel = UpcomingViewModel(repository, tasks, converter, rescheduler) { now }
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }
@@ -226,12 +248,17 @@ class PlannedViewModelTest {
     )
 
     private inner class FakePlannedRepository : PlannedRepository {
-        private val view = MutableStateFlow(groupPlanned(emptyList(), dayWindowAt(now, zone), zone))
+        val today = MutableStateFlow(LocalDate.of(2026, 11, 17))
+        private val items = MutableStateFlow<List<PlannedItem>>(emptyList())
 
-        fun set(vararg items: PlannedItem) {
-            view.value = groupPlanned(items.toList(), dayWindowAt(now, zone), zone)
+        fun set(vararg planned: PlannedItem) {
+            items.value = planned.toList()
         }
 
-        override fun observePlanned(): Flow<PlannedView> = view
+        override fun observeUpcoming(): Flow<List<UpcomingDay>> =
+            combine(today, items) { day, list -> groupUpcoming(list, day, zone) }
+
+        override fun observeAllTasks(): Flow<AllTasksView> =
+            combine(today, items) { day, list -> groupAllTasks(list, day, zone) }
     }
 }

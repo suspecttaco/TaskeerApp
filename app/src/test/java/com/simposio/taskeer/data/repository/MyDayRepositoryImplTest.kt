@@ -923,9 +923,9 @@ class MyDayRepositoryImplTest {
                 .map { (row, entry) -> row.copy(addedAt = entry.addedAt) }
         }
 
-        override fun observeDated(assigneeId: String): Flow<List<MyDayRow>> = tasks.map { all ->
+        override fun observeOpen(assigneeId: String): Flow<List<MyDayRow>> = tasks.map { all ->
             all.values
-                .filter { it.assigneeId == assigneeId && it.dueAt != null && it.completedAt == null }
+                .filter { it.assigneeId == assigneeId && it.completedAt == null }
                 .mapNotNull(::visible)
                 .sortedWith(compareBy({ it.task.dueAt }, { it.task.id }))
         }
@@ -973,6 +973,10 @@ class MyDayRepositoryImplTest {
 
         override fun observeReminderCandidates(): Flow<List<ReminderCandidateRow>> = emptyFlow()
 
+        override fun observeCompletedCount(): Flow<Int> = emptyFlow()
+
+        override suspend fun findCompleted(): List<TaskEntity> = emptyList()
+
         override suspend fun countActive(): Int = 0
 
         override suspend fun findReminderState(taskId: String): ReminderTaskStateRow? = null
@@ -1010,6 +1014,10 @@ class MyDayRepositoryImplTest {
         override suspend fun softDeleteSubtasksOfTask(taskId: String, deletedAt: Long) = Unit
 
         override fun observeReminderCandidates(): Flow<List<ReminderCandidateRow>> = emptyFlow()
+
+        override fun observeCompletedCount(): Flow<Int> = emptyFlow()
+
+        override suspend fun findCompleted(): List<TaskEntity> = emptyList()
 
         override suspend fun countActive(): Int = 0
 

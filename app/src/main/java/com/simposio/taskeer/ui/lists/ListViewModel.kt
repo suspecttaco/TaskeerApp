@@ -1,12 +1,12 @@
-package com.simposio.taskeer.ui.inbox
+package com.simposio.taskeer.ui.lists
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.simposio.taskeer.data.repository.MyDayRepository
 import com.simposio.taskeer.data.repository.TaskListRepository
 import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.date.DateTimeConverter
-import com.simposio.taskeer.domain.list.effectiveListId
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.Task
@@ -17,50 +17,43 @@ import com.simposio.taskeer.ui.tasks.DUE_DATE_TIME_FORMATTER
 import com.simposio.taskeer.ui.tasks.TaskRescheduler
 import java.time.Instant
 import java.time.LocalDate
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class InboxViewModel(
+class ListViewModel(
     private val taskRepository: TaskRepository,
     taskListRepository: TaskListRepository,
     private val myDayRepository: MyDayRepository,
     private val dateTimeConverter: DateTimeConverter,
+    savedStateHandle: SavedStateHandle,
     private val rescheduler: TaskRescheduler = TaskRescheduler(taskRepository, dateTimeConverter),
     private val now: () -> Instant = Instant::now,
-    selectedListId: StateFlow<String?> = MutableStateFlow(null),
 ) : ViewModel() {
+
+    val listId: String = requireNotNull(savedStateHandle[LIST_ID_ARG]) { "Falta el listId de la ruta" }
 
     private val error = MutableStateFlow<DomainError?>(null)
 
-    // La lista elegida, o la por defecto si no hay elegida o se borró.
-    private val currentListId: Flow<String?> = combine(selectedListId, taskListRepository.observeLists()) { selected, lists ->
-        effectiveListId(selected, lists.map { it.list })
-    }.distinctUntilChanged()
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val uiState: StateFlow<InboxUiState> = combine(
-        currentListId.flatMapLatest { listId -> if (listId == null) flowOf(emptyList()) else taskRepository.observeList(listId) },
-        currentListId,
+    val uiState: StateFlow<ListUiState> = combine(
+        taskRepository.observeList(listId),
+        taskListRepository.observeLists(),
         myDayRepository.observeMarkedTaskIds(),
         error,
-    ) { tasks, listId, marked, error ->
+    ) { tasks, lists, marked, error ->
         val instant = now()
         val (pending, completed) = tasks.partition { !it.isCompleted }
-        InboxUiState(
+        val list = lists.firstOrNull { it.list.id == listId }
+        ListUiState(
+            listName = list?.list?.name,
             items = (pending + completed).map { it.toUi(it.id in marked, instant) },
-            listId = listId,
+            missing = lists.isNotEmpty() && list == null,
             error = error,
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), InboxUiState())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), ListUiState())
 
     fun toggleMarked(taskId: String) {
         val isMarked = uiState.value.items.firstOrNull { it.id == taskId }?.isMarked ?: return
@@ -107,7 +100,7 @@ class InboxViewModel(
         }
     }
 
-    private fun Task.toUi(isMarked: Boolean, now: Instant): InboxTaskUi = InboxTaskUi(
+    private fun Task.toUi(isMarked: Boolean, now: Instant): ListTaskUi = ListTaskUi(
         id = id,
         title = title,
         priority = priority,
@@ -118,7 +111,8 @@ class InboxViewModel(
         isRepeating = repeat != null,
     )
 
-    private companion object {
-        const val STOP_TIMEOUT_MILLIS: Long = 5_000
+    companion object {
+        const val LIST_ID_ARG = "listId"
+        private const val STOP_TIMEOUT_MILLIS: Long = 5_000
     }
 }

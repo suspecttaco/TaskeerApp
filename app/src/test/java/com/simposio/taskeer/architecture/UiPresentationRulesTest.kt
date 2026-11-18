@@ -107,11 +107,184 @@ class UiPresentationRulesTest {
     }
 
     @Test
-    fun pantallasDeListaTienenBotonFlotante() {
-        listOf("ui/myday/MyDayScreen.kt", "ui/inbox/InboxScreen.kt", "ui/board/BoardScreen.kt").forEach { path ->
-            assertTrue("$path debe tener QuickAddFab", source(path).contains("QuickAddFab("))
+    fun sinBarraInferiorNiFab() {
+        val forbidden = listOf(
+            "QuickAddFab",
+            "QuickAddSheet",
+            "ListSelection",
+            "TaskListSelector",
+            "PlannedScreen",
+            "BoardsScreen",
+            "AppDestination.topLevel",
+        )
+        val violations = mainFiles().flatMap { file ->
+            forbidden.filter { file.readText().contains(it) }.map { "${file.name} referencia $it" }
         }
-        assertTrue(source("ui/components/QuickAddFab.kt").contains("R.string.fab_new_task"))
+
+        assertTrue("restos de lo retirado: $violations", violations.isEmpty())
+        val navigationBarUsers = mainFiles().filter { it.readText().contains("NavigationBar(") }.map { it.name }
+        assertEquals("la barra inferior solo vive en el hub", listOf("HomeScreen.kt"), navigationBarUsers)
+        assertTrue(!File(sourcesRoot, "ui/components/QuickAddFab.kt").exists())
+        assertTrue(!File(sourcesRoot, "ui/quickadd/QuickAddSheet.kt").exists())
+        assertTrue(!File(sourcesRoot, "ui/planned").exists())
+        assertTrue(!File(sourcesRoot, "ui/inbox").exists())
+        assertTrue(!File(sourcesRoot, "ui/boards/BoardsScreen.kt").exists())
+    }
+
+    @Test
+    fun mosaicosDelHub_navegaConLaunchSingleTop() {
+        val host = source("ui/navigation/AppNavHost.kt")
+
+        assertTrue(host.contains("navigate(AppDestination.listRoute(listId)) { launchSingleTop = true }"))
+        assertTrue(host.contains("navigate(AppDestination.boardRoute(boardId)) { launchSingleTop = true }"))
+    }
+
+    @Test
+    fun barraDelHubEsLaNavigationBarEstandarSinPersonalizar() {
+        val home = source("ui/home/HomeScreen.kt")
+        val bar = home.substringAfter("fun HomeSectionBar(").substringBefore("@StringRes")
+
+        assertTrue(bar.contains("NavigationBar("))
+        assertTrue(bar.contains("NavigationBarItem("))
+        assertTrue(bar.contains("alwaysShowLabel = true"))
+        assertTrue(bar.contains("selected = false"))
+        listOf("shape", "Shape", "containerColor", "height", "heightIn", "minLines", "maxLines", ".dp").forEach {
+            assertTrue("la barra no personaliza $it", !bar.contains(it))
+        }
+    }
+
+    @Test
+    fun pildoraYBotonHomeUsanLaFormaDelTemaSinCapsula() {
+        listOf("ui/shell/FloatingChrome.kt", "ui/components/HomeButton.kt").forEach { path ->
+            val text = source(path)
+            listOf("CircleShape", "RoundedCornerShape(50", "shapes.extraLarge", "shapes.full").forEach {
+                assertTrue("$path no debe usar $it", !text.contains(it))
+            }
+            assertTrue("$path usa la forma del tema", text.contains("MaterialTheme.shapes.medium"))
+        }
+    }
+
+    @Test
+    fun barraDelHubUsaNombresCompletosYIconosDe24dp() {
+        val strings = File(sourcesRoot, "../../../../res/values/strings.xml").readText()
+        fun value(name: String) = Regex("""name="$name">(.*?)</string>""").find(strings)?.groupValues?.get(1)
+
+        assertEquals("Mi día", value("section_my_day"))
+        assertEquals("Próximos 7 días", value("section_upcoming"))
+        assertEquals("Todas las tareas", value("section_all_tasks"))
+        assertEquals("Calendario", value("section_calendar"))
+        assertTrue("sin textos de barra duplicados", !strings.contains("section_bar_"))
+        val home = source("ui/home/HomeScreen.kt")
+        val bar = home.substringAfter("fun HomeSectionBar(").substringBefore("@StringRes")
+        assertTrue(bar.contains("val fullName = stringResource(section.labelRes())"))
+        assertTrue(bar.contains("label = { Text(fullName) }"))
+        assertTrue(bar.contains("contentDescription = fullName"))
+        assertTrue(bar.contains("size = Spacing.ActionIconSize"))
+        assertTrue(source("ui/theme/Spacing.kt").contains("ActionIconSize = 24.dp"))
+    }
+
+    @Test
+    fun buscadorOcupaTodoElAnchoDeLaBarra() {
+        val field = source("ui/home/HomeScreen.kt").substringAfter("fun HomeSearchField(")
+
+        assertTrue(field.contains("fillMaxWidth()"))
+    }
+
+    @Test
+    fun sinFabClearanceHuerfano() {
+        val offenders = mainFiles().filter { it.readText().contains("FabClearance") }.map { it.name }
+
+        assertTrue("FabClearance ya no existe: $offenders", offenders.isEmpty())
+        val spacing = source("ui/theme/Spacing.kt")
+        assertTrue(spacing.contains("val ChromeClearance = FloatingControlSize + ScreenPadding * 2"))
+        listOf(
+            "ui/myday/MyDayScreen.kt",
+            "ui/lists/ListScreen.kt",
+            "ui/upcoming/UpcomingScreen.kt",
+            "ui/alltasks/AllTasksScreen.kt",
+            "ui/board/BoardScreen.kt",
+        ).forEach { path ->
+            assertTrue("$path debe terminar con ChromeClearance", source(path).contains("Spacing.ChromeClearance"))
+        }
+        assertTrue(source("ui/home/HomeScreen.kt").contains("Spacing.HubBarClearance"))
+    }
+
+    @Test
+    fun cromoFlotanteUsaImePadding() {
+        val chrome = source("ui/shell/FloatingChrome.kt")
+
+        assertTrue(chrome.contains("navigationBarsPadding()"))
+        assertTrue(chrome.contains("imePadding()"))
+    }
+
+    @Test
+    fun homeFlotanteYPildoraTienenDescripcion() {
+        assertTrue(source("ui/components/HomeButton.kt").contains("R.string.home_button_description"))
+        val chrome = source("ui/shell/FloatingChrome.kt")
+        assertTrue(chrome.contains("contentDescription = description"))
+        assertTrue(chrome.contains("R.string.pill_description"))
+        assertTrue(chrome.contains("R.string.pill_input_label"))
+        assertTrue(chrome.contains("R.string.pill_send"))
+        assertTrue(chrome.contains("R.string.pill_remove_date"))
+    }
+
+    @Test
+    fun cabeceraPlegableExponeEstado() {
+        val header = source("ui/components/DateGroupHeader.kt")
+
+        assertTrue(header.contains("stateDescription = "))
+        assertTrue(header.contains("Role.Button"))
+        assertTrue(header.contains("R.string.group_expanded"))
+        assertTrue(header.contains("R.string.group_collapsed"))
+        assertTrue(header.contains("heading()"))
+    }
+
+    @Test
+    fun controlesNuevosUsanActionIconOMinimumInteractive() {
+        val offenders = NEW_CONTROL_FILES.filter { path ->
+            val text = source(path)
+            val raw = text.contains("IconButton(") || text.contains(".clickable(")
+            raw && !(text.contains("minimumInteractiveComponentSize") || text.contains("ActionIcon("))
+        }
+
+        assertTrue("controles sin objetivo táctil mínimo: $offenders", offenders.isEmpty())
+    }
+
+    @Test
+    fun homeBuscador_esDeshabilitado() {
+        val home = source("ui/home/HomeScreen.kt")
+
+        assertTrue(home.contains("enabled = HomeLayout.SEARCH_ENABLED"))
+        assertTrue(home.contains("readOnly = true"))
+        assertTrue(source("ui/home/HomeSection.kt").contains("const val SEARCH_ENABLED: Boolean = false"))
+        assertTrue(source("ui/shell/SectionTopBar.kt").contains("HomeSearchField()"))
+    }
+
+    @Test
+    fun calendario_noPideNingunPermiso() {
+        val manifest = File(sourcesRoot, "../../../../AndroidManifest.xml").readText()
+
+        assertTrue(!manifest.contains("READ_CALENDAR"))
+        assertTrue(!manifest.contains("WRITE_CALENDAR"))
+        assertTrue(!source("ui/calendar/CalendarPlaceholderScreen.kt").contains("viewModel("))
+    }
+
+    @Test
+    fun miDia_ordenEnLaCabecera() {
+        assertTrue(source("ui/myday/MyDayScreen.kt").contains("MyDaySortMenu("))
+        assertTrue(!source("ui/shell/AppShell.kt").contains("MyDaySortMenu"))
+        assertTrue(!source("ui/shell/SectionTopBar.kt").contains("MyDaySortMenu"))
+    }
+
+    @Test
+    fun sinDependenciasNuevas() {
+        val gradle = File(sourcesRoot, "../../../../../../build.gradle.kts").readText()
+        val declared = gradle.substringAfter("dependencies {").substringBefore("\n}")
+            .lines()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+
+        assertEquals(EXPECTED_DEPENDENCIES, declared)
     }
 
     @Test
@@ -127,17 +300,14 @@ class UiPresentationRulesTest {
         val screen = source("ui/myday/MyDayScreen.kt")
 
         assertEquals(1, Regex("FilterChip\\(").findAll(screen).count())
-        assertTrue(!screen.contains("MyDaySort"))
         assertTrue(!screen.contains("my_day_sort"))
     }
 
     @Test
     fun appShellNoTieneAccesoACalendarioEnLaBarraSuperior() {
-        val shell = source("ui/shell/AppShell.kt")
-        val actions = shell.substringAfter("actions = {").substringBefore("bottomBar")
+        val shell = source("ui/shell/AppShell.kt") + source("ui/shell/SectionTopBar.kt")
 
-        assertTrue(!actions.contains("CalendarMonth"))
-        assertTrue(actions.contains("MyDaySortMenu("))
+        assertTrue(!shell.contains("CalendarMonth"))
     }
 
     @Test
@@ -162,11 +332,11 @@ class UiPresentationRulesTest {
     }
 
     @Test
-    fun altaRapidaNoApilaSelectores() {
+    fun altaRapidaYaNoUsaBottomSheet() {
         val sheets = quickAddFiles().sumOf { Regex("ModalBottomSheet\\(").findAll(it.readText()).count() }
 
-        assertEquals("un único bottom sheet en la alta rápida", 1, sheets)
-        assertTrue(source("ui/quickadd/QuickAddSheet.kt").contains("QuickAddPanel.DATE"))
+        assertEquals(0, sheets)
+        assertTrue(!source("ui/shell/FloatingChrome.kt").contains("ModalBottomSheet("))
     }
 
     @Test
@@ -174,7 +344,7 @@ class UiPresentationRulesTest {
         val sheetFiles = uiFiles().filter { it.readText().contains("ModalBottomSheet(") }
         val names = sheetFiles.map { it.name }.toSet()
 
-        assertEquals(setOf("QuickAddSheet.kt", "TaskActionsSheet.kt", "AssignToBoardHost.kt", "MoveToListHost.kt"), names)
+        assertEquals(setOf("TaskActionsSheet.kt", "AssignToBoardHost.kt", "MoveToListHost.kt"), names)
         sheetFiles.forEach { file ->
             val text = file.readText()
             assertTrue("${file.name}: asa", text.contains("dragHandle ="))
@@ -183,13 +353,6 @@ class UiPresentationRulesTest {
             assertTrue("${file.name}: cerrar", text.contains("R.string.quick_add_close"))
             assertTrue("${file.name}: título anunciado", text.contains("paneTitle"))
         }
-        val quickAdd = source("ui/quickadd/QuickAddSheet.kt")
-        assertTrue(quickAdd.contains("imePadding()"))
-        val sheetCall = quickAdd.indexOf("ModalBottomSheet(")
-        val backHandler = quickAdd.indexOf("BackHandler(enabled = state.panel != null)")
-        assertTrue("BackHandler dentro del contenido del sheet (diálogo con su propio despachador)", sheetCall in 0 until backHandler)
-        assertEquals("un único BackHandler", 1, Regex("BackHandler\\(").findAll(quickAdd).count())
-        assertTrue(quickAdd.contains("ImeAction.Done"))
     }
 
     @Test
@@ -266,6 +429,9 @@ class UiPresentationRulesTest {
         .filter { it.isFile && it.extension == "kt" }
         .toList()
 
+    private fun mainFiles(): List<File> =
+        sourcesRoot.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+
     private fun uiFiles(): List<File> = File(sourcesRoot, "ui").walkTopDown()
         .filter { it.isFile && it.extension == "kt" }
         .toList()
@@ -281,23 +447,76 @@ class UiPresentationRulesTest {
 
     private companion object {
         val GLYPHS = listOf("★", "☆", "✓")
-        val LIST_SCREENS = listOf("ui/myday/MyDayScreen.kt", "ui/inbox/InboxScreen.kt", "ui/planned/PlannedScreen.kt")
+        val EXPECTED_DEPENDENCIES = listOf(
+            "implementation(platform(libs.androidx.compose.bom))",
+            "implementation(libs.androidx.activity.compose)",
+            "implementation(libs.androidx.compose.material.icons.extended)",
+            "implementation(libs.androidx.compose.material3)",
+            "implementation(libs.androidx.compose.ui)",
+            "implementation(libs.androidx.compose.ui.graphics)",
+            "implementation(libs.androidx.compose.ui.tooling.preview)",
+            "implementation(libs.androidx.core.ktx)",
+            "implementation(libs.androidx.datastore.preferences)",
+            "implementation(libs.androidx.lifecycle.runtime.compose)",
+            "implementation(libs.androidx.lifecycle.runtime.ktx)",
+            "implementation(libs.androidx.lifecycle.viewmodel.compose)",
+            "implementation(libs.androidx.lifecycle.viewmodel.ktx)",
+            "implementation(libs.androidx.navigation.compose)",
+            "implementation(libs.androidx.room.runtime)",
+            "ksp(libs.androidx.room.compiler)",
+            "coreLibraryDesugaring(libs.desugar.jdk.libs)",
+            "testImplementation(libs.androidx.datastore.preferences.core)",
+            "testImplementation(libs.junit)",
+            "testImplementation(libs.kotlinx.coroutines.test)",
+            "androidTestImplementation(platform(libs.androidx.compose.bom))",
+            "androidTestImplementation(libs.androidx.compose.ui.test.junit4)",
+            "androidTestImplementation(libs.androidx.espresso.core)",
+            "androidTestImplementation(libs.androidx.junit)",
+            "debugImplementation(libs.androidx.compose.ui.test.manifest)",
+            "debugImplementation(libs.androidx.compose.ui.tooling)",
+        )
+        val LIST_SCREENS = listOf(
+            "ui/myday/MyDayScreen.kt",
+            "ui/lists/ListScreen.kt",
+            "ui/upcoming/UpcomingScreen.kt",
+            "ui/alltasks/AllTasksScreen.kt",
+        )
+        val NEW_CONTROL_FILES = listOf(
+            "ui/components/DateGroupHeader.kt",
+            "ui/components/HomeButton.kt",
+            "ui/home/HomeScreen.kt",
+            "ui/shell/FloatingChrome.kt",
+            "ui/shell/OverflowMenuButton.kt",
+            "ui/shell/SectionTopBar.kt",
+            "ui/shell/ClearCompletedDialog.kt",
+            "ui/upcoming/UpcomingScreen.kt",
+            "ui/alltasks/AllTasksScreen.kt",
+            "ui/calendar/CalendarPlaceholderScreen.kt",
+            "ui/boards/BoardNameDialog.kt",
+        )
         val NEW_UI_FILES = listOf(
             "ui/components/TaskRow.kt",
             "ui/components/EmptyState.kt",
-            "ui/components/QuickAddFab.kt",
+            "ui/components/DateGroupHeader.kt",
+            "ui/components/HomeButton.kt",
             "ui/components/RowActionStyle.kt",
-            "ui/quickadd/QuickAddSheet.kt",
+            "ui/shell/FloatingChrome.kt",
+            "ui/shell/OverflowMenuButton.kt",
+            "ui/shell/SectionTopBar.kt",
+            "ui/shell/ClearCompletedDialog.kt",
+            "ui/home/HomeScreen.kt",
+            "ui/calendar/CalendarPlaceholderScreen.kt",
+            "ui/boards/BoardNameDialog.kt",
             "ui/tasks/TaskActionsSheet.kt",
             "ui/tasks/AssignToBoardHost.kt",
             "ui/tasks/MoveToListHost.kt",
-            "ui/lists/TaskListSelector.kt",
             "ui/lists/TaskListNameDialog.kt",
             "ui/lists/ConfirmDeleteListDialog.kt",
             "ui/myday/MyDaySortMenu.kt",
             "ui/myday/MyDayScreen.kt",
-            "ui/inbox/InboxScreen.kt",
-            "ui/planned/PlannedScreen.kt",
+            "ui/lists/ListScreen.kt",
+            "ui/upcoming/UpcomingScreen.kt",
+            "ui/alltasks/AllTasksScreen.kt",
         )
     }
 }

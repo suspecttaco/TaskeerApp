@@ -15,14 +15,6 @@ sealed interface ListDialog {
 
 data class TaskListsUiState(
     val lists: List<TaskListSummary> = emptyList(),
-    val selectedListId: String? = null,
     val dialog: ListDialog = ListDialog.None,
     val error: DomainError? = null,
-) {
-    val selected: TaskListSummary? get() = lists.firstOrNull { it.list.id == selectedListId }
-
-    val canRenameSelected: Boolean get() = selected != null
-
-    // La última lista activa no se puede eliminar.
-    val canDeleteSelected: Boolean get() = selected != null && lists.size > 1
-}
+)

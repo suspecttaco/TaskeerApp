@@ -23,7 +23,8 @@ import com.simposio.taskeer.domain.model.ReminderCandidate
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskCreation
 import com.simposio.taskeer.domain.model.TaskDraft
-import com.simposio.taskeer.domain.planned.PlannedView
+import com.simposio.taskeer.domain.planned.AllTasksView
+import com.simposio.taskeer.domain.planned.UpcomingDay
 import com.simposio.taskeer.testing.FakePreferencesRepository
 import com.simposio.taskeer.testing.FakeReminderRepository
 import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
@@ -249,6 +250,10 @@ class AppContainerTest {
 
         override suspend fun setCompleted(id: String, completed: Boolean): DomainResult<Task> = unused()
 
+        override fun observeCompletedCount(): Flow<Int> = error("no se usa")
+
+        override suspend fun deleteCompleted(): DomainResult<Int> = error("no se usa")
+
         override suspend fun deleteTask(id: String): DomainResult<Unit> = unused()
 
         private fun unused(): DomainResult.Failure =
@@ -267,7 +272,9 @@ class AppContainerTest {
     }
 
     private class FakePlannedRepository : PlannedRepository {
-        override fun observePlanned(): Flow<PlannedView> = emptyFlow()
+        override fun observeUpcoming(): Flow<List<UpcomingDay>> = emptyFlow()
+
+        override fun observeAllTasks(): Flow<AllTasksView> = emptyFlow()
     }
 
     private class FakeSubtaskRepository : SubtaskRepository {

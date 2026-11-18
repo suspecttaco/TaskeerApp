@@ -1,16 +1,29 @@
 package com.simposio.taskeer.ui.navigation
 
-data class TopLevelNavSpec(
+import com.simposio.taskeer.ui.home.HomeSection
+
+data class NavSpec(
     val popUpToRoute: String,
+    val popUpToInclusive: Boolean,
     val saveState: Boolean,
     val restoreState: Boolean,
     val launchSingleTop: Boolean,
 )
 
-fun topLevelNavSpec(): TopLevelNavSpec = TopLevelNavSpec(
-    popUpToRoute = AppDestination.START.route,
-    saveState = true,
-    restoreState = true,
+fun homeNavSpec(): NavSpec = NavSpec(
+    popUpToRoute = AppDestination.HOME.route,
+    popUpToInclusive = false,
+    saveState = false,
+    restoreState = false,
+    launchSingleTop = true,
+)
+
+// Cada entrada reconstruye su estado desde Room, por eso no se guarda ni se restaura.
+fun sectionNavSpec(section: HomeSection): NavSpec = NavSpec(
+    popUpToRoute = if (section == HomeSection.MY_DAY) AppDestination.MY_DAY.route else AppDestination.HOME.route,
+    popUpToInclusive = false,
+    saveState = false,
+    restoreState = false,
     launchSingleTop = true,
 )
 
@@ -23,11 +36,17 @@ sealed interface BackStep {
 }
 
 fun backStep(destination: AppDestination?, boardId: String?, hasPrevious: Boolean): BackStep {
-    val fallback = when {
-        destination == AppDestination.NOTIFICATIONS -> AppDestination.MY_DAY.route
-        boardId != null -> destination?.upRoute(boardId)
-        else -> null
-    } ?: return BackStep.None
+    val fallback = when (destination) {
+        null, AppDestination.MY_DAY -> return BackStep.None
+        AppDestination.HOME, AppDestination.NOTIFICATIONS, AppDestination.SETTINGS -> AppDestination.MY_DAY.route
+        AppDestination.UPCOMING_7_DAYS,
+        AppDestination.ALL_TASKS,
+        AppDestination.CALENDAR,
+        AppDestination.LIST,
+        AppDestination.BOARD,
+        -> AppDestination.HOME.route
+        AppDestination.BOARD_COLUMNS -> boardId?.let(AppDestination::boardRoute) ?: return BackStep.None
+    }
     return if (hasPrevious) BackStep.Pop else BackStep.Navigate(fallback)
 }
 

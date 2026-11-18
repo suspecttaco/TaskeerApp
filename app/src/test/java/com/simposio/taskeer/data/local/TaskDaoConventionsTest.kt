@@ -87,6 +87,25 @@ class TaskDaoConventionsTest {
     }
 
     @Test
+    fun softDeleteCompleted_esTransaccional() {
+        val method = method("softDeleteCompleted")
+
+        assertTrue(method.isSuspend())
+        assertTrue(
+            Regex("@Transaction\\s+open suspend fun softDeleteCompleted").containsMatchIn(taskDaoSource()),
+        )
+        assertTrue(taskDaoSource().contains("upsertDeletedWithSubtasks(task.copy("))
+        assertTrue(querySource("findCompleted").contains("completedAt IS NOT NULL AND deletedAt IS NULL"))
+        assertTrue(querySource("observeCompletedCount").contains("completedAt IS NOT NULL AND deletedAt IS NULL"))
+    }
+
+    @Test
+    fun sinDeleteFisico() {
+        assertFalse(taskDaoSource().contains("DELETE FROM"))
+        assertFalse(taskDaoSource().contains("@Delete"))
+    }
+
+    @Test
     fun upsertDeletedWithSubtasks_esTransaccional() {
         val method = method("upsertDeletedWithSubtasks")
 
@@ -400,6 +419,10 @@ class TaskDaoConventionsTest {
         override suspend fun softDeleteSubtasksOfTask(taskId: String, deletedAt: Long) = Unit
 
         override fun observeReminderCandidates(): Flow<List<ReminderCandidateRow>> = emptyFlow()
+
+        override fun observeCompletedCount(): Flow<Int> = emptyFlow()
+
+        override suspend fun findCompleted(): List<TaskEntity> = emptyList()
 
         override suspend fun countActive(): Int = 0
 

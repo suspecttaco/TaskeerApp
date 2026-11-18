@@ -20,6 +20,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,9 +43,8 @@ import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.Column as BoardColumn
 import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.ui.components.ActionIcon
-import com.simposio.taskeer.ui.components.QuickAddFab
-import com.simposio.taskeer.ui.quickadd.QuickAddContext
-import com.simposio.taskeer.ui.quickadd.rememberQuickAddHost
+import com.simposio.taskeer.ui.boards.BoardDialogs
+import com.simposio.taskeer.ui.boards.BoardsViewModel
 import com.simposio.taskeer.ui.tasks.rememberTaskEditorHost
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
@@ -57,17 +57,22 @@ internal val ColumnWidth = 280.dp
 fun BoardScreen(
     viewModelFactory: ViewModelProvider.Factory,
     onManageColumns: (String) -> Unit,
+    onBoardDeleted: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: BoardViewModel = viewModel(factory = viewModelFactory)
+    // Mismo propietario que el menú de la barra superior (la entrada de navegación): comparten el diálogo.
+    val boardsViewModel: BoardsViewModel = viewModel(factory = viewModelFactory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val boardsState by boardsViewModel.uiState.collectAsStateWithLifecycle()
 
     val editorHost = rememberTaskEditorHost(viewModelFactory)
-    val openQuickAdd = rememberQuickAddHost(viewModelFactory, QuickAddContext.Board(viewModel.boardId))
+    LaunchedEffect(boardsState.deletedBoardId) {
+        if (boardsState.deletedBoardId == viewModel.boardId) onBoardDeleted()
+    }
 
     BoardContent(
         state = state,
-        onQuickAdd = openQuickAdd,
         onMove = viewModel::moveTask,
         onCreateTask = editorHost.openForCreate,
         onEditTask = editorHost.openForEdit,
@@ -80,6 +85,7 @@ fun BoardScreen(
         onDismissNewColumn = viewModel::dismissNewColumn,
         modifier = modifier,
     )
+    BoardDialogs(boardsState, boardsViewModel)
 }
 
 private class DragState(
@@ -91,7 +97,6 @@ private class DragState(
 @Composable
 fun BoardContent(
     state: BoardUiState,
-    onQuickAdd: () -> Unit,
     onMove: (String, String, Int) -> Unit,
     onCreateTask: (String) -> Unit,
     onEditTask: (String) -> Unit,
@@ -148,7 +153,12 @@ fun BoardContent(
                 modifier = Modifier
                     .weight(1f)
                     .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = Spacing.ScreenPadding, vertical = Spacing.InlineGap),
+                    .padding(
+                        start = Spacing.ScreenPadding,
+                        top = Spacing.InlineGap,
+                        end = Spacing.ScreenPadding,
+                        bottom = Spacing.ChromeClearance,
+                    ),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.SectionGap),
             ) {
                 state.columns.forEach { column ->
@@ -209,15 +219,6 @@ fun BoardContent(
             )
         }
 
-        if (drag == null) {
-            QuickAddFab(
-                onClick = onQuickAdd,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(Spacing.ScreenPadding),
-            )
-        }
-
         drag?.let { current ->
             val topLeft = current.pointer - current.grabOffset - rootOrigin
             TaskCard(
@@ -247,7 +248,6 @@ internal fun androidx.compose.ui.geometry.Rect.toBounds(): Bounds = Bounds(left,
 private fun BoardContentPreview() {
     TaskeerTheme {
         BoardContent(
-            onQuickAdd = {},
             state = BoardUiState(
                 columns = listOf(
                     BoardColumnUi(previewColumn("Por hacer", 0), emptyList()),

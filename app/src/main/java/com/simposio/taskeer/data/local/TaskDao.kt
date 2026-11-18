@@ -92,6 +92,22 @@ abstract class TaskDao {
         dismissRemindersOfTask(task.id, deletedAt)
     }
 
+    @Query("SELECT COUNT(*) FROM tasks WHERE completedAt IS NOT NULL AND deletedAt IS NULL")
+    abstract fun observeCompletedCount(): Flow<Int>
+
+    @Query("SELECT * FROM tasks WHERE completedAt IS NOT NULL AND deletedAt IS NULL ORDER BY id ASC")
+    abstract suspend fun findCompleted(): List<TaskEntity>
+
+    // Reutiliza la cascada de deleteTask (subtareas y recordatorios) para que ambos caminos no diverjan.
+    @Transaction
+    open suspend fun softDeleteCompleted(deletedAt: Long): Int {
+        val completed = findCompleted()
+        completed.forEach { task ->
+            upsertDeletedWithSubtasks(task.copy(deletedAt = deletedAt, updatedAt = deletedAt, pending = true), deletedAt)
+        }
+        return completed.size
+    }
+
     @Insert(onConflict = OnConflictStrategy.REPLACE, entity = SubtaskEntity::class)
     abstract suspend fun insertSubtasks(subtasks: List<SubtaskEntity>)
 

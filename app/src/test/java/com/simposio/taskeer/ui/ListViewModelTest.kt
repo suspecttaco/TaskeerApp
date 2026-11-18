@@ -1,5 +1,6 @@
 package com.simposio.taskeer.ui
 
+import androidx.lifecycle.SavedStateHandle
 import com.simposio.taskeer.data.repository.MyDayRepository
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.date.TimeZoneProvider
@@ -18,7 +19,7 @@ import com.simposio.taskeer.testing.FakeDestinationTaskRepository
 import com.simposio.taskeer.testing.FakeTaskListRepository
 import com.simposio.taskeer.testing.listSummary
 import com.simposio.taskeer.ui.components.RowAction
-import com.simposio.taskeer.ui.inbox.InboxViewModel
+import com.simposio.taskeer.ui.lists.ListViewModel
 import com.simposio.taskeer.ui.tasks.TaskRescheduler
 import java.time.Instant
 import java.time.LocalDate
@@ -42,7 +43,7 @@ import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class InboxViewModelTest {
+class ListViewModelTest {
 
     private val now: Instant = Instant.parse("2026-11-02T10:00:00Z")
     private val madrid = DateTimeConverter(TimeZoneProvider { ZoneId.of("Europe/Madrid") })
@@ -142,7 +143,7 @@ class InboxViewModelTest {
     }
 
     @Test
-    fun tareas_pendientesYLuegoCompletadas() = runTest {
+    fun uiState_completadasAlFinal() = runTest {
         tasks.inbox.value = listOf(task("hecha", completedAt = now), task("p1"), task("p2"))
 
         val items = viewModel().uiState.value.items
@@ -227,49 +228,24 @@ class InboxViewModelTest {
     }
 
     @Test
-    fun estadoInicial_esLaListaPorDefecto() = runTest {
+    fun uiState_exponeLasTareasDeLaListaDeLaRuta() = runTest {
         tasks.inbox.value = listOf(task("a"), task("b", listId = "compras"))
 
-        val state = viewModel().uiState.value
+        val state = viewModel("compras").uiState.value
 
-        assertEquals(SEEDED_TASK_LIST_ID, state.listId)
-        assertEquals(listOf("a"), state.items.map { it.id })
+        assertEquals("Compras", state.listName)
+        assertEquals(listOf("b"), state.items.map { it.id })
+        assertFalse(state.missing)
     }
 
     @Test
-    fun cambiarDeLista_observaLasTareasDeLaLista() = runTest {
-        tasks.inbox.value = listOf(task("a"), task("b", listId = "compras"))
-        val selected = MutableStateFlow<String?>(null)
-        val viewModel = viewModel(selected)
-
-        selected.value = "compras"
-
-        assertEquals("compras", viewModel.uiState.value.listId)
-        assertEquals(listOf("b"), viewModel.uiState.value.items.map { it.id })
-    }
-
-    @Test
-    fun listaSeleccionadaBorrada_muestraLaPorDefectoResultante() = runTest {
-        tasks.inbox.value = listOf(task("a"), task("b", listId = "compras"))
-        val selected = MutableStateFlow<String?>("compras")
-        val viewModel = viewModel(selected)
-        assertEquals(listOf("b"), viewModel.uiState.value.items.map { it.id })
+    fun uiState_listaInexistente_marcaMissing() = runTest {
+        val viewModel = viewModel("compras")
+        assertFalse(viewModel.uiState.value.missing)
 
         lists.lists.value = lists.lists.value.filter { it.list.id != "compras" }
 
-        assertEquals(SEEDED_TASK_LIST_ID, viewModel.uiState.value.listId)
-        assertEquals(listOf("a"), viewModel.uiState.value.items.map { it.id })
-    }
-
-    @Test
-    fun laListaPorDefectoEsLaDeMenorPosicion_noLaSembrada() = runTest {
-        lists.lists.value = listOf(listSummary("compras", "Compras", position = 1))
-        tasks.inbox.value = listOf(task("a"), task("b", listId = "compras"))
-
-        val state = viewModel().uiState.value
-
-        assertEquals("compras", state.listId)
-        assertEquals(listOf("b"), state.items.map { it.id })
+        assertTrue(viewModel.uiState.value.missing)
     }
 
     @Test
@@ -302,9 +278,10 @@ class InboxViewModelTest {
         sync = SyncMetadata(id, Instant.EPOCH, pending = false, deletedAt = null),
     )
 
-    private fun TestScope.viewModel(selected: MutableStateFlow<String?> = MutableStateFlow(null)): InboxViewModel {
+    private fun TestScope.viewModel(listId: String = SEEDED_TASK_LIST_ID): ListViewModel {
         val rescheduler = TaskRescheduler(tasks, madrid) { LocalDate.of(2026, 11, 2) }
-        val viewModel = InboxViewModel(tasks, lists, myDay, madrid, rescheduler, { now }, selected)
+        val handle = SavedStateHandle(mapOf(ListViewModel.LIST_ID_ARG to listId))
+        val viewModel = ListViewModel(tasks, lists, myDay, madrid, handle, rescheduler) { now }
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }

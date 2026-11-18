@@ -27,18 +27,36 @@ class EmptyStateRulesTest {
     }
 
     @Test
-    fun tareas_vacia_ofreceAñadir() {
-        val spec = emptyStateFor(EmptyScreen.INBOX, hasTasks = false, filterActive = false)
+    fun lista_vacia_ofreceAñadir() {
+        val spec = emptyStateFor(EmptyScreen.LIST, hasTasks = false, filterActive = false)
 
         assertEquals(EmptyAction.ADD_TASK, spec.action)
-        assertEquals(R.string.inbox_empty, spec.textRes)
+        assertEquals(R.string.list_empty, spec.textRes)
     }
 
     @Test
-    fun planificado_vacio_ofreceIrATareas() {
-        val spec = emptyStateFor(EmptyScreen.PLANNED, hasTasks = false, filterActive = false)
+    fun proximos7Dias_vacio_ofreceAñadir() {
+        val spec = emptyStateFor(EmptyScreen.UPCOMING, hasTasks = false, filterActive = false)
 
-        assertEquals(EmptyAction.GO_TO_INBOX, spec.action)
-        assertEquals(R.string.empty_action_go_inbox, spec.actionRes)
+        assertEquals(EmptyAction.ADD_TASK, spec.action)
+        assertEquals(R.string.upcoming_empty, spec.textRes)
+    }
+
+    @Test
+    fun todasLasTareas_vacio_ofreceAñadir() {
+        val spec = emptyStateFor(EmptyScreen.ALL_TASKS, hasTasks = false, filterActive = false)
+
+        assertEquals(EmptyAction.ADD_TASK, spec.action)
+        assertEquals(R.string.all_tasks_empty, spec.textRes)
+    }
+
+    @Test
+    fun soloMiDiaOfreceVerTodas() {
+        val others = EmptyScreen.entries.filter { it != EmptyScreen.MY_DAY }
+
+        assertEquals(
+            others.map { EmptyAction.ADD_TASK },
+            others.map { emptyStateFor(it, hasTasks = true, filterActive = true).action },
+        )
     }
 }

@@ -7,7 +7,7 @@ import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
 // Mi día muestra las pendientes y las completadas de hoy (completedAt >= dayStart); el conteo de
-// vencidas y Planificado solo cuentan las no completadas. «Hoy» es una ventana pasada por parámetro:
+// vencidas y las vistas por fecha solo cuentan las no completadas. «Hoy» es una ventana pasada por parámetro:
 // ninguna consulta escribe al cambiar el día, solo cambia a qué lado de dayStart cae cada marca.
 @Dao
 abstract class MyDayDao {
@@ -52,10 +52,9 @@ abstract class MyDayDao {
     @Query(
         "SELECT t.*, b.id AS boardId, b.name AS boardName, l.name AS listName, NULL AS addedAt " + FROM_TASKS +
             "WHERE " + VISIBLE_ANY + " AND " + OPEN + " AND t.assigneeId = :assigneeId " +
-            "AND t.dueAt IS NOT NULL " +
             "ORDER BY t.dueAt ASC, t.id ASC",
     )
-    abstract fun observeDated(assigneeId: String): Flow<List<MyDayRow>>
+    abstract fun observeOpen(assigneeId: String): Flow<List<MyDayRow>>
 
     @Query(
         "SELECT COUNT(*) " + FROM_TASKS +

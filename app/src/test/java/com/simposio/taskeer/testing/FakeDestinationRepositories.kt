@@ -57,6 +57,7 @@ class FakeDestinationColumnRepository(
 
 class FakeDestinationTaskRepository : TaskRepository {
     val counts = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val completedCount = MutableStateFlow(0)
     val inbox = MutableStateFlow<List<Task>>(emptyList())
     val creations = mutableListOf<Pair<String?, TaskCreation>>()
     val creationListIds = mutableListOf<String?>()
@@ -140,6 +141,10 @@ class FakeDestinationTaskRepository : TaskRepository {
         inbox.value = inbox.value.map { if (it.id == id) updated else it } + listOfNotNull(successor)
         return DomainResult.Success(updated)
     }
+
+    override fun observeCompletedCount(): Flow<Int> = completedCount
+
+    override suspend fun deleteCompleted(): DomainResult<Int> = DomainResult.Success(0)
 
     override suspend fun deleteTask(id: String): DomainResult<Unit> = unused()
 

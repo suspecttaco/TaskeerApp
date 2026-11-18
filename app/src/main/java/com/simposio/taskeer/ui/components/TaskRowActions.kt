@@ -1,6 +1,6 @@
 package com.simposio.taskeer.ui.components
 
-enum class RowContext { MY_DAY, INBOX, PLANNED, SUGGESTION }
+enum class RowContext { MY_DAY, LIST, PLANNED, SUGGESTION }
 
 enum class RowAction {
     COMPLETE,
@@ -46,7 +46,7 @@ fun rowActions(
                     listOfNotNull(RowAction.ASSIGN_TO_BOARD.takeIf { isInbox }),
             )
         }
-        RowContext.INBOX -> {
+        RowContext.LIST -> {
             val toggleMyDay = if (isMarked) RowAction.REMOVE_FROM_MY_DAY else RowAction.ADD_TO_MY_DAY
             RowActions(
                 swipeEnd = complete,

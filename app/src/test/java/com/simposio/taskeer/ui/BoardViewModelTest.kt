@@ -720,6 +720,10 @@ class BoardViewModelTest {
             return DomainResult.Success(updated)
         }
 
+        override fun observeCompletedCount(): Flow<Int> = error("no se usa")
+
+        override suspend fun deleteCompleted(): DomainResult<Int> = error("no se usa")
+
         override suspend fun deleteTask(id: String): DomainResult<Unit> = error("no se usa")
     }
 

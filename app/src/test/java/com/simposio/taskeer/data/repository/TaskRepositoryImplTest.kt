@@ -548,6 +548,80 @@ class TaskRepositoryImplTest {
         assertEquals(writesBefore, taskDao.writeCalls)
     }
 
+    private fun completedRepository(vararg ids: String): Pair<TaskRepositoryImpl, FakeTaskDao> {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
+        val taskDao = FakeTaskDao(columnDao)
+        ids.forEachIndexed { index, id ->
+            taskDao.put(taskEntity(id, columnId = "columna-1", position = index, completedAt = now))
+        }
+        val repository = TaskRepositoryImpl(taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, taskDao.listDao, taskDao.defaultListId, now = { later })
+        return repository to taskDao
+    }
+
+    @Test
+    fun deleteCompleted_marcaDeletedAtYPendingEnTodasLasCompletadas() = runTest {
+        val (repository, taskDao) = completedRepository("c1", "c2")
+
+        repository.deleteCompleted()
+
+        listOf("c1", "c2").forEach { id ->
+            val row = taskDao.stored.getValue(id)
+            assertEquals(later.toEpochMilli(), row.deletedAt)
+            assertEquals(later.toEpochMilli(), row.updatedAt)
+            assertTrue(row.pending)
+        }
+        assertEquals("las filas no se borran físicamente", 2, taskDao.stored.size)
+    }
+
+    @Test
+    fun deleteCompleted_noTocaLasPendientesNiLasYaBorradas() = runTest {
+        val (repository, taskDao) = completedRepository("c1")
+        taskDao.put(taskEntity("pendiente", columnId = "columna-1", position = 5))
+        taskDao.put(taskEntity("vieja", columnId = "columna-1", position = 6, completedAt = now, deletedAt = now))
+
+        repository.deleteCompleted()
+
+        assertEquals(null, taskDao.stored.getValue("pendiente").deletedAt)
+        assertEquals(now.toEpochMilli(), taskDao.stored.getValue("vieja").deletedAt)
+    }
+
+    @Test
+    fun deleteCompleted_aplicaLaCascadaDeSubtareas() = runTest {
+        val (repository, taskDao) = completedRepository("c1")
+        taskDao.putSubtask(subtaskEntity("s1", taskId = "c1"))
+
+        repository.deleteCompleted()
+
+        assertEquals(later.toEpochMilli(), taskDao.subtasks.getValue("s1").deletedAt)
+    }
+
+    @Test
+    fun deleteCompleted_devuelveElNumeroBorrado() = runTest {
+        val (repository, _) = completedRepository("c1", "c2", "c3")
+
+        val result = repository.deleteCompleted()
+
+        assertEquals(3, (result as DomainResult.Success).value)
+    }
+
+    @Test
+    fun deleteCompleted_sinCompletadas_devuelveCero() = runTest {
+        val (repository, _) = completedRepository()
+
+        val result = repository.deleteCompleted()
+
+        assertEquals(0, (result as DomainResult.Success).value)
+    }
+
+    @Test
+    fun observeCompletedCount_cuentaSoloCompletadasNoBorradas() = runTest {
+        val (repository, taskDao) = completedRepository("c1", "c2")
+        taskDao.put(taskEntity("pendiente", columnId = "columna-1", position = 5))
+        taskDao.put(taskEntity("vieja", columnId = "columna-1", position = 6, completedAt = now, deletedAt = now))
+
+        assertEquals(2, repository.observeCompletedCount().first())
+    }
+
     @Test
     fun deleteTask_descartaLosRecordatoriosPendientesDeLaTareaEnLaMismaTransaccion() = runTest {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
@@ -2389,6 +2463,13 @@ class TaskRepositoryImplTest {
             activeTasks().filter { task -> task.dueAt != null }
                 .map { task -> ReminderCandidateRow(task.id, task.title, requireNotNull(task.dueAt)) }
         }
+
+        override fun observeCompletedCount(): Flow<Int> = rows.map { stored ->
+            stored.values.count { it.completedAt != null && it.deletedAt == null }
+        }
+
+        override suspend fun findCompleted(): List<TaskEntity> =
+            rows.value.values.filter { it.completedAt != null && it.deletedAt == null }.sortedBy { it.id }
 
         override suspend fun countActive(): Int = activeTasks().size
 

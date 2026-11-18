@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.simposio.taskeer.data.repository.TaskListRepository
 import com.simposio.taskeer.domain.list.defaultListOf
-import com.simposio.taskeer.domain.list.effectiveListId
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,21 +16,16 @@ import kotlinx.coroutines.launch
 
 class TaskListsViewModel(
     private val repository: TaskListRepository,
-    private val selection: ListSelection,
 ) : ViewModel() {
 
     private val local = MutableStateFlow(Local())
 
     val uiState: StateFlow<TaskListsUiState> = combine(
         repository.observeLists(),
-        selection.selectedListId,
         local,
-    ) { lists, selectedId, local ->
-        val effective = effectiveListId(selectedId, lists.map { it.list })
-        TaskListsUiState(lists = lists, selectedListId = effective, dialog = local.dialog, error = local.error)
+    ) { lists, local ->
+        TaskListsUiState(lists = lists, dialog = local.dialog, error = local.error)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), TaskListsUiState())
-
-    fun select(listId: String) = selection.select(listId)
 
     fun openCreate() {
         local.value = Local(dialog = ListDialog.Create)
@@ -57,10 +51,7 @@ class TaskListsViewModel(
             when (dialog) {
                 ListDialog.Create -> when (val result = repository.createList(text)) {
                     is DomainResult.Failure -> fail(result.error)
-                    is DomainResult.Success -> {
-                        selection.select(result.value.id)
-                        dismiss()
-                    }
+                    is DomainResult.Success -> dismiss()
                 }
                 is ListDialog.Rename -> when (val result = repository.renameList(dialog.listId, text)) {
                     is DomainResult.Failure -> fail(result.error)
@@ -76,10 +67,7 @@ class TaskListsViewModel(
         viewModelScope.launch {
             when (val result = repository.deleteList(dialog.listId)) {
                 is DomainResult.Failure -> fail(result.error)
-                is DomainResult.Success -> {
-                    if (selection.selectedListId.value == dialog.listId) selection.select(null)
-                    dismiss()
-                }
+                is DomainResult.Success -> dismiss()
             }
         }
     }

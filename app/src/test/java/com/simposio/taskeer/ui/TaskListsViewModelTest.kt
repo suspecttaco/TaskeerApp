@@ -5,7 +5,6 @@ import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.testing.FakeTaskListRepository
 import com.simposio.taskeer.testing.listSummary
 import com.simposio.taskeer.ui.lists.ListDialog
-import com.simposio.taskeer.ui.lists.ListSelection
 import com.simposio.taskeer.ui.lists.TaskListsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -17,7 +16,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -32,7 +30,6 @@ class TaskListsViewModelTest {
             listSummary("compras", "Compras", activeCount = 2, position = 1),
         ),
     )
-    private val selection = ListSelection()
 
     @Before
     fun setUp() {
@@ -45,32 +42,37 @@ class TaskListsViewModelTest {
     }
 
     @Test
-    fun estadoInicial_seleccionaLaListaPorDefecto() = runTest {
+    fun uiState_exponeListasConContador() = runTest {
         val state = viewModel().uiState.value
 
-        assertEquals(SEEDED_TASK_LIST_ID, state.selectedListId)
         assertEquals(listOf("Tareas", "Compras"), state.lists.map { it.list.name })
-        assertEquals(3, state.selected?.activeCount)
+        assertEquals(listOf(3, 2), state.lists.map { it.activeCount })
         assertEquals(ListDialog.None, state.dialog)
     }
 
     @Test
-    fun abrirDialogo_creaConNombreValido_cierraYSeleccionaLaNueva() = runTest {
+    fun openCreate_abreElDialogo() = runTest {
+        val viewModel = viewModel()
+
+        viewModel.openCreate()
+
+        assertEquals(ListDialog.Create, viewModel.uiState.value.dialog)
+    }
+
+    @Test
+    fun submitName_crea_cierraYNoNavega() = runTest {
         val viewModel = viewModel()
         viewModel.openCreate()
-        assertEquals(ListDialog.Create, viewModel.uiState.value.dialog)
 
         viewModel.submitName("  Viajes ")
 
-        val created = repository.lists.value.single { it.list.name == "Viajes" }.list
+        assertEquals(listOf("Tareas", "Compras", "Viajes"), viewModel.uiState.value.lists.map { it.list.name })
         assertEquals(ListDialog.None, viewModel.uiState.value.dialog)
-        assertEquals(created.id, viewModel.uiState.value.selectedListId)
-        assertEquals(created.id, selection.selectedListId.value)
         assertNull(viewModel.uiState.value.error)
     }
 
     @Test
-    fun crear_nombreInvalido_mantieneElDialogoConError() = runTest {
+    fun submitName_nombreInvalido_muestraError() = runTest {
         val viewModel = viewModel()
         viewModel.openCreate()
 
@@ -90,7 +92,6 @@ class TaskListsViewModelTest {
 
         assertEquals(ListDialog.Create, viewModel.uiState.value.dialog)
         assertEquals("LIST_NAME_TAKEN", viewModel.uiState.value.error?.code)
-        assertEquals(SEEDED_TASK_LIST_ID, viewModel.uiState.value.selectedListId)
     }
 
     @Test
@@ -106,18 +107,7 @@ class TaskListsViewModelTest {
     }
 
     @Test
-    fun listaSeleccionadaBorrada_vuelveALaPorDefectoResultante() = runTest {
-        val viewModel = viewModel()
-        viewModel.select("compras")
-        assertEquals("compras", viewModel.uiState.value.selectedListId)
-
-        repository.lists.value = repository.lists.value.filter { it.list.id != "compras" }
-
-        assertEquals(SEEDED_TASK_LIST_ID, viewModel.uiState.value.selectedListId)
-    }
-
-    @Test
-    fun renombrar_valida_actualizaElNombre() = runTest {
+    fun submitName_renombra_actualizaElNombre() = runTest {
         val viewModel = viewModel()
         viewModel.openRename("compras")
         assertEquals(ListDialog.Rename("compras", "Compras"), viewModel.uiState.value.dialog)
@@ -142,20 +132,18 @@ class TaskListsViewModelTest {
     }
 
     @Test
-    fun eliminar_confirmado_llamaADeleteList() = runTest {
+    fun confirmDelete_llamaADeleteList() = runTest {
         val viewModel = viewModel()
-        viewModel.select("compras")
         viewModel.openDelete("compras")
 
         viewModel.confirmDelete()
 
         assertEquals(listOf("compras"), repository.deleted)
         assertEquals(ListDialog.None, viewModel.uiState.value.dialog)
-        assertEquals(SEEDED_TASK_LIST_ID, viewModel.uiState.value.selectedListId)
     }
 
     @Test
-    fun borrarUltimaLista_conFallo_exponeError() = runTest {
+    fun confirmDelete_conFallo_exponeError() = runTest {
         repository.deleteFailure = DomainError.Conflict("LIST_LAST_PROTECTED", "No se puede eliminar la última lista")
         val viewModel = viewModel()
         viewModel.openDelete("compras")
@@ -167,9 +155,8 @@ class TaskListsViewModelTest {
     }
 
     @Test
-    fun renombrarTareas_esPosible() = runTest {
+    fun submitName_renombra_laListaPorDefecto() = runTest {
         val viewModel = viewModel()
-        assertTrue(viewModel.uiState.value.canRenameSelected)
 
         viewModel.openRename(SEEDED_TASK_LIST_ID)
         viewModel.submitName("Pendientes")
@@ -179,10 +166,9 @@ class TaskListsViewModelTest {
     }
 
     @Test
-    fun eliminarTareas_conOtrasListas_seOfrece() = runTest {
+    fun openDelete_listaPorDefecto_conOtrasListas_pideConfirmacion() = runTest {
         val viewModel = viewModel()
 
-        assertTrue(viewModel.uiState.value.canDeleteSelected)
         viewModel.openDelete(SEEDED_TASK_LIST_ID)
 
         assertEquals(
@@ -192,18 +178,16 @@ class TaskListsViewModelTest {
     }
 
     @Test
-    fun soloUnaLista_noOfreceEliminar() = runTest {
+    fun openDelete_soloUnaLista_noAbreElDialogo() = runTest {
         repository.lists.value = repository.lists.value.take(1)
         val viewModel = viewModel()
 
-        assertFalse(viewModel.uiState.value.canDeleteSelected)
-        assertTrue(viewModel.uiState.value.canRenameSelected)
         viewModel.openDelete(SEEDED_TASK_LIST_ID)
         assertEquals(ListDialog.None, viewModel.uiState.value.dialog)
     }
 
     private fun TestScope.viewModel(): TaskListsViewModel {
-        val viewModel = TaskListsViewModel(repository, selection)
+        val viewModel = TaskListsViewModel(repository)
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }

@@ -2,13 +2,15 @@ package com.simposio.taskeer.ui.navigation
 
 enum class AppDestination(val route: String) {
     MY_DAY("my_day"),
-    INBOX("inbox"),
-    WORKSPACES("workspaces"),
-    SETTINGS("settings"),
+    HOME("home"),
+    UPCOMING_7_DAYS("upcoming_7_days"),
+    ALL_TASKS("all_tasks"),
+    CALENDAR("calendar"),
+    LIST("list/{listId}"),
     BOARD("board/{boardId}"),
     BOARD_COLUMNS("board_columns/{boardId}"),
     NOTIFICATIONS("notifications"),
-    PLANNED("planned"),
+    SETTINGS("settings"),
     ;
 
     fun upRoute(boardId: String): String? = when (this) {
@@ -19,11 +21,11 @@ enum class AppDestination(val route: String) {
     companion object {
         val START: AppDestination = MY_DAY
 
-        val topLevel: List<AppDestination> = listOf(MY_DAY, PLANNED, INBOX, WORKSPACES, SETTINGS)
-
         fun boardRoute(boardId: String): String = "board/$boardId"
 
         fun boardColumnsRoute(boardId: String): String = "board_columns/$boardId"
+
+        fun listRoute(listId: String): String = "list/$listId"
 
         fun fromRoute(route: String?): AppDestination? = entries.firstOrNull { it.route == route }
     }
