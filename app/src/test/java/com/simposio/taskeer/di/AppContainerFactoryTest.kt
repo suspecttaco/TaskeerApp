@@ -12,6 +12,7 @@ import com.simposio.taskeer.data.reminder.ReminderReconciler
 import com.simposio.taskeer.data.repository.BoardRepository
 import com.simposio.taskeer.data.repository.ColumnRepository
 import com.simposio.taskeer.data.repository.MyDayRepository
+import com.simposio.taskeer.data.repository.PlannedRepository
 import com.simposio.taskeer.data.repository.PreferencesRepository
 import com.simposio.taskeer.data.repository.ReminderRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
@@ -94,6 +95,7 @@ class AppContainerFactoryTest {
             taskRepository = stub<TaskRepository>(),
             subtaskRepository = stub<SubtaskRepository>(),
             myDayRepository = stub<MyDayRepository>(),
+            plannedRepository = stub<PlannedRepository>(),
             reminderRepository = stub<ReminderRepository>(),
             reminderReconciler = reconciler(),
             notificationHistoryRepository = FakeNotificationHistoryRepository(),
@@ -121,6 +123,7 @@ class AppContainerFactoryTest {
             taskRepository = tasks,
             subtaskRepository = stub<SubtaskRepository>(),
             myDayRepository = myDay,
+            plannedRepository = stub<PlannedRepository>(),
             reminderRepository = stub<ReminderRepository>(),
             reminderReconciler = reconciler(),
             notificationHistoryRepository = FakeNotificationHistoryRepository(),
@@ -133,6 +136,32 @@ class AppContainerFactoryTest {
     }
 
     @Test
+    fun plannedRepository_estaCableado() {
+        val planned = Proxy.newProxyInstance(
+            PlannedRepository::class.java.classLoader,
+            arrayOf(PlannedRepository::class.java),
+        ) { _, method, _ -> error("${method.name} no se usa") } as PlannedRepository
+        val container = AppContainer(
+            preferencesRepository = stub<PreferencesRepository>(),
+            timeZoneProvider = { java.time.ZoneOffset.UTC },
+            boardRepository = stub<BoardRepository>(),
+            columnRepository = stub<ColumnRepository>(),
+            taskRepository = stub<TaskRepository>(),
+            subtaskRepository = stub<SubtaskRepository>(),
+            myDayRepository = stub<MyDayRepository>(),
+            plannedRepository = planned,
+            reminderRepository = stub<ReminderRepository>(),
+            reminderReconciler = reconciler(),
+            notificationHistoryRepository = FakeNotificationHistoryRepository(),
+        )
+
+        assertSame(planned, container.plannedRepository)
+        val source = factorySource()
+        assertTrue(source.contains("plannedRepository = PlannedRepositoryImpl("))
+        assertTrue(source.contains("MyDayRepositoryImpl("))
+    }
+
+    @Test
     fun factory_construyeRemindersViewModel() {
         val container = AppContainer(
             preferencesRepository = stub<PreferencesRepository>(),
@@ -142,6 +171,7 @@ class AppContainerFactoryTest {
             taskRepository = stub<TaskRepository>(),
             subtaskRepository = stub<SubtaskRepository>(),
             myDayRepository = stub<MyDayRepository>(),
+            plannedRepository = stub<PlannedRepository>(),
             reminderRepository = stub<ReminderRepository>(),
             reminderReconciler = reconciler(),
             notificationHistoryRepository = FakeNotificationHistoryRepository(),
