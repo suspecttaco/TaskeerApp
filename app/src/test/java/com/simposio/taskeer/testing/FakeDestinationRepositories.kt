@@ -13,7 +13,9 @@ import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskCreation
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.task.newTask
+import com.simposio.taskeer.domain.task.successor
 import java.time.Instant
+import java.time.ZoneOffset
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
@@ -99,8 +101,15 @@ class FakeDestinationTaskRepository : TaskRepository {
     override suspend fun setCompleted(id: String, completed: Boolean): DomainResult<Task> {
         completions += id to completed
         completeFailure?.let { return DomainResult.Failure(it) }
-        val updated = inbox.value.first { it.id == id }.copy(completedAt = if (completed) Instant.EPOCH else null)
-        inbox.value = inbox.value.map { if (it.id == id) updated else it }
+        val current = inbox.value.first { it.id == id }
+        // Emula R8: la sucesora nace en el mismo paso que la original completada.
+        val successor = current.takeIf { completed && it.repeatSuccessorId == null }
+            ?.successor(Instant.EPOCH, ZoneOffset.UTC, null, inbox.value.size)
+        val updated = current.copy(
+            completedAt = if (completed) Instant.EPOCH else null,
+            repeatSuccessorId = successor?.id ?: current.repeatSuccessorId,
+        )
+        inbox.value = inbox.value.map { if (it.id == id) updated else it } + listOfNotNull(successor)
         return DomainResult.Success(updated)
     }
 

@@ -19,12 +19,17 @@ import com.simposio.taskeer.domain.model.ReminderCandidate
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskCreation
 import com.simposio.taskeer.domain.model.TaskDraft
+import com.simposio.taskeer.domain.model.RepeatUnit
 import com.simposio.taskeer.domain.model.TaskPriority
+import com.simposio.taskeer.domain.model.TaskRepeat
+import com.simposio.taskeer.domain.task.successor
+import com.simposio.taskeer.domain.task.successorIdFor
 import com.simposio.taskeer.ui.board.BoardViewModel
 import com.simposio.taskeer.ui.board.NewColumnUiState
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -395,6 +400,21 @@ class BoardViewModelTest {
     }
 
     @Test
+    fun toggleCompleted_tareaRepetida_apareceLaSiguiente() = runTest {
+        val repeating = task("a", "c1", 0, dueAt = NOW).copy(repeat = TaskRepeat(RepeatUnit.DAY, 1, emptySet(), 1))
+        val tasks = MutableStateFlow(listOf(repeating))
+        val viewModel = viewModel(MutableStateFlow(listOf(column("c1", 0))), tasks)
+        collect(viewModel)
+
+        viewModel.toggleCompleted("a")
+
+        val cards = viewModel.uiState.value.columns.single().cards
+        assertEquals(listOf("a", successorIdFor("a")), cards.map { it.id })
+        assertEquals(listOf(true, false), cards.map { it.isCompleted })
+        assertEquals("Tarea a", cards.last().title)
+    }
+
+    @Test
     fun card_completada_marcaIsCompleted() = runTest {
         val tasks = MutableStateFlow(listOf(task("a", "c1", 0, completedAt = NOW), task("b", "c1", 1)))
         val viewModel = viewModel(MutableStateFlow(listOf(column("c1", 0))), tasks)
@@ -665,8 +685,15 @@ class BoardViewModelTest {
         override suspend fun setCompleted(id: String, completed: Boolean): DomainResult<Task> {
             completions += id to completed
             failure?.let { return DomainResult.Failure(it) }
-            val updated = tasks.value.first { it.id == id }.copy(completedAt = if (completed) Instant.EPOCH else null)
-            tasks.value = tasks.value.map { if (it.id == id) updated else it }
+            val current = tasks.value.first { it.id == id }
+            // Emula R8: la sucesora nace en el mismo paso que la original completada.
+            val successor = current.takeIf { completed && it.repeatSuccessorId == null }
+                ?.successor(Instant.EPOCH, ZoneOffset.UTC, current.columnId, tasks.value.count { it.columnId == current.columnId })
+            val updated = current.copy(
+                completedAt = if (completed) Instant.EPOCH else null,
+                repeatSuccessorId = successor?.id ?: current.repeatSuccessorId,
+            )
+            tasks.value = tasks.value.map { if (it.id == id) updated else it } + listOfNotNull(successor)
             return DomainResult.Success(updated)
         }
 

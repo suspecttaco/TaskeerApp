@@ -8,7 +8,10 @@ import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.MyDay
 import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.domain.model.Task
+import com.simposio.taskeer.domain.model.RepeatUnit
 import com.simposio.taskeer.domain.model.TaskPriority
+import com.simposio.taskeer.domain.model.TaskRepeat
+import com.simposio.taskeer.domain.task.successorIdFor
 import com.simposio.taskeer.testing.FakeDestinationTaskRepository
 import com.simposio.taskeer.ui.inbox.InboxViewModel
 import java.time.Instant
@@ -102,6 +105,18 @@ class InboxViewModelTest {
         viewModel.toggleCompleted("b")
 
         assertEquals(listOf("a" to true, "b" to false), tasks.completions)
+    }
+
+    @Test
+    fun toggleCompleted_tareaRepetida_apareceLaSiguiente() = runTest {
+        tasks.inbox.value = listOf(task("a", dueAt = now).copy(repeat = TaskRepeat(RepeatUnit.DAY, 1, emptySet(), 2)))
+        val viewModel = viewModel()
+
+        viewModel.toggleCompleted("a")
+
+        val items = viewModel.uiState.value.items
+        assertEquals(listOf(successorIdFor("a"), "a"), items.map { it.id })
+        assertEquals(listOf(false, true), items.map { it.isCompleted })
     }
 
     @Test
