@@ -560,7 +560,7 @@ class TaskEditorViewModelTest {
     )
 
     private class FakeTaskRepository(vararg tasks: Task) : TaskRepository {
-        override fun observeInbox(): Flow<List<Task>> = emptyFlow()
+        override fun observeList(listId: String): Flow<List<Task>> = emptyFlow()
 
         override fun observeActiveCountsByColumn(): Flow<Map<String, Int>> = emptyFlow()
 
@@ -589,19 +589,20 @@ class TaskEditorViewModelTest {
             stored[id]?.let { DomainResult.Success(it) }
                 ?: DomainResult.Failure(DomainError.NotFound("TASK_NOT_FOUND", "No existe"))
 
-        override suspend fun createTask(columnId: String?, draft: TaskDraft): DomainResult<Task> =
+        override suspend fun createTask(columnId: String?, draft: TaskDraft, listId: String?): DomainResult<Task> =
             createError?.let { DomainResult.Failure(it) }
-                ?: newTask(columnId, draft, position = 0, now = Instant.EPOCH)
+                ?: newTask(columnId, draft, position = 0, now = Instant.EPOCH, listId = listId)
                     .also { result -> lastCreated = (result as? DomainResult.Success)?.value }
 
         override suspend fun createTaskWithExtras(
             columnId: String?,
             creation: TaskCreation,
+            listId: String?,
         ): DomainResult<Task> {
             extrasCalls++
             lastCreation = creation
             return createError?.let { DomainResult.Failure(it) }
-                ?: newTaskWithExtras(columnId, creation, position = 0, now = Instant.EPOCH)
+                ?: newTaskWithExtras(columnId, creation, position = 0, now = Instant.EPOCH, listId = listId)
                     .let { result ->
                         when (result) {
                             is DomainResult.Failure -> result
@@ -612,6 +613,8 @@ class TaskEditorViewModelTest {
         }
 
         var lastUpdateDraft: TaskDraft? = null
+
+        override suspend fun moveToList(id: String, listId: String): DomainResult<Task> = error("no se usa")
 
         override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> {
             updateCalls++

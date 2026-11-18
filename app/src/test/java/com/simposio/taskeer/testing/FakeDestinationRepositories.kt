@@ -19,6 +19,7 @@ import java.time.ZoneOffset
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.map
 
 class FakeDestinationBoardRepository(
     val boards: MutableStateFlow<List<Board>> = MutableStateFlow(emptyList()),
@@ -58,6 +59,9 @@ class FakeDestinationTaskRepository : TaskRepository {
     val counts = MutableStateFlow<Map<String, Int>>(emptyMap())
     val inbox = MutableStateFlow<List<Task>>(emptyList())
     val creations = mutableListOf<Pair<String?, TaskCreation>>()
+    val creationListIds = mutableListOf<String?>()
+    val listMoves = mutableListOf<Pair<String, String>>()
+    var moveFailure: DomainError? = null
     val assignments = mutableListOf<Pair<String, String>>()
     var createFailure: DomainError? = null
     var assignFailure: DomainError? = null
@@ -66,14 +70,20 @@ class FakeDestinationTaskRepository : TaskRepository {
     val updates = mutableListOf<Pair<String, TaskDraft>>()
     var updateFailure: DomainError? = null
 
-    override fun observeInbox(): Flow<List<Task>> = inbox
+    override fun observeList(listId: String): Flow<List<Task>> =
+        inbox.map { tasks -> tasks.filter { it.columnId == null && it.listId == listId } }
 
     override fun observeActiveCountsByColumn(): Flow<Map<String, Int>> = counts
 
-    override suspend fun createTaskWithExtras(columnId: String?, creation: TaskCreation): DomainResult<Task> {
+    override suspend fun createTaskWithExtras(
+        columnId: String?,
+        creation: TaskCreation,
+        listId: String?,
+    ): DomainResult<Task> {
         creations += columnId to creation
+        creationListIds += listId
         createFailure?.let { return DomainResult.Failure(it) }
-        return newTask(columnId, creation.task, position = 0, now = Instant.EPOCH).also { result ->
+        return newTask(columnId, creation.task, position = 0, now = Instant.EPOCH, listId = listId).also { result ->
             (result as? DomainResult.Success)?.let { inbox.value = inbox.value + it.value }
         }
     }
@@ -96,7 +106,15 @@ class FakeDestinationTaskRepository : TaskRepository {
         inbox.value.firstOrNull { it.id == id }?.let { DomainResult.Success(it) }
             ?: DomainResult.Failure(DomainError.NotFound("TASK_NOT_FOUND", "La tarea no existe"))
 
-    override suspend fun createTask(columnId: String?, draft: TaskDraft): DomainResult<Task> = unused()
+    override suspend fun createTask(columnId: String?, draft: TaskDraft, listId: String?): DomainResult<Task> = unused()
+
+    override suspend fun moveToList(id: String, listId: String): DomainResult<Task> {
+        listMoves += id to listId
+        moveFailure?.let { return DomainResult.Failure(it) }
+        val updated = inbox.value.first { it.id == id }.copy(listId = listId)
+        inbox.value = inbox.value.map { if (it.id == id) updated else it }
+        return DomainResult.Success(updated)
+    }
 
     override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> {
         updates += id to draft
@@ -114,7 +132,7 @@ class FakeDestinationTaskRepository : TaskRepository {
         val current = inbox.value.first { it.id == id }
         // Emula R8: la sucesora nace en el mismo paso que la original completada.
         val successor = current.takeIf { completed && it.repeatSuccessorId == null }
-            ?.successor(Instant.EPOCH, ZoneOffset.UTC, null, inbox.value.size)
+            ?.successor(Instant.EPOCH, ZoneOffset.UTC, null, current.listId, inbox.value.size)
         val updated = current.copy(
             completedAt = if (completed) Instant.EPOCH else null,
             repeatSuccessorId = successor?.id ?: current.repeatSuccessorId,

@@ -99,11 +99,12 @@ fun nextDueAt(repeat: TaskRepeat, dueAt: Instant, now: Instant, zone: ZoneId): I
 fun successorIdFor(taskId: String): String =
     UUID.nameUUIDFromBytes("taskeer:repeat:$taskId".toByteArray(Charsets.UTF_8)).toString()
 
-fun Task.successor(now: Instant, zone: ZoneId, columnId: String?, position: Int): Task? {
+fun Task.successor(now: Instant, zone: ZoneId, columnId: String?, listId: String?, position: Int): Task? {
     val rule = repeat ?: return null
     val due = dueAt ?: return null
     return Task(
         columnId = columnId,
+        listId = listId,
         title = title,
         description = description,
         priority = priority,

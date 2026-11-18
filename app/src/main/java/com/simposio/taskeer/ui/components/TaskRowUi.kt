@@ -16,4 +16,5 @@ data class TaskRowUi(
     val isInbox: Boolean,
     val isRepeating: Boolean,
     val showMyDayStar: Boolean,
+    val listName: String? = null,
 )

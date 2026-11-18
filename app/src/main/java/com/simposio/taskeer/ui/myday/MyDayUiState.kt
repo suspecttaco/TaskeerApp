@@ -16,6 +16,7 @@ data class MyDayTaskUi(
     val isAssigned: Boolean,
     val isCompleted: Boolean = false,
     val isRepeating: Boolean = false,
+    val listName: String? = null,
 ) {
     val isInbox: Boolean get() = boardName == null
 }
@@ -28,6 +29,7 @@ data class MyDaySuggestionUi(
     val due: String? = null,
     val isOverdue: Boolean = false,
     val isRepeating: Boolean = false,
+    val listName: String? = null,
 )
 
 data class MyDayUiState(

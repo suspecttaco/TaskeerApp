@@ -3,6 +3,7 @@ package com.simposio.taskeer.ui.components
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -31,6 +32,7 @@ internal fun RowAction.icon(): ImageVector = when (this) {
     RowAction.RESCHEDULE_SOMEDAY -> Icons.Filled.EventBusy
     RowAction.PICK_DATE -> Icons.Filled.CalendarMonth
     RowAction.ASSIGN_TO_BOARD -> Icons.AutoMirrored.Filled.DriveFileMove
+    RowAction.MOVE_TO_LIST -> Icons.AutoMirrored.Filled.PlaylistAdd
 }
 
 @StringRes
@@ -46,6 +48,7 @@ internal fun RowAction.labelRes(): Int = when (this) {
     RowAction.RESCHEDULE_SOMEDAY -> R.string.row_action_someday
     RowAction.PICK_DATE -> R.string.row_action_pick_date
     RowAction.ASSIGN_TO_BOARD -> R.string.row_action_assign
+    RowAction.MOVE_TO_LIST -> R.string.row_action_move_to_list
 }
 
 @StringRes
@@ -68,5 +71,6 @@ internal fun RowAction.swipeContainerColor(): Color = when (this) {
     RowAction.REMOVE_FROM_MY_DAY,
     RowAction.DISMISS,
     RowAction.ASSIGN_TO_BOARD,
+    RowAction.MOVE_TO_LIST,
     -> MaterialTheme.colorScheme.secondaryContainer
 }

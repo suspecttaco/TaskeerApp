@@ -14,6 +14,7 @@ enum class RowAction {
     RESCHEDULE_SOMEDAY,
     PICK_DATE,
     ASSIGN_TO_BOARD,
+    MOVE_TO_LIST,
 }
 
 data class RowActions(val swipeEnd: RowAction?, val swipeStart: RowAction?, val sheet: List<RowAction>)
@@ -50,7 +51,7 @@ fun rowActions(
             RowActions(
                 swipeEnd = complete,
                 swipeStart = toggleMyDay,
-                sheet = listOf(complete, toggleMyDay) + reschedule +
+                sheet = listOf(complete, toggleMyDay) + reschedule + RowAction.MOVE_TO_LIST +
                     listOfNotNull(RowAction.ASSIGN_TO_BOARD.takeIf { isInbox }),
             )
         }

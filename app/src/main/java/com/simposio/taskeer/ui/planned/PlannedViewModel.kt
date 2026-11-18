@@ -91,6 +91,7 @@ class PlannedViewModel(
         title = task.title,
         priority = task.priority,
         boardName = boardName,
+        listName = listName,
         time = task.dueAt?.let { dateTimeConverter.toLocalDateTime(it).format(TIME_FORMATTER) }.orEmpty(),
         isOverdue = isOverdue(task.dueAt, task.isCompleted, now),
         isRepeating = task.repeat != null,

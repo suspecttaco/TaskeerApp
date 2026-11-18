@@ -21,6 +21,7 @@ import com.simposio.taskeer.ui.components.RowContext
 import com.simposio.taskeer.ui.components.actionsIn
 import com.simposio.taskeer.ui.myday.MyDayUiState
 import com.simposio.taskeer.ui.myday.MyDayViewModel
+import com.simposio.taskeer.ui.tasks.toRow
 import com.simposio.taskeer.ui.tasks.TASK_REPEAT_NOT_RESCHEDULABLE
 import com.simposio.taskeer.ui.tasks.TaskRescheduler
 import com.simposio.taskeer.ui.tasks.toRow
@@ -325,6 +326,23 @@ class MyDayViewModelTest {
 
         assertTrue(card.isInbox)
         assertNull(card.boardName)
+    }
+
+    @Test
+    fun tareaDeLista_muestraElNombreDeLaLista() = runTest {
+        val shopping = item("leche", addedAt = now).let {
+            it.copy(task = it.task.copy(columnId = null, listId = "compras"), boardId = null, boardName = null, listName = "Compras")
+        }
+        val yesterday = shopping.copy(task = shopping.task.copy(sync = shopping.task.sync.copy(clientId = "leche-ayer")))
+        val viewModel = viewModel(FakeMyDayRepository(MyDay(listOf(shopping), emptyList(), listOf(yesterday))))
+
+        val card = viewModel.uiState.value.items.single()
+
+        assertEquals("Compras", card.listName)
+        assertNull(card.boardName)
+        assertTrue(card.isInbox)
+        assertEquals("Compras", card.toRow().listName)
+        assertEquals("Compras", viewModel.uiState.value.suggestions.single().listName)
     }
 
     @Test

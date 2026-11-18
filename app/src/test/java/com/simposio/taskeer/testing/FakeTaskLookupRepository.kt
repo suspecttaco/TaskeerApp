@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 
 class FakeTaskLookupRepository : TaskRepository {
-    override fun observeInbox(): Flow<List<Task>> = emptyFlow()
+    override fun observeList(listId: String): Flow<List<Task>> = emptyFlow()
 
     override fun observeActiveCountsByColumn(): Flow<Map<String, Int>> = emptyFlow()
 
@@ -33,12 +33,15 @@ class FakeTaskLookupRepository : TaskRepository {
 
     override suspend fun activeTaskCount(): Int = unused()
 
-    override suspend fun createTask(columnId: String?, draft: TaskDraft): DomainResult<Task> = unused()
+    override suspend fun createTask(columnId: String?, draft: TaskDraft, listId: String?): DomainResult<Task> = unused()
 
     override suspend fun createTaskWithExtras(
         columnId: String?,
         creation: TaskCreation,
+        listId: String?,
     ): DomainResult<Task> = unused()
+
+    override suspend fun moveToList(id: String, listId: String): DomainResult<Task> = unused()
 
     override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> = unused()
 

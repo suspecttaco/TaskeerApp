@@ -9,9 +9,11 @@ import com.simposio.taskeer.data.repository.PlannedRepository
 import com.simposio.taskeer.data.repository.PreferencesRepository
 import com.simposio.taskeer.data.repository.ReminderRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
+import com.simposio.taskeer.data.repository.TaskListRepository
 import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.date.TimeZoneProvider
+import com.simposio.taskeer.ui.lists.ListSelection
 
 class AppContainer(
     val preferencesRepository: PreferencesRepository,
@@ -19,6 +21,7 @@ class AppContainer(
     val boardRepository: BoardRepository,
     val columnRepository: ColumnRepository,
     val taskRepository: TaskRepository,
+    val taskListRepository: TaskListRepository,
     val subtaskRepository: SubtaskRepository,
     val myDayRepository: MyDayRepository,
     val plannedRepository: PlannedRepository,
@@ -29,4 +32,5 @@ class AppContainer(
     val sdkInt: Int = 0,
 ) {
     val dateTimeConverter: DateTimeConverter = DateTimeConverter(timeZoneProvider)
+    val listSelection: ListSelection = ListSelection()
 }

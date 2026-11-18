@@ -3,7 +3,7 @@ package com.simposio.taskeer.ui.tasks
 import androidx.annotation.StringRes
 import com.simposio.taskeer.R
 
-enum class EmptyScreen { MY_DAY, INBOX, PLANNED }
+enum class EmptyScreen { MY_DAY, INBOX, LIST, PLANNED }
 
 enum class EmptyAction { ADD_TASK, SHOW_ALL, GO_TO_INBOX }
 
@@ -23,6 +23,8 @@ fun emptyStateFor(screen: EmptyScreen, hasTasks: Boolean, filterActive: Boolean)
             }
         EmptyScreen.INBOX ->
             EmptyStateSpec(R.string.inbox_empty, R.string.empty_action_add_task, EmptyAction.ADD_TASK)
+        EmptyScreen.LIST ->
+            EmptyStateSpec(R.string.list_empty, R.string.empty_action_add_task, EmptyAction.ADD_TASK)
         EmptyScreen.PLANNED ->
             EmptyStateSpec(R.string.planned_empty, R.string.empty_action_go_inbox, EmptyAction.GO_TO_INBOX)
     }

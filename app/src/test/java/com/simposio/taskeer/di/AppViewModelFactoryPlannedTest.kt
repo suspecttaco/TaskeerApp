@@ -10,6 +10,7 @@ import com.simposio.taskeer.data.repository.ReminderRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
+import com.simposio.taskeer.testing.FakeTaskListRepository
 import com.simposio.taskeer.testing.InMemoryCheckpointStore
 import com.simposio.taskeer.testing.RecordingNotifier
 import com.simposio.taskeer.testing.RecordingReminderScheduler
@@ -36,6 +37,7 @@ class AppViewModelFactoryPlannedTest {
             boardRepository = stub<BoardRepository>(),
             columnRepository = stub<ColumnRepository>(),
             taskRepository = stub<TaskRepository>(),
+            taskListRepository = FakeTaskListRepository(),
             subtaskRepository = stub<SubtaskRepository>(),
             myDayRepository = stub<MyDayRepository>(),
             plannedRepository = planned,

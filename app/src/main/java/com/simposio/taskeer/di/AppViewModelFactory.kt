@@ -9,6 +9,7 @@ import com.simposio.taskeer.ui.board.BoardViewModel
 import com.simposio.taskeer.ui.boards.BoardsViewModel
 import com.simposio.taskeer.ui.columns.ColumnsViewModel
 import com.simposio.taskeer.ui.inbox.InboxViewModel
+import com.simposio.taskeer.ui.lists.TaskListsViewModel
 import com.simposio.taskeer.ui.myday.MyDayViewModel
 import com.simposio.taskeer.ui.notifications.NotificationsViewModel
 import com.simposio.taskeer.ui.notifications.UnreadCounterViewModel
@@ -17,6 +18,7 @@ import com.simposio.taskeer.ui.planned.PlannedViewModel
 import com.simposio.taskeer.ui.quickadd.QuickAddViewModel
 import com.simposio.taskeer.ui.settings.SettingsViewModel
 import com.simposio.taskeer.ui.tasks.AssignToBoardViewModel
+import com.simposio.taskeer.ui.tasks.MoveToListViewModel
 import com.simposio.taskeer.ui.tasks.RemindersViewModel
 import com.simposio.taskeer.ui.tasks.SubtasksViewModel
 import com.simposio.taskeer.ui.tasks.TaskEditorViewModel
@@ -78,6 +80,7 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
         modelClass.isAssignableFrom(QuickAddViewModel::class.java) ->
             QuickAddViewModel(
                 container.taskRepository,
+                container.taskListRepository,
                 container.boardRepository,
                 container.columnRepository,
                 container.dateTimeConverter,
@@ -85,10 +88,16 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
         modelClass.isAssignableFrom(InboxViewModel::class.java) ->
             InboxViewModel(
                 container.taskRepository,
+                container.taskListRepository,
                 container.myDayRepository,
                 container.dateTimeConverter,
                 rescheduler(),
+                selectedListId = container.listSelection.selectedListId,
             ) as T
+        modelClass.isAssignableFrom(TaskListsViewModel::class.java) ->
+            TaskListsViewModel(container.taskListRepository, container.listSelection) as T
+        modelClass.isAssignableFrom(MoveToListViewModel::class.java) ->
+            MoveToListViewModel(container.taskRepository, container.taskListRepository) as T
         modelClass.isAssignableFrom(AssignToBoardViewModel::class.java) ->
             AssignToBoardViewModel(
                 container.taskRepository,
