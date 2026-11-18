@@ -50,7 +50,15 @@ fun sortMyDay(items: List<MyDayItem>, sort: MyDaySort): List<MyDayItem> {
         MyDaySort.PRIORITY -> compareByDescending<MyDayItem> { it.task.priority.rank() }.then(byDueNullsLast)
         MyDaySort.MARKED_AT -> compareBy<MyDayItem, Instant?>(nullsLast(reverseOrder())) { it.markedAt }
     }
-    return items.sortedWith(comparator.thenBy { it.task.id })
+    val (done, pending) = items.sortedWith(comparator.thenBy { it.task.id }).partition { it.task.isCompleted }
+    return pending + done
+}
+
+// La consulta ya excluye lo marcado hoy, pero una marca anterior de una tarea asignada y
+// vencida entra también por «asignadas».
+fun suggestionsFor(myDay: MyDay): List<MyDayTask> {
+    val inToday = (myDay.pinned + myDay.assigned).map { it.task.id }.toSet()
+    return myDay.suggestions.filter { it.task.id !in inToday }
 }
 
 fun applyMyDay(items: List<MyDayItem>, filter: MyDayFilter, sort: MyDaySort, now: Instant): List<MyDayItem> =
