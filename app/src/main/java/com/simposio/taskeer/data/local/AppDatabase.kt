@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ReminderEntity::class,
         AppNotificationEntity::class,
     ],
-    version = 12,
+    version = 13,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -243,6 +243,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_12_13: Migration = object : Migration(12, 13) {
+            // Sin relleno ni toque de updatedAt/pending: las tareas existentes quedan sin repetición.
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `tasks` ADD COLUMN `repeatUnit` TEXT")
+                db.execSQL("ALTER TABLE `tasks` ADD COLUMN `repeatInterval` INTEGER")
+                db.execSQL("ALTER TABLE `tasks` ADD COLUMN `repeatWeekdays` INTEGER")
+                db.execSQL("ALTER TABLE `tasks` ADD COLUMN `repeatAnchorDay` INTEGER")
+                db.execSQL("ALTER TABLE `tasks` ADD COLUMN `repeatSuccessorId` TEXT")
+            }
+        }
+
         private val MIGRATIONS: List<Migration> = listOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -255,6 +266,7 @@ abstract class AppDatabase : RoomDatabase() {
             MIGRATION_9_10,
             MIGRATION_10_11,
             MIGRATION_11_12,
+            MIGRATION_12_13,
         )
 
         fun create(context: Context): AppDatabase =

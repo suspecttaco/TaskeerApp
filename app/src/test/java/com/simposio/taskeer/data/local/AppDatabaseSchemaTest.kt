@@ -18,6 +18,7 @@ class AppDatabaseSchemaTest {
     private val schemaV10: String = resolveSchema(version = 10).readText()
     private val schemaV11: String = resolveSchema(version = 11).readText()
     private val schemaV12: String = resolveSchema(version = 12).readText()
+    private val schemaV13: String = resolveSchema(version = 13).readText()
 
     @Test
     fun esquemaVersion1_sigueExportado() {
@@ -407,9 +408,45 @@ class AppDatabaseSchemaTest {
     @Test
     fun version_es12() {
         assertTrue(
-            "el esquema debe declarar la versión 12 de la base de datos",
+            "el esquema conservado debe declarar la versión 12 de la base de datos",
             Regex("\"version\"\\s*:\\s*12\\b").containsMatchIn(schemaV12),
         )
+    }
+
+    @Test
+    fun version_es13() {
+        assertTrue(
+            "el esquema debe declarar la versión 13 de la base de datos",
+            Regex("\"version\"\\s*:\\s*13\\b").containsMatchIn(schemaV13),
+        )
+    }
+
+    @Test
+    fun v13_tasks_columnasDeRepeticionAdmitenNull() {
+        val tasks = tableV13("tasks")
+
+        assertEquals(ColumnSchema("TEXT", false), column(tasks, "repeatUnit"))
+        assertEquals(ColumnSchema("INTEGER", false), column(tasks, "repeatInterval"))
+        assertEquals(ColumnSchema("INTEGER", false), column(tasks, "repeatWeekdays"))
+        assertEquals(ColumnSchema("INTEGER", false), column(tasks, "repeatAnchorDay"))
+        assertEquals(ColumnSchema("TEXT", false), column(tasks, "repeatSuccessorId"))
+    }
+
+    @Test
+    fun json13_coincideConLaEntidad() {
+        val tasks = tableV13("tasks")
+        val entityFields = TaskEntity::class.java.declaredFields.map { it.name }.filter { !it.contains('$') }
+
+        entityFields.forEach { assertTrue("13.json debe declarar $it", tasks.contains("\"columnName\": \"$it\"")) }
+        assertEquals(entityFields.size, Regex("\"columnName\"").findAll(tasks.substringBefore("\"primaryKey\"")).count())
+    }
+
+    @Test
+    fun v13_mantieneLasColumnasDeTasksDeV12() {
+        listOf(
+            "id", "columnId", "title", "description", "priority", "dueAt", "assigneeId", "position",
+            "createdAt", "completedAt", "updatedAt", "pending", "deletedAt",
+        ).forEach { assertEquals(it, column(tableV12("tasks"), it), column(tableV13("tasks"), it)) }
     }
 
     @Test
@@ -418,9 +455,10 @@ class AppDatabaseSchemaTest {
     }
 
     @Test
-    fun json12_coincideConLaEntidad() {
+    fun json12_conservaLasColumnasPrevias() {
         val tasks = tableV12("tasks")
-        val entityFields = TaskEntity::class.java.declaredFields.map { it.name }.filter { !it.contains('$') }
+        val entityFields = TaskEntity::class.java.declaredFields.map { it.name }
+            .filter { !it.contains('$') && !it.startsWith("repeat") }
 
         entityFields.forEach { assertTrue("12.json debe declarar $it", tasks.contains("\"columnName\": \"$it\"")) }
         assertEquals(entityFields.size, Regex("\"columnName\"").findAll(tasks.substringBefore("\"primaryKey\"")).count())
@@ -430,6 +468,13 @@ class AppDatabaseSchemaTest {
     fun v12_mantieneElRestoDeColumnasDeTasksQueV11() {
         listOf("id", "columnId", "title", "description", "priority", "dueAt", "assigneeId", "position", "createdAt", "updatedAt", "pending", "deletedAt")
             .forEach { assertEquals(it, column(tableV11("tasks"), it), column(tableV12("tasks"), it)) }
+    }
+
+    private fun tableV13(name: String): String {
+        val start = schemaV13.indexOf("\"tableName\": \"$name\"")
+        assertTrue("el esquema v13 debe declarar la tabla $name", start >= 0)
+        val nextTable = schemaV13.indexOf("\"tableName\":", start + 1)
+        return schemaV13.substring(start, if (nextTable < 0) schemaV13.length else nextTable)
     }
 
     private fun tableV12(name: String): String {

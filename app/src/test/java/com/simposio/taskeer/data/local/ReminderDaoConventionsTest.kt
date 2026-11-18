@@ -90,6 +90,15 @@ class ReminderDaoConventionsTest {
         assertTrue(taskSource.contains("dismissRemindersOfTask(task.id, deletedAt)"))
     }
 
+    @Test
+    fun findLatestByTask_excluyeBorrados() {
+        val query = querySource("findLatestByTask")
+
+        assertTrue(query.contains("WHERE taskId = :taskId AND deletedAt IS NULL"))
+        assertTrue(query.contains("ORDER BY createdAt DESC LIMIT 1"))
+        assertFalse("cualquier estado cuenta, no solo PENDING", query.contains("status"))
+    }
+
     private fun querySource(name: String): String {
         val start = source.indexOf("fun $name(")
         assertTrue("falta $name", start >= 0)

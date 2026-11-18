@@ -113,6 +113,22 @@ class TaskDaoConventionsTest {
     }
 
     @Test
+    fun completeWithSuccessor_esTransaccional() {
+        val source = taskDaoSource()
+        val body = source.substring(source.indexOf("open suspend fun upsertAllWithSuccessor"))
+
+        assertTrue(
+            "original, renumeradas y sucesora deben ir en una única transacción de Room",
+            Regex("@Transaction\\s+open suspend fun upsertAllWithSuccessor").containsMatchIn(source),
+        )
+        assertTrue(body.contains("upsertAll(tasks)"))
+        assertTrue(body.contains("upsert(successor)"))
+        assertTrue(body.contains("insertSubtasks(subtasks)"))
+        assertTrue(body.contains("insertReminder(it)"))
+        assertTrue(method("upsertAllWithSuccessor").isSuspend())
+    }
+
+    @Test
     fun insertTaskWithExtras_incluyeLaEntradaDeMiDia() {
         val source = taskDaoSource()
         val body = source.substring(source.indexOf("open suspend fun insertTaskWithExtras"))
