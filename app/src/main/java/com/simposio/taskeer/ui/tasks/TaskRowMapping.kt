@@ -1,10 +1,10 @@
 package com.simposio.taskeer.ui.tasks
 
 import com.simposio.taskeer.ui.components.TaskRowUi
-import com.simposio.taskeer.ui.inbox.InboxTaskUi
+import com.simposio.taskeer.ui.lists.ListTaskUi
 import com.simposio.taskeer.ui.myday.MyDaySuggestionUi
 import com.simposio.taskeer.ui.myday.MyDayTaskUi
-import com.simposio.taskeer.ui.planned.PlannedTaskUi
+import com.simposio.taskeer.ui.upcoming.PlannedTaskUi
 
 fun MyDayTaskUi.toRow(): TaskRowUi = TaskRowUi(
     id = id,
@@ -23,8 +23,8 @@ fun MyDayTaskUi.toRow(): TaskRowUi = TaskRowUi(
     showMyDayStar = false,
 )
 
-// Toda tarea de Tareas es de bandeja: mostrar el tablero sería ruido.
-fun InboxTaskUi.toRow(): TaskRowUi = TaskRowUi(
+// Toda tarea de una lista es de bandeja: mostrar el tablero sería ruido.
+fun ListTaskUi.toRow(): TaskRowUi = TaskRowUi(
     id = id,
     title = title,
     isCompleted = isCompleted,

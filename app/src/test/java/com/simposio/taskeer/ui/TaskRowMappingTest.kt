@@ -1,10 +1,10 @@
 package com.simposio.taskeer.ui
 
 import com.simposio.taskeer.domain.model.TaskPriority
-import com.simposio.taskeer.ui.inbox.InboxTaskUi
+import com.simposio.taskeer.ui.lists.ListTaskUi
 import com.simposio.taskeer.ui.myday.MyDaySuggestionUi
 import com.simposio.taskeer.ui.myday.MyDayTaskUi
-import com.simposio.taskeer.ui.planned.PlannedTaskUi
+import com.simposio.taskeer.ui.upcoming.PlannedTaskUi
 import com.simposio.taskeer.ui.tasks.toRow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -32,7 +32,7 @@ class TaskRowMappingTest {
 
     @Test
     fun tareas_noMuestraTablero() {
-        val row = InboxTaskUi("t2", "Pan", TaskPriority.LOW, "1 oct 2026, 9:00", isOverdue = false, isMarked = true).toRow()
+        val row = ListTaskUi("t2", "Pan", TaskPriority.LOW, "1 oct 2026, 9:00", isOverdue = false, isMarked = true).toRow()
 
         assertFalse(row.showBoard)
         assertNull(row.boardName)
@@ -43,7 +43,7 @@ class TaskRowMappingTest {
 
     @Test
     fun tareas_sinMarca_noMuestraEstrella() {
-        val row = InboxTaskUi("t2", "Pan", TaskPriority.LOW, null, isOverdue = false, isMarked = false).toRow()
+        val row = ListTaskUi("t2", "Pan", TaskPriority.LOW, null, isOverdue = false, isMarked = false).toRow()
 
         assertFalse(row.showMyDayStar)
     }
@@ -86,13 +86,13 @@ class TaskRowMappingTest {
     fun vencida_marcaIsOverdue() {
         assertTrue(myDay(isOverdue = true).toRow().isOverdue)
         assertTrue(PlannedTaskUi("t3", "Banco", TaskPriority.LOW, null, "9:00", isOverdue = true).toRow().isOverdue)
-        assertTrue(InboxTaskUi("t2", "Pan", TaskPriority.LOW, "x", isOverdue = true, isMarked = false).toRow().isOverdue)
+        assertTrue(ListTaskUi("t2", "Pan", TaskPriority.LOW, "x", isOverdue = true, isMarked = false).toRow().isOverdue)
     }
 
     @Test
     fun completada_conservaSuEstado() {
         assertTrue(myDay(isCompleted = true).toRow().isCompleted)
-        assertTrue(InboxTaskUi("t2", "Pan", TaskPriority.LOW, null, false, false, isCompleted = true).toRow().isCompleted)
+        assertTrue(ListTaskUi("t2", "Pan", TaskPriority.LOW, null, false, false, isCompleted = true).toRow().isCompleted)
     }
 
     @Test

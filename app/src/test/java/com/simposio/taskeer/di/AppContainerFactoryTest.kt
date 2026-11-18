@@ -266,6 +266,10 @@ class AppContainerFactoryTest {
 
         override fun observeReminderCandidates(): Flow<List<ReminderCandidateRow>> = emptyFlow()
 
+        override fun observeCompletedCount(): Flow<Int> = emptyFlow()
+
+        override suspend fun findCompleted(): List<TaskEntity> = emptyList()
+
         override suspend fun countActive(): Int = 0
 
         override suspend fun findReminderState(taskId: String): ReminderTaskStateRow? = null

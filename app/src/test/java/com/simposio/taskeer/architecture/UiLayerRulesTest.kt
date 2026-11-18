@@ -30,6 +30,22 @@ class UiLayerRulesTest {
         assertTrue("la UI del visor usa el contrato; violaciones: $violations", violations.isEmpty())
     }
 
+    @Test
+    fun pantallasNuevas_sinDaoNiRoom() {
+        val forbidden = listOf("data.local", "Dao", "Entity", "androidx.room", "data.repository.TaskRepositoryImpl")
+        val dirs = listOf("ui/home", "ui/shell", "ui/upcoming", "ui/alltasks", "ui/lists", "ui/boards", "ui/calendar")
+        val files = dirs.flatMap { dir ->
+            File(sourcesRoot, dir).walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+        }
+
+        assertTrue("deben existir las pantallas nuevas", files.size > 10)
+        val violations = files.flatMap { file ->
+            forbidden.filter { file.readText().contains(it) }
+                .map { "${file.relativeTo(sourcesRoot)} referencia $it" }
+        }
+        assertTrue("la UI usa los contratos de repositorio; violaciones: $violations", violations.isEmpty())
+    }
+
     private fun resolveSourcesRoot(): File {
         val relativePath = "app/src/main/java/com/simposio/taskeer"
         val userDir = File(requireNotNull(System.getProperty("user.dir"))).absoluteFile

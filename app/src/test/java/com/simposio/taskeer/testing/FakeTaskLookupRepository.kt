@@ -50,6 +50,10 @@ class FakeTaskLookupRepository : TaskRepository {
 
     override suspend fun setCompleted(id: String, completed: Boolean): DomainResult<Task> = unused()
 
+    override fun observeCompletedCount(): Flow<Int> = error("no se usa")
+
+    override suspend fun deleteCompleted(): DomainResult<Int> = error("no se usa")
+
     override suspend fun deleteTask(id: String): DomainResult<Unit> = unused()
 
     private fun unused(): Nothing = error("no se usa en este test")

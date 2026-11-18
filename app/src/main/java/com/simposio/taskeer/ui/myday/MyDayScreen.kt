@@ -3,7 +3,6 @@ package com.simposio.taskeer.ui.myday
 import androidx.annotation.StringRes
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -37,19 +36,17 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.domain.myday.MyDayFilter
+import com.simposio.taskeer.domain.myday.MyDaySort
 import com.simposio.taskeer.ui.components.ActionIcon
 import com.simposio.taskeer.ui.components.DecorativeIcon
 import com.simposio.taskeer.ui.components.EmptyState
 import com.simposio.taskeer.ui.components.IconLabel
-import com.simposio.taskeer.ui.components.QuickAddFab
 import com.simposio.taskeer.ui.components.RowAction
 import com.simposio.taskeer.ui.components.RowContext
 import com.simposio.taskeer.ui.components.SectionHeader
 import com.simposio.taskeer.ui.components.TaskRow
 import com.simposio.taskeer.ui.components.TaskRowUi
 import com.simposio.taskeer.ui.components.actionsIn
-import com.simposio.taskeer.ui.quickadd.QuickAddContext
-import com.simposio.taskeer.ui.quickadd.rememberQuickAddHost
 import com.simposio.taskeer.ui.tasks.EmptyAction
 import com.simposio.taskeer.ui.tasks.EmptyScreen
 import com.simposio.taskeer.ui.tasks.SwipeHintState
@@ -65,13 +62,13 @@ import com.simposio.taskeer.ui.theme.TaskeerTheme
 fun MyDayScreen(
     viewModelFactory: ViewModelProvider.Factory,
     swipeHint: SwipeHintState,
+    onAddTask: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: MyDayViewModel = viewModel(factory = viewModelFactory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val editorHost = rememberTaskEditorHost(viewModelFactory)
     val openAssign = rememberAssignToBoardHost(viewModelFactory)
-    val openQuickAdd = rememberQuickAddHost(viewModelFactory, QuickAddContext.MyDay)
     val handle: (RowContext, String, RowAction) -> Unit = { context, id, action ->
         if (action == RowAction.ASSIGN_TO_BOARD) openAssign(id) else viewModel.onRowAction(context, id, action)
     }
@@ -82,13 +79,14 @@ fun MyDayScreen(
     MyDayContent(
         state = state,
         onFilter = viewModel::setFilter,
+        onSort = viewModel::setSort,
         onOpenTask = editorHost.openForEdit,
         onRowAction = { context, row, action ->
             if (action == RowAction.PICK_DATE) openActions(row, context, true) else handle(context, row.id, action)
         },
         onMore = { row, context -> openActions(row, context, false) },
         onToggleSuggestions = viewModel::toggleSuggestions,
-        onAddTask = openQuickAdd,
+        onAddTask = onAddTask,
         swipeHint = swipeHint,
         modifier = modifier,
     )
@@ -98,6 +96,7 @@ fun MyDayScreen(
 fun MyDayContent(
     state: MyDayUiState,
     onFilter: (MyDayFilter) -> Unit,
+    onSort: (MyDaySort) -> Unit,
     onOpenTask: (String) -> Unit,
     onRowAction: (RowContext, TaskRowUi, RowAction) -> Unit,
     onMore: (TaskRowUi, RowContext) -> Unit,
@@ -106,88 +105,80 @@ fun MyDayContent(
     swipeHint: SwipeHintState,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier = modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            MyDayHeader(state = state, onFilter = onFilter)
-            val hasSuggestions = state.suggestions.isNotEmpty()
-            val firstRowKey = when {
-                hasSuggestions && state.suggestionsExpanded -> SUGGESTION_KEY_PREFIX + state.suggestions.first().id
-                else -> state.items.firstOrNull()?.id
-            }
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(bottom = Spacing.FabClearance),
-            ) {
-                if (hasSuggestions) {
-                    item(key = SUGGESTIONS_HEADER_KEY) {
-                        SuggestionsHeader(
-                            count = state.suggestions.size,
-                            expanded = state.suggestionsExpanded,
-                            onToggle = onToggleSuggestions,
-                        )
-                    }
-                    if (state.suggestionsExpanded) {
-                        items(state.suggestions, key = { SUGGESTION_KEY_PREFIX + it.id }) { suggestion ->
-                            val row = suggestion.toRow()
-                            TaskRow(
-                                row = row,
-                                actions = row.actionsIn(RowContext.SUGGESTION),
-                                onAction = { onRowAction(RowContext.SUGGESTION, row, it) },
-                                onOpen = { onOpenTask(row.id) },
-                                onMore = { onMore(row, RowContext.SUGGESTION) },
-                                primaryAction = RowAction.KEEP_TODAY,
-                                peek = swipeHint.shouldPlay() && firstRowKey == SUGGESTION_KEY_PREFIX + row.id,
-                                onPeekDone = swipeHint::markPlayed,
-                            )
-                        }
-                    }
-                }
-                items(state.items, key = { it.id }) { task ->
-                    val row = task.toRow()
-                    TaskRow(
-                        row = row,
-                        actions = row.actionsIn(RowContext.MY_DAY),
-                        onAction = { onRowAction(RowContext.MY_DAY, row, it) },
-                        onOpen = { onOpenTask(row.id) },
-                        onMore = { onMore(row, RowContext.MY_DAY) },
-                        peek = swipeHint.shouldPlay() && firstRowKey == row.id,
-                        onPeekDone = swipeHint::markPlayed,
+    Column(modifier = modifier.fillMaxSize()) {
+        MyDayHeader(state = state, onFilter = onFilter, onSort = onSort)
+        val hasSuggestions = state.suggestions.isNotEmpty()
+        val firstRowKey = when {
+            hasSuggestions && state.suggestionsExpanded -> SUGGESTION_KEY_PREFIX + state.suggestions.first().id
+            else -> state.items.firstOrNull()?.id
+        }
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(bottom = Spacing.ChromeClearance),
+        ) {
+            if (hasSuggestions) {
+                item(key = SUGGESTIONS_HEADER_KEY) {
+                    SuggestionsHeader(
+                        count = state.suggestions.size,
+                        expanded = state.suggestionsExpanded,
+                        onToggle = onToggleSuggestions,
                     )
                 }
-                if (state.items.isEmpty()) {
-                    item(key = EMPTY_KEY) {
-                        val spec = emptyStateFor(
-                            screen = EmptyScreen.MY_DAY,
-                            hasTasks = state.totalCount > 0,
-                            filterActive = state.filter != MyDayFilter.ALL,
-                        )
-                        EmptyState(
-                            icon = Icons.Filled.WbSunny,
-                            text = stringResource(spec.textRes),
-                            actionLabel = stringResource(spec.actionRes),
-                            onAction = {
-                                when (spec.action) {
-                                    EmptyAction.SHOW_ALL -> onFilter(MyDayFilter.ALL)
-                                    else -> onAddTask()
-                                }
-                            },
-                            modifier = if (hasSuggestions) Modifier.fillParentMaxWidth() else Modifier.fillParentMaxSize(),
+                if (state.suggestionsExpanded) {
+                    items(state.suggestions, key = { SUGGESTION_KEY_PREFIX + it.id }) { suggestion ->
+                        val row = suggestion.toRow()
+                        TaskRow(
+                            row = row,
+                            actions = row.actionsIn(RowContext.SUGGESTION),
+                            onAction = { onRowAction(RowContext.SUGGESTION, row, it) },
+                            onOpen = { onOpenTask(row.id) },
+                            onMore = { onMore(row, RowContext.SUGGESTION) },
+                            primaryAction = RowAction.KEEP_TODAY,
+                            peek = swipeHint.shouldPlay() && firstRowKey == SUGGESTION_KEY_PREFIX + row.id,
+                            onPeekDone = swipeHint::markPlayed,
                         )
                     }
+                }
+            }
+            items(state.items, key = { it.id }) { task ->
+                val row = task.toRow()
+                TaskRow(
+                    row = row,
+                    actions = row.actionsIn(RowContext.MY_DAY),
+                    onAction = { onRowAction(RowContext.MY_DAY, row, it) },
+                    onOpen = { onOpenTask(row.id) },
+                    onMore = { onMore(row, RowContext.MY_DAY) },
+                    peek = swipeHint.shouldPlay() && firstRowKey == row.id,
+                    onPeekDone = swipeHint::markPlayed,
+                )
+            }
+            if (state.items.isEmpty()) {
+                item(key = EMPTY_KEY) {
+                    val spec = emptyStateFor(
+                        screen = EmptyScreen.MY_DAY,
+                        hasTasks = state.totalCount > 0,
+                        filterActive = state.filter != MyDayFilter.ALL,
+                    )
+                    EmptyState(
+                        icon = Icons.Filled.WbSunny,
+                        text = stringResource(spec.textRes),
+                        actionLabel = stringResource(spec.actionRes),
+                        onAction = {
+                            when (spec.action) {
+                                EmptyAction.SHOW_ALL -> onFilter(MyDayFilter.ALL)
+                                else -> onAddTask()
+                            }
+                        },
+                        modifier = if (hasSuggestions) Modifier.fillParentMaxWidth() else Modifier.fillParentMaxSize(),
+                    )
                 }
             }
         }
-        QuickAddFab(
-            onClick = onAddTask,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(Spacing.ScreenPadding),
-        )
     }
 }
 
 @Composable
-private fun MyDayHeader(state: MyDayUiState, onFilter: (MyDayFilter) -> Unit) {
+private fun MyDayHeader(state: MyDayUiState, onFilter: (MyDayFilter) -> Unit, onSort: (MyDaySort) -> Unit) {
     val filterDescription = stringResource(R.string.my_day_filter_label)
     Column(
         modifier = Modifier.padding(Spacing.ScreenPadding),
@@ -234,6 +225,7 @@ private fun MyDayHeader(state: MyDayUiState, onFilter: (MyDayFilter) -> Unit) {
                     label = { Text(stringResource(filter.labelRes())) },
                 )
             }
+            MyDaySortMenu(sort = state.sort, onSort = onSort)
         }
     }
 }
@@ -298,6 +290,7 @@ private fun MyDayContentPreview() {
                 suggestions = listOf(MyDaySuggestionUi("s1", "Revisar el presupuesto", "Proyecto")),
             ),
             onFilter = {},
+            onSort = {},
             onOpenTask = {},
             onRowAction = { _, _, _ -> },
             onMore = { _, _ -> },
@@ -315,6 +308,7 @@ private fun MyDayEmptyPreview() {
         MyDayContent(
             state = MyDayUiState(),
             onFilter = {},
+            onSort = {},
             onOpenTask = {},
             onRowAction = { _, _, _ -> },
             onMore = { _, _ -> },

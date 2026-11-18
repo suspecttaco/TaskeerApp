@@ -10,40 +10,77 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class BoardsViewModel(private val repository: BoardRepository) : ViewModel() {
 
-    private val error = MutableStateFlow<DomainError?>(null)
+    private val local = MutableStateFlow(Local())
 
     val uiState: StateFlow<BoardsUiState> = combine(
         repository.observeBoards(),
-        error,
-    ) { boards, error ->
-        BoardsUiState(boards = boards, error = error)
+        local,
+    ) { boards, local ->
+        BoardsUiState(
+            boards = boards,
+            dialog = local.dialog,
+            error = local.error,
+            deletedBoardId = local.deletedBoardId,
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), BoardsUiState())
 
-    fun createBoard(name: String) {
-        launchOperation { repository.createBoard(name) }
+    fun openCreate() {
+        local.value = Local(dialog = BoardDialog.Create)
     }
 
-    fun renameBoard(id: String, name: String) {
-        launchOperation { repository.renameBoard(id, name) }
+    fun openRename(boardId: String) {
+        val board = uiState.value.boards.firstOrNull { it.id == boardId } ?: return
+        local.value = Local(dialog = BoardDialog.Rename(boardId, board.name))
     }
 
-    fun deleteBoard(id: String) {
-        launchOperation { repository.deleteBoard(id) }
+    fun openDelete(boardId: String) {
+        val board = uiState.value.boards.firstOrNull { it.id == boardId } ?: return
+        local.value = Local(dialog = BoardDialog.ConfirmDelete(boardId, board.name))
     }
 
-    private fun launchOperation(operation: suspend () -> DomainResult<*>) {
+    fun submitName(text: String) {
+        val dialog = local.value.dialog
         viewModelScope.launch {
-            error.value = null
-            val result = operation()
-            if (result is DomainResult.Failure) {
-                error.value = result.error
+            val result = when (dialog) {
+                BoardDialog.Create -> repository.createBoard(text)
+                is BoardDialog.Rename -> repository.renameBoard(dialog.boardId, text)
+                else -> return@launch
+            }
+            when (result) {
+                is DomainResult.Failure -> fail(result.error)
+                is DomainResult.Success -> dismiss()
             }
         }
     }
+
+    fun confirmDelete() {
+        val dialog = local.value.dialog as? BoardDialog.ConfirmDelete ?: return
+        viewModelScope.launch {
+            when (val result = repository.deleteBoard(dialog.boardId)) {
+                is DomainResult.Failure -> fail(result.error)
+                is DomainResult.Success -> local.value = Local(deletedBoardId = dialog.boardId)
+            }
+        }
+    }
+
+    fun dismiss() {
+        local.update { Local(deletedBoardId = it.deletedBoardId) }
+    }
+
+    private fun fail(error: DomainError) {
+        local.update { it.copy(error = error) }
+    }
+
+    private data class Local(
+        val dialog: BoardDialog = BoardDialog.None,
+        val error: DomainError? = null,
+        val deletedBoardId: String? = null,
+    )
 
     private companion object {
         const val STOP_TIMEOUT_MILLIS: Long = 5_000

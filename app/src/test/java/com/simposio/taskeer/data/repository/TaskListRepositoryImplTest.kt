@@ -427,6 +427,10 @@ class TaskListRepositoryImplTest {
 
         override fun observeReminderCandidates(): Flow<List<ReminderCandidateRow>> = unused()
 
+        override fun observeCompletedCount(): Flow<Int> = unused()
+
+        override suspend fun findCompleted(): List<TaskEntity> = unused()
+
         override suspend fun countActive(): Int = unused()
 
         override suspend fun findReminderState(taskId: String): ReminderTaskStateRow? = unused()

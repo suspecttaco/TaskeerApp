@@ -7,8 +7,9 @@ import com.simposio.taskeer.data.local.TaskEntity
 import com.simposio.taskeer.domain.date.dayWindowAt
 import com.simposio.taskeer.domain.model.LocalUser
 import com.simposio.taskeer.domain.planned.PlannedItem
-import com.simposio.taskeer.domain.planned.PlannedView
+import com.simposio.taskeer.domain.planned.UpcomingDay
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -35,68 +36,72 @@ class PlannedRepositoryImplTest {
     private val repository = PlannedRepositoryImpl(dao, { zone }, { windows.asStateFlow() })
 
     @Test
-    fun observePlanned_agrupaLasTareasConFecha() = runTest {
+    fun observeUpcoming_agrupaEnSieteDias() = runTest {
         dao.add("ayer", "2026-11-16T09:00:00Z")
         dao.add("hoy", "2026-11-17T18:00:00Z")
         dao.add("manana", "2026-11-18T09:00:00Z")
         dao.add("lejos", "2026-11-25T09:00:00Z")
 
-        val view = repository.observePlanned().first()
+        val days = repository.observeUpcoming().first()
 
-        assertEquals(listOf("ayer"), view.overdue.ids())
-        assertEquals(listOf("hoy"), view.today.ids())
-        assertEquals(listOf("manana"), view.tomorrow.ids())
-        assertEquals(listOf("lejos"), view.upcoming.single().items.ids())
-        assertEquals("Tablero b1", view.today.single().boardName)
+        assertEquals(7, days.size)
+        assertEquals(listOf("ayer", "hoy"), days[0].items.ids())
+        assertEquals(listOf("manana"), days[1].items.ids())
+        assertTrue(days.drop(2).all { it.items.isEmpty() })
+        assertEquals("Tablero b1", days[0].items.last().boardName)
     }
 
     @Test
-    fun observePlanned_excluyeCompletadasBorradasYSinFecha() = runTest {
-        dao.add("ok", "2026-11-17T18:00:00Z")
-        dao.add("completada", "2026-11-17T18:00:00Z", completedAt = now.toEpochMilli())
-        dao.add("borrada", "2026-11-17T18:00:00Z", deletedAt = 1L)
-        dao.add("sin-fecha", null)
-        dao.add("columna-borrada", "2026-11-17T18:00:00Z", columnId = "c-borrada")
-        dao.add("otro", "2026-11-17T18:00:00Z", assigneeId = "otro-usuario")
-
-        assertEquals(listOf("ok"), repository.observePlanned().first().today.ids())
-    }
-
-    @Test
-    fun observePlanned_incluyeBandeja() = runTest {
-        dao.add("pan", "2026-11-18T09:00:00Z", columnId = null)
-
-        val item = repository.observePlanned().first().tomorrow.single()
-
-        assertEquals("pan", item.task.id)
-        assertNull(item.boardName)
-    }
-
-    @Test
-    fun observePlanned_alCambiarElDia_reagrupa() = runTest {
+    fun observeUpcoming_cambiaAlCruzarLaMedianoche() = runTest {
         dao.add("t1", "2026-11-18T09:00:00Z")
-        val seen = mutableListOf<PlannedView>()
+        val seen = mutableListOf<List<UpcomingDay>>()
         val collector = launch(UnconfinedTestDispatcher(testScheduler)) {
-            repository.observePlanned().toList(seen)
+            repository.observeUpcoming().toList(seen)
         }
-        assertEquals(listOf("t1"), seen.last().tomorrow.ids())
+        assertEquals(listOf("t1"), seen.last()[1].items.ids())
 
         windows.value = dayWindowAt(Instant.parse("2026-11-18T10:00:00Z"), zone)
         collector.cancel()
 
-        assertEquals(listOf("t1"), seen.last().today.ids())
-        assertTrue(seen.last().tomorrow.isEmpty())
+        assertEquals(listOf("t1"), seen.last()[0].items.ids())
+        assertEquals(LocalDate.of(2026, 11, 18), seen.last()[0].date)
     }
 
     @Test
-    fun observePlanned_sucesoraFutura_apareceEnProximos() = runTest {
-        dao.add("original", "2026-11-17T09:00:00Z", completedAt = now.toEpochMilli())
-        dao.add("sucesora", "2026-11-24T09:00:00Z")
+    fun observeAllTasks_incluyeSinFecha() = runTest {
+        dao.add("sin-fecha", null)
+        dao.add("pan", "2026-11-18T09:00:00Z", columnId = null)
 
-        val view = repository.observePlanned().first()
+        val view = repository.observeAllTasks().first()
 
-        assertTrue(view.today.isEmpty())
-        assertEquals(listOf("sucesora"), view.upcoming.single().items.ids())
+        assertEquals(listOf("sin-fecha"), view.someday.ids())
+        assertNull(view.tomorrow.single().boardName)
+    }
+
+    @Test
+    fun observeAllTasks_excluyeCompletadas() = runTest {
+        dao.add("ok", "2026-11-17T18:00:00Z")
+        dao.add("completada", "2026-11-17T18:00:00Z", completedAt = now.toEpochMilli())
+        dao.add("borrada", "2026-11-17T18:00:00Z", deletedAt = 1L)
+        dao.add("otro", "2026-11-17T18:00:00Z", assigneeId = "otro-usuario")
+
+        assertEquals(listOf("ok"), repository.observeAllTasks().first().today.ids())
+    }
+
+    @Test
+    fun observeAllTasks_incluyeTareasDeListasYTableros() = runTest {
+        dao.add("tablero", "2026-11-17T18:00:00Z", columnId = "c1")
+        dao.add("lista", "2026-11-17T19:00:00Z", columnId = null)
+
+        assertEquals(listOf("tablero", "lista"), repository.observeAllTasks().first().today.ids())
+    }
+
+    @Test
+    fun observeAllTasks_excluyeTareasDeTablerosBorrados() = runTest {
+        dao.add("ok", "2026-11-17T18:00:00Z")
+        dao.add("columna-borrada", "2026-11-17T18:00:00Z", columnId = "c-borrada")
+
+        assertEquals(listOf("ok"), repository.observeAllTasks().first().today.ids())
     }
 
     private fun List<PlannedItem>.ids(): List<String> = map { it.task.id }
@@ -130,9 +135,9 @@ class PlannedRepositoryImplTest {
             )
         }
 
-        override fun observeDated(assigneeId: String): Flow<List<MyDayRow>> = tasks.map { all ->
+        override fun observeOpen(assigneeId: String): Flow<List<MyDayRow>> = tasks.map { all ->
             all.filter {
-                it.assigneeId == assigneeId && it.dueAt != null && it.completedAt == null &&
+                it.assigneeId == assigneeId && it.completedAt == null &&
                     it.deletedAt == null && it.columnId !in deletedColumns
             }.map {
                 MyDayRow(it, boardId = it.columnId?.let { "b1" }, boardName = it.columnId?.let { "Tablero b1" }, addedAt = null)

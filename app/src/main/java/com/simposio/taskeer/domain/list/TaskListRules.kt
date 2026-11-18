@@ -31,10 +31,6 @@ fun defaultListOf(lists: List<TaskList>): TaskList? =
 fun nextListPosition(lists: List<TaskList>): Int =
     (lists.filter { !it.isDeleted }.maxOfOrNull { it.position } ?: -1) + 1
 
-// La lista elegida en pantalla, o la por defecto si ya no existe o no hay elegida.
-fun effectiveListId(selectedId: String?, lists: List<TaskList>): String? =
-    lists.firstOrNull { !it.isDeleted && it.id == selectedId }?.id ?: defaultListOf(lists)?.id
-
 fun newTaskList(
     name: String,
     position: Int,

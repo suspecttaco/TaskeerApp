@@ -1,5 +1,6 @@
 package com.simposio.taskeer.ui.navigation
 
+import com.simposio.taskeer.ui.home.HomeSection
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -15,8 +16,9 @@ class AppDestinationTest {
     }
 
     @Test
-    fun homeYaNoExiste() {
-        assertTrue(AppDestination.entries.none { it.name == "HOME" || it.route == "home" })
+    fun start_esMiDia() {
+        assertEquals("my_day", AppDestination.START.route)
+        assertEquals(AppDestination.MY_DAY, AppDestination.fromRoute("my_day"))
     }
 
     @Test
@@ -27,43 +29,55 @@ class AppDestinationTest {
     }
 
     @Test
-    fun seccionesPrincipalesPresentes() {
+    fun destinosDelFlujoHomePresentes() {
         assertEquals(
-            listOf(
-                AppDestination.MY_DAY,
-                AppDestination.PLANNED,
-                AppDestination.INBOX,
-                AppDestination.WORKSPACES,
-                AppDestination.SETTINGS,
+            mapOf(
+                "MY_DAY" to "my_day",
+                "HOME" to "home",
+                "UPCOMING_7_DAYS" to "upcoming_7_days",
+                "ALL_TASKS" to "all_tasks",
+                "CALENDAR" to "calendar",
+                "LIST" to "list/{listId}",
+                "BOARD" to "board/{boardId}",
+                "BOARD_COLUMNS" to "board_columns/{boardId}",
+                "NOTIFICATIONS" to "notifications",
+                "SETTINGS" to "settings",
             ),
-            AppDestination.topLevel,
+            AppDestination.entries.associate { it.name to it.route },
         )
-        assertTrue(AppDestination.START in AppDestination.topLevel)
+    }
+
+    @Test
+    fun inboxWorkspacesYPlannedYaNoExisten() {
+        val names = AppDestination.entries.map { it.name }
+
+        assertTrue(names.none { it == "INBOX" || it == "WORKSPACES" || it == "PLANNED" })
+        assertTrue(AppDestination.Companion::class.java.declaredMethods.none { it.name.contains("topLevel") })
+    }
+
+    @Test
+    fun listRoute_llevaLaLista() {
+        assertEquals("list/compras", AppDestination.listRoute("compras"))
     }
 
     @Test
     fun fromRoute_resuelveElDestino() {
-        assertEquals(AppDestination.MY_DAY, AppDestination.fromRoute("my_day"))
+        AppDestination.entries.forEach { destination ->
+            assertEquals(destination, AppDestination.fromRoute(destination.route))
+        }
         assertNull(AppDestination.fromRoute("desconocido"))
     }
 
     @Test
-    fun boardColumnsNoEsSeccionPrincipal() {
-        assertFalse("las columnas no son una sección de la barra", AppDestination.BOARD_COLUMNS in AppDestination.topLevel)
+    fun boardColumnsNoEsSeccion() {
         assertEquals("board_columns/{boardId}", AppDestination.BOARD_COLUMNS.route)
-    }
-
-    @Test
-    fun boardColumnsRouteLlevaElTablero() {
+        assertFalse(HomeSection.entries.any { it.destination == AppDestination.BOARD_COLUMNS })
         assertEquals("board_columns/tablero-1", AppDestination.boardColumnsRoute("tablero-1"))
     }
 
     @Test
-    fun boardRoute_llevaElTableroYNoEsSeccionPrincipal() {
-        assertEquals("board/{boardId}", AppDestination.BOARD.route)
+    fun boardRoute_llevaElTablero() {
         assertEquals("board/tablero-1", AppDestination.boardRoute("tablero-1"))
-        assertFalse(AppDestination.BOARD in AppDestination.topLevel)
-        assertEquals(AppDestination.BOARD, AppDestination.fromRoute("board/{boardId}"))
     }
 
     @Test
@@ -79,22 +93,15 @@ class AppDestinationTest {
     }
 
     @Test
-    fun notifications_noEsTopLevel() {
-        assertFalse(AppDestination.NOTIFICATIONS in AppDestination.topLevel)
-        assertEquals("notifications", AppDestination.NOTIFICATIONS.route)
-        assertEquals(AppDestination.NOTIFICATIONS, AppDestination.fromRoute("notifications"))
-    }
-
-    @Test
-    fun planned_esDeNivelSuperiorConRutaPropia() {
-        assertTrue(AppDestination.PLANNED in AppDestination.topLevel)
-        assertEquals("planned", AppDestination.PLANNED.route)
-        assertEquals(AppDestination.PLANNED, AppDestination.fromRoute("planned"))
-    }
-
-    @Test
-    fun topLevel_incluyePlanificadoEnSegundoLugar() {
-        assertEquals(AppDestination.PLANNED, AppDestination.topLevel[1])
-        assertEquals(5, AppDestination.topLevel.size)
+    fun homeSections_mapeanASusDestinos() {
+        assertEquals(
+            listOf(
+                AppDestination.MY_DAY,
+                AppDestination.UPCOMING_7_DAYS,
+                AppDestination.ALL_TASKS,
+                AppDestination.CALENDAR,
+            ),
+            HomeSection.entries.map { it.destination },
+        )
     }
 }

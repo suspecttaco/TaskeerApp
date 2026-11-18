@@ -15,15 +15,16 @@ import com.simposio.taskeer.testing.FakeTaskListRepository
 import com.simposio.taskeer.testing.InMemoryCheckpointStore
 import com.simposio.taskeer.testing.RecordingNotifier
 import com.simposio.taskeer.testing.RecordingReminderScheduler
-import com.simposio.taskeer.ui.inbox.InboxViewModel
+import com.simposio.taskeer.ui.alltasks.AllTasksViewModel
 import com.simposio.taskeer.ui.lists.TaskListsViewModel
 import com.simposio.taskeer.ui.quickadd.QuickAddViewModel
+import com.simposio.taskeer.ui.shell.ClearCompletedViewModel
 import com.simposio.taskeer.ui.tasks.MoveToListViewModel
+import com.simposio.taskeer.ui.upcoming.UpcomingViewModel
 import java.lang.reflect.Proxy
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertSame
 import org.junit.Test
 
 class AppViewModelFactoryTest {
@@ -39,21 +40,19 @@ class AppViewModelFactoryTest {
     }
 
     @Test
-    fun crea_inboxYQuickAddConElRepositorioDeListas() {
+    fun crea_quickAddConElRepositorioDeListas() {
         val factory = AppViewModelFactory(container())
 
-        assertEquals(InboxViewModel::class.java, factory.create(InboxViewModel::class.java).javaClass)
-        val quickAdd = factory.create(QuickAddViewModel::class.java)
-        assertEquals(QuickAddViewModel::class.java, quickAdd.javaClass)
+        assertEquals(QuickAddViewModel::class.java, factory.create(QuickAddViewModel::class.java).javaClass)
     }
 
     @Test
-    fun taskListsViewModel_comparteLaSeleccionConElContenedor() {
-        val container = container()
-        val viewModel = AppViewModelFactory(container).create(TaskListsViewModel::class.java)
+    fun crea_vistasPorFechaYLimpiar() {
+        val factory = AppViewModelFactory(container())
 
-        val field = TaskListsViewModel::class.java.getDeclaredField("selection").apply { isAccessible = true }
-        assertSame(container.listSelection, field.get(viewModel))
+        assertEquals(UpcomingViewModel::class.java, factory.create(UpcomingViewModel::class.java).javaClass)
+        assertEquals(AllTasksViewModel::class.java, factory.create(AllTasksViewModel::class.java).javaClass)
+        assertEquals(ClearCompletedViewModel::class.java, factory.create(ClearCompletedViewModel::class.java).javaClass)
     }
 
     private fun container(): AppContainer = AppContainer(
@@ -65,7 +64,7 @@ class AppViewModelFactoryTest {
         taskListRepository = lists,
         subtaskRepository = stub<SubtaskRepository>(),
         myDayRepository = flowStub<MyDayRepository>(),
-        plannedRepository = stub<PlannedRepository>(),
+        plannedRepository = flowStub<PlannedRepository>(),
         reminderRepository = stub<ReminderRepository>(),
         reminderReconciler = ReminderReconciler(
             tasks = stub<TaskRepository>(),

@@ -13,7 +13,6 @@ import com.simposio.taskeer.data.repository.TaskListRepository
 import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.date.TimeZoneProvider
-import com.simposio.taskeer.ui.lists.ListSelection
 
 class AppContainer(
     val preferencesRepository: PreferencesRepository,
@@ -32,5 +31,4 @@ class AppContainer(
     val sdkInt: Int = 0,
 ) {
     val dateTimeConverter: DateTimeConverter = DateTimeConverter(timeZoneProvider)
-    val listSelection: ListSelection = ListSelection()
 }

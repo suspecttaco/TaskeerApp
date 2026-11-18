@@ -72,6 +72,8 @@ class TaskRepositoryImpl(
     override fun observeActiveCountsByColumn(): Flow<Map<String, Int>> =
         dao.observeCountsByColumn().map { rows -> rows.associate { it.columnId to it.count } }
 
+    override fun observeCompletedCount(): Flow<Int> = dao.observeCompletedCount()
+
     override fun observeReminderCandidates(): Flow<List<ReminderCandidate>> =
         dao.observeReminderCandidates().map { rows -> rows.map { it.toCandidate() } }
 
@@ -326,6 +328,9 @@ class TaskRepositoryImpl(
         )
         return DomainResult.Success(Unit)
     }
+
+    override suspend fun deleteCompleted(): DomainResult<Int> =
+        DomainResult.Success(dao.softDeleteCompleted(now().toEpochMilli()))
 
     private suspend fun activeColumn(id: String): Column? =
         columnDao.findById(id)?.takeIf { it.deletedAt == null }?.toColumn()

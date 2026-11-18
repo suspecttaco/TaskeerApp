@@ -1,44 +1,24 @@
 package com.simposio.taskeer.ui.quickadd
 
-import com.simposio.taskeer.domain.model.BoardDestination
 import com.simposio.taskeer.domain.model.DomainError
-import com.simposio.taskeer.domain.model.TaskListSummary
-import com.simposio.taskeer.domain.model.TaskPriority
+import com.simposio.taskeer.domain.planned.DayLabel
 import java.time.LocalDate
-import java.time.LocalTime
-
-sealed interface QuickAddDestination {
-    data class InList(val listId: String) : QuickAddDestination
-
-    data class InColumn(val columnId: String) : QuickAddDestination
-}
-
-enum class QuickAddPanel { DESTINATION, DATE, TIME, PRIORITY }
-
-enum class QuickAddDatePreset { TODAY, TOMORROW, NEXT_WEEK, NONE }
 
 sealed interface QuickAddContext {
+    data object Default : QuickAddContext
+
     data object MyDay : QuickAddContext
 
-    // Nulo: la lista por defecto (aún sin resolver).
-    data class List(val listId: String?) : QuickAddContext
-
-    data class Board(val boardId: String) : QuickAddContext
+    data class InList(val listId: String) : QuickAddContext
 }
-
-enum class BackResult { COLLAPSE_PANEL, CLOSE }
 
 data class QuickAddUiState(
     val isOpen: Boolean = false,
     val title: String = "",
-    val destination: QuickAddDestination = QuickAddDestination.InList(""),
-    val destinationLabel: String? = null,
-    val lists: List<TaskListSummary> = emptyList(),
-    val destinations: List<BoardDestination> = emptyList(),
-    val priority: TaskPriority = TaskPriority.MEDIUM,
     val dueDate: LocalDate? = null,
-    val dueTime: LocalTime? = null,
-    val panel: QuickAddPanel? = null,
+    val dueLabel: DayLabel? = null,
     val isSaving: Boolean = false,
     val error: DomainError? = null,
-)
+) {
+    val canSubmit: Boolean get() = title.isNotBlank() && !isSaving
+}

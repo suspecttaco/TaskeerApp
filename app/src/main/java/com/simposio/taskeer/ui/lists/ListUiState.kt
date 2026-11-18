@@ -1,9 +1,9 @@
-package com.simposio.taskeer.ui.inbox
+package com.simposio.taskeer.ui.lists
 
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.TaskPriority
 
-data class InboxTaskUi(
+data class ListTaskUi(
     val id: String,
     val title: String,
     val priority: TaskPriority,
@@ -14,8 +14,9 @@ data class InboxTaskUi(
     val isRepeating: Boolean = false,
 )
 
-data class InboxUiState(
-    val items: List<InboxTaskUi> = emptyList(),
-    val listId: String? = null,
+data class ListUiState(
+    val listName: String? = null,
+    val items: List<ListTaskUi> = emptyList(),
+    val missing: Boolean = false,
     val error: DomainError? = null,
 )

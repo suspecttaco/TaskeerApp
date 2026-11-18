@@ -29,7 +29,7 @@ class TaskRowActionsTest {
 
     @Test
     fun tareaDeLista_ofreceMoverALista() {
-        val inbox = actions(RowContext.INBOX, inbox = true).sheet
+        val inbox = actions(RowContext.LIST, inbox = true).sheet
 
         assertTrue(RowAction.MOVE_TO_LIST in inbox)
         assertEquals(RowAction.ASSIGN_TO_BOARD, inbox.last())
@@ -37,7 +37,7 @@ class TaskRowActionsTest {
     }
 
     @Test
-    fun moverALista_soloEnLaPantallaTareas() {
+    fun moverALista_soloEnLaPantallaDeLista() {
         listOf(RowContext.MY_DAY, RowContext.PLANNED, RowContext.SUGGESTION).forEach { context ->
             assertFalse(context.name, RowAction.MOVE_TO_LIST in actions(context, marked = true, inbox = true).sheet)
         }
@@ -82,14 +82,14 @@ class TaskRowActionsTest {
     }
 
     @Test
-    fun tareas_izquierda_alternaMiDia() {
-        assertEquals(RowAction.ADD_TO_MY_DAY, actions(RowContext.INBOX, marked = false, inbox = true).swipeStart)
-        assertEquals(RowAction.REMOVE_FROM_MY_DAY, actions(RowContext.INBOX, marked = true, inbox = true).swipeStart)
+    fun lista_izquierda_alternaMiDia() {
+        assertEquals(RowAction.ADD_TO_MY_DAY, actions(RowContext.LIST, marked = false, inbox = true).swipeStart)
+        assertEquals(RowAction.REMOVE_FROM_MY_DAY, actions(RowContext.LIST, marked = true, inbox = true).swipeStart)
     }
 
     @Test
-    fun tareas_bandeja_ofreceAsignar() {
-        val sheet = actions(RowContext.INBOX, inbox = true).sheet
+    fun lista_bandeja_ofreceAsignar() {
+        val sheet = actions(RowContext.LIST, inbox = true).sheet
 
         assertEquals(RowAction.ASSIGN_TO_BOARD, sheet.last())
         assertEquals(listOf(RowAction.COMPLETE, RowAction.ADD_TO_MY_DAY), sheet.take(2))
