@@ -548,6 +548,293 @@ class TaskRepositoryImplTest {
         assertEquals(writesBefore, taskDao.writeCalls)
     }
 
+    private class RestoreFixture(val taskDao: FakeTaskDao, val columnDao: FakeColumnDao) {
+        fun repository(at: Instant): TaskRepositoryImpl = TaskRepositoryImpl(
+            taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, taskDao.listDao, taskDao.defaultListId,
+            now = { at },
+        )
+    }
+
+    private fun restoreFixture(wipLimit: Int? = null): RestoreFixture {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1", wipLimit = wipLimit)) }
+        return RestoreFixture(FakeTaskDao(columnDao), columnDao)
+    }
+
+    private suspend fun RestoreFixture.deleteAt(at: Instant, vararg ids: String) {
+        ids.forEach { repository(at).deleteTask(it) }
+    }
+
+    @Test
+    fun restoreTasks_reactivaLaTareaConSusSubtareasDelMismoBorrado() = runTest {
+        val fixture = restoreFixture()
+        fixture.taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
+        fixture.taskDao.putSubtask(subtaskEntity("s1", taskId = "t1"))
+        fixture.deleteAt(now, "t1")
+
+        val result = fixture.repository(later).restoreTasks(listOf("t1"))
+
+        assertTrue(result is DomainResult.Success)
+        assertNull(fixture.taskDao.stored.getValue("t1").deletedAt)
+        val subtask = fixture.taskDao.subtasks.getValue("s1")
+        assertNull(subtask.deletedAt)
+        assertEquals(later.toEpochMilli(), subtask.updatedAt)
+        assertTrue(subtask.pending)
+    }
+
+    @Test
+    fun restoreTasks_noReactivaSubtareasBorradasAntes() = runTest {
+        val fixture = restoreFixture()
+        val earlier = now.minusSeconds(3600).toEpochMilli()
+        fixture.taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
+        fixture.taskDao.putSubtask(subtaskEntity("s-vieja", taskId = "t1", deletedAt = earlier))
+        fixture.deleteAt(now, "t1")
+
+        fixture.repository(later).restoreTasks(listOf("t1"))
+
+        assertEquals(earlier, fixture.taskDao.subtasks.getValue("s-vieja").deletedAt)
+    }
+
+    @Test
+    fun restoreTasks_reactivaElRecordatorioFuturo() = runTest {
+        val fixture = restoreFixture()
+        fixture.taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
+        fixture.taskDao.putReminder(reminderEntity("r1", taskId = "t1", status = "PENDING"))
+        fixture.deleteAt(now, "t1")
+        val restoredAt = now.plusSeconds(10)
+
+        fixture.repository(restoredAt).restoreTasks(listOf("t1"))
+
+        val reminder = fixture.taskDao.reminders.getValue("r1")
+        assertEquals("PENDING", reminder.status)
+        assertEquals(restoredAt.toEpochMilli(), reminder.updatedAt)
+        assertTrue(reminder.pending)
+    }
+
+    @Test
+    fun restoreTasks_noReactivaElRecordatorioVencido() = runTest {
+        val fixture = restoreFixture()
+        fixture.taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
+        fixture.taskDao.putReminder(reminderEntity("r1", taskId = "t1", status = "PENDING"))
+        fixture.deleteAt(now, "t1")
+
+        fixture.repository(later.plusSeconds(3600)).restoreTasks(listOf("t1"))
+
+        assertEquals("DISMISSED", fixture.taskDao.reminders.getValue("r1").status)
+        assertNull(fixture.taskDao.stored.getValue("t1").deletedAt)
+    }
+
+    @Test
+    fun restoreTasks_conservaLaPosicionSiEstaLibre() = runTest {
+        val fixture = restoreFixture()
+        fixture.taskDao.put(taskEntity("t0", columnId = "columna-1", position = 0))
+        fixture.taskDao.put(taskEntity("t1", columnId = "columna-1", position = 1))
+        fixture.deleteAt(now, "t1")
+
+        fixture.repository(later).restoreTasks(listOf("t1"))
+
+        assertEquals(1, fixture.taskDao.stored.getValue("t1").position)
+    }
+
+    @Test
+    fun restoreTasks_posicionOcupada_vaAlFinal() = runTest {
+        val fixture = restoreFixture()
+        fixture.taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
+        fixture.deleteAt(now, "t1")
+        fixture.taskDao.put(taskEntity("t2", columnId = "columna-1", position = 0))
+        fixture.taskDao.put(taskEntity("t3", columnId = "columna-1", position = 1))
+
+        fixture.repository(later).restoreTasks(listOf("t1"))
+
+        assertEquals(2, fixture.taskDao.stored.getValue("t1").position)
+    }
+
+    @Test
+    fun restoreTasks_enListaBorrada_vaALaListaPorDefecto() = runTest {
+        val fixture = restoreFixture()
+        fixture.taskDao.listDao.put(listEntity("lista-x", "Vieja", position = 1, deletedAt = 5L))
+        fixture.taskDao.put(taskEntity("t1", columnId = null, position = 0, listId = "lista-x"))
+        fixture.taskDao.put(taskEntity("otra", columnId = null, position = 0))
+        fixture.deleteAt(now, "t1")
+
+        fixture.repository(later).restoreTasks(listOf("t1"))
+
+        val restored = fixture.taskDao.stored.getValue("t1")
+        assertEquals(SEEDED_TASK_LIST_ID, restored.listId)
+        assertEquals(1, restored.position)
+        assertNull(restored.columnId)
+    }
+
+    @Test
+    fun restoreTasks_enListaActiva_reapareceEnObserveList() = runTest {
+        val fixture = restoreFixture()
+        fixture.taskDao.put(taskEntity("t1", columnId = null, position = 0))
+        fixture.taskDao.put(taskEntity("t2", columnId = null, position = 1))
+        fixture.taskDao.putSubtask(subtaskEntity("s1", taskId = "t1"))
+        fixture.deleteAt(now, "t1")
+        assertEquals(listOf("t2"), fixture.repository(now).observeList(SEEDED_TASK_LIST_ID).first().map { it.id })
+
+        val result = fixture.repository(later).restoreTasks(listOf("t1"))
+
+        assertTrue(result is DomainResult.Success)
+        val visible = fixture.repository(later).observeList(SEEDED_TASK_LIST_ID).first()
+        assertEquals(setOf("t1", "t2"), visible.map { it.id }.toSet())
+        assertEquals(SEEDED_TASK_LIST_ID, fixture.taskDao.stored.getValue("t1").listId)
+        assertNull(fixture.taskDao.subtasks.getValue("s1").deletedAt)
+    }
+
+    @Test
+    fun restoreTasks_noDuplicaMiDiaNiSucesora() = runTest {
+        val fixture = restoreFixture()
+        fixture.taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
+        fixture.taskDao.put(taskEntity("t1-sucesora", columnId = "columna-1", position = 1))
+        fixture.taskDao.myDayEntries["t1"] = MyDayEntryEntity("t1", addedAt = 1L, updatedAt = 1L, pending = false, deletedAt = null)
+        fixture.deleteAt(now, "t1")
+        val idsBefore = fixture.taskDao.stored.keys
+        val myDayBefore = fixture.taskDao.myDayEntries.toMap()
+
+        fixture.repository(later).restoreTasks(listOf("t1"))
+
+        assertEquals(idsBefore, fixture.taskDao.stored.keys)
+        assertEquals(myDayBefore, fixture.taskDao.myDayEntries)
+    }
+
+    @Test
+    fun restoreTasks_marcaPendingYUpdatedAt() = runTest {
+        val fixture = restoreFixture()
+        fixture.taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
+        fixture.deleteAt(now, "t1")
+
+        fixture.repository(later).restoreTasks(listOf("t1"))
+
+        val row = fixture.taskDao.stored.getValue("t1")
+        assertEquals(later.toEpochMilli(), row.updatedAt)
+        assertTrue(row.pending)
+    }
+
+    @Test
+    fun restoreTasks_tareaActiva_fallaSinEscribir() = runTest {
+        val fixture = restoreFixture()
+        fixture.taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
+        val writesBefore = fixture.taskDao.writeCalls
+
+        val error = (fixture.repository(later).restoreTasks(listOf("t1")) as DomainResult.Failure).error
+
+        assertTrue(error is DomainError.Conflict)
+        assertEquals("TASK_NOT_DELETED", error.code)
+        assertEquals(0, fixture.taskDao.restoreCalls)
+        assertEquals(writesBefore, fixture.taskDao.writeCalls)
+    }
+
+    @Test
+    fun restoreTasks_inexistente_falla() = runTest {
+        val fixture = restoreFixture()
+
+        val error = (fixture.repository(later).restoreTasks(listOf("nada")) as DomainResult.Failure).error
+
+        assertTrue(error is DomainError.NotFound)
+        assertEquals("TASK_NOT_FOUND", error.code)
+        assertEquals(0, fixture.taskDao.restoreCalls)
+    }
+
+    @Test
+    fun restoreTasks_columnaBorrada_fallaSinEscribir() = runTest {
+        val fixture = restoreFixture()
+        fixture.taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
+        fixture.deleteAt(now, "t1")
+        fixture.columnDao.put(columnEntity("columna-1", deleted = true))
+
+        val error = (fixture.repository(later).restoreTasks(listOf("t1")) as DomainResult.Failure).error
+
+        assertEquals("COLUMN_NOT_FOUND", error.code)
+        assertEquals(0, fixture.taskDao.restoreCalls)
+        assertEquals(now.toEpochMilli(), fixture.taskDao.stored.getValue("t1").deletedAt)
+    }
+
+    @Test
+    fun restoreTasks_columnaLlena_fallaSinEscribir() = runTest {
+        val fixture = restoreFixture(wipLimit = 1)
+        fixture.taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
+        fixture.deleteAt(now, "t1")
+        fixture.taskDao.put(taskEntity("t2", columnId = "columna-1", position = 0))
+
+        val error = (fixture.repository(later).restoreTasks(listOf("t1")) as DomainResult.Failure).error
+
+        assertTrue(error is DomainError.Conflict)
+        assertEquals("COLUMN_WIP_LIMIT_REACHED", error.code)
+        assertEquals(0, fixture.taskDao.restoreCalls)
+        assertEquals(now.toEpochMilli(), fixture.taskDao.stored.getValue("t1").deletedAt)
+    }
+
+    @Test
+    fun restoreTasks_esTransaccional() = runTest {
+        val fixture = restoreFixture()
+        fixture.taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
+        fixture.deleteAt(now, "t1")
+
+        val result = fixture.repository(later).restoreTasks(listOf("t1", "no-existe"))
+
+        assertTrue(result is DomainResult.Failure)
+        assertEquals(now.toEpochMilli(), fixture.taskDao.stored.getValue("t1").deletedAt)
+        assertEquals(0, fixture.taskDao.restoreCalls)
+    }
+
+    @Test
+    fun restoreTasks_lote_restauraTodasEnUnaTransaccion() = runTest {
+        val fixture = restoreFixture()
+        fixture.taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
+        fixture.taskDao.put(taskEntity("t2", columnId = "columna-1", position = 1))
+        fixture.deleteAt(now, "t1", "t2")
+
+        val result = fixture.repository(later).restoreTasks(listOf("t1", "t2"))
+
+        assertTrue(result is DomainResult.Success)
+        assertEquals(1, fixture.taskDao.restoreCalls)
+        assertEquals(listOf(null, null), listOf("t1", "t2").map { fixture.taskDao.stored.getValue(it).deletedAt })
+        assertEquals(listOf(0, 1), listOf("t1", "t2").map { fixture.taskDao.stored.getValue(it).position })
+    }
+
+    @Test
+    fun restoreTasks_lote_unaFallaYNoRestauraNinguna() = runTest {
+        val fixture = restoreFixture()
+        fixture.taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
+        fixture.taskDao.put(taskEntity("t2", columnId = "columna-1", position = 1))
+        fixture.deleteAt(now, "t1")
+
+        val result = fixture.repository(later).restoreTasks(listOf("t1", "t2"))
+
+        assertEquals("TASK_NOT_DELETED", (result as DomainResult.Failure).error.code)
+        assertEquals(now.toEpochMilli(), fixture.taskDao.stored.getValue("t1").deletedAt)
+        assertEquals(0, fixture.taskDao.restoreCalls)
+    }
+
+    @Test
+    fun restoreTasks_lote_columnaConLimiteSumaElLote() = runTest {
+        val fixture = restoreFixture(wipLimit = 2)
+        fixture.taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
+        fixture.taskDao.put(taskEntity("t2", columnId = "columna-1", position = 1))
+        fixture.deleteAt(now, "t1", "t2")
+        fixture.taskDao.put(taskEntity("t3", columnId = "columna-1", position = 0))
+
+        val result = fixture.repository(later).restoreTasks(listOf("t1", "t2"))
+
+        assertEquals("COLUMN_WIP_LIMIT_REACHED", (result as DomainResult.Failure).error.code)
+        assertEquals(listOf(now.toEpochMilli(), now.toEpochMilli()), listOf("t1", "t2").map { fixture.taskDao.stored.getValue(it).deletedAt })
+        val fits = fixture.repository(later).restoreTasks(listOf("t1"))
+        assertTrue(fits is DomainResult.Success)
+    }
+
+    @Test
+    fun restoreTasks_lote_noTocaLasBorradasAntes() = runTest {
+        val fixture = restoreFixture()
+        fixture.taskDao.put(taskEntity("t1", columnId = "columna-1", position = 0))
+        fixture.taskDao.put(taskEntity("vieja", columnId = "columna-1", position = 1, deletedAt = now.minusSeconds(3600)))
+        fixture.deleteAt(now, "t1")
+
+        fixture.repository(later).restoreTasks(listOf("t1"))
+
+        assertEquals(now.minusSeconds(3600).toEpochMilli(), fixture.taskDao.stored.getValue("vieja").deletedAt)
+    }
+
     private fun completedRepository(vararg ids: String): Pair<TaskRepositoryImpl, FakeTaskDao> {
         val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
         val taskDao = FakeTaskDao(columnDao)
@@ -596,21 +883,21 @@ class TaskRepositoryImplTest {
     }
 
     @Test
-    fun deleteCompleted_devuelveElNumeroBorrado() = runTest {
+    fun deleteCompleted_devuelveLosIdsBorrados() = runTest {
         val (repository, _) = completedRepository("c1", "c2", "c3")
 
         val result = repository.deleteCompleted()
 
-        assertEquals(3, (result as DomainResult.Success).value)
+        assertEquals(listOf("c1", "c2", "c3"), (result as DomainResult.Success).value)
     }
 
     @Test
-    fun deleteCompleted_sinCompletadas_devuelveCero() = runTest {
+    fun deleteCompleted_sinCompletadas_devuelveListaVacia() = runTest {
         val (repository, _) = completedRepository()
 
         val result = repository.deleteCompleted()
 
-        assertEquals(0, (result as DomainResult.Success).value)
+        assertEquals(emptyList<String>(), (result as DomainResult.Success).value)
     }
 
     @Test
@@ -2287,6 +2574,34 @@ class TaskRepositoryImplTest {
     }
 
     private class FakeTaskDao(val columnDao: FakeColumnDao) : TaskDao() {
+        override suspend fun findActiveByList(listId: String): List<TaskEntity> =
+            rows.value.values.filter { it.listId == listId && it.deletedAt == null }
+
+        override suspend fun restoreSubtasksOfTask(taskId: String, deletedAt: Long, now: Long) {
+            subtasks.replaceAll { _, row ->
+                if (row.taskId == taskId && row.deletedAt == deletedAt) {
+                    row.copy(deletedAt = null, updatedAt = now, pending = true)
+                } else {
+                    row
+                }
+            }
+        }
+
+        override suspend fun restoreRemindersOfTask(taskId: String, deletedAt: Long, now: Long): Int {
+            val ids = reminders.values
+                .filter { it.taskId == taskId && it.status == "DISMISSED" && it.updatedAt == deletedAt && it.remindAt > now }
+                .map { it.id }
+            ids.forEach { id -> reminders[id] = reminders.getValue(id).copy(status = "PENDING", updatedAt = now, pending = true) }
+            return ids.size
+        }
+
+        var restoreCalls: Int = 0
+            private set
+
+        override suspend fun upsertRestoredWithSubtasks(tasks: List<TaskEntity>, deletedAtById: Map<String, Long>, now: Long) {
+            restoreCalls++
+            super.upsertRestoredWithSubtasks(tasks, deletedAtById, now)
+        }
         val store = FakeTaskStore()
 
         val listDao = FakeTaskListDao(store)

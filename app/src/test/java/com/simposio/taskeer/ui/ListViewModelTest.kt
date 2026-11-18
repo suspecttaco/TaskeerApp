@@ -35,6 +35,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.test.advanceTimeBy
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -278,10 +279,58 @@ class ListViewModelTest {
         sync = SyncMetadata(id, Instant.EPOCH, pending = false, deletedAt = null),
     )
 
-    private fun TestScope.viewModel(listId: String = SEEDED_TASK_LIST_ID): ListViewModel {
+    @Test
+    fun completar_conservaLaPosicionHastaTerminarLaPausa() = runTest {
+        tasks.inbox.value = listOf(task("a"), task("b"), task("c"))
+        val viewModel = viewModel(settleMillis = 500L)
+
+        viewModel.onRowAction("a", RowAction.COMPLETE)
+
+        assertEquals(listOf("a", "b", "c"), viewModel.uiState.value.items.map { it.id })
+        assertTrue(viewModel.uiState.value.items.first().isCompleted)
+        advanceTimeBy(499)
+        assertEquals(listOf("a", "b", "c"), viewModel.uiState.value.items.map { it.id })
+        advanceTimeBy(1)
+        testScheduler.runCurrent()
+        assertEquals(listOf("b", "c", "a"), viewModel.uiState.value.items.map { it.id })
+    }
+
+    @Test
+    fun reabrir_noEspera() = runTest {
+        tasks.inbox.value = listOf(task("b"), task("a", completedAt = now))
+        val viewModel = viewModel(settleMillis = 500L)
+
+        viewModel.onRowAction("a", RowAction.REOPEN)
+
+        assertEquals(listOf("b", "a"), viewModel.uiState.value.items.map { it.id })
+        assertFalse(viewModel.uiState.value.items.last().isCompleted)
+    }
+
+    @Test
+    fun completar_sinAnimaciones_reordenaEnSeguida() = runTest {
+        tasks.inbox.value = listOf(task("a"), task("b"))
+        val viewModel = viewModel(settleMillis = 0L)
+
+        viewModel.onRowAction("a", RowAction.COMPLETE)
+
+        assertEquals(listOf("b", "a"), viewModel.uiState.value.items.map { it.id })
+    }
+
+    @Test
+    fun delete_noSeGestionaAqui() = runTest {
+        tasks.inbox.value = listOf(task("a"))
+        val viewModel = viewModel()
+
+        viewModel.onRowAction("a", RowAction.DELETE)
+
+        assertTrue(tasks.completions.isEmpty())
+        assertEquals(listOf("a"), viewModel.uiState.value.items.map { it.id })
+    }
+
+    private fun TestScope.viewModel(listId: String = SEEDED_TASK_LIST_ID, settleMillis: Long = 0L): ListViewModel {
         val rescheduler = TaskRescheduler(tasks, madrid) { LocalDate.of(2026, 11, 2) }
         val handle = SavedStateHandle(mapOf(ListViewModel.LIST_ID_ARG to listId))
-        val viewModel = ListViewModel(tasks, lists, myDay, madrid, handle, rescheduler) { now }
+        val viewModel = ListViewModel(tasks, lists, myDay, madrid, handle, rescheduler, { settleMillis }) { now }
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }

@@ -44,6 +44,7 @@ import com.simposio.taskeer.ui.components.IconLabel
 import com.simposio.taskeer.ui.components.RowAction
 import com.simposio.taskeer.ui.components.RowContext
 import com.simposio.taskeer.ui.components.SectionHeader
+import com.simposio.taskeer.ui.components.rowItemModifier
 import com.simposio.taskeer.ui.components.TaskRow
 import com.simposio.taskeer.ui.components.TaskRowUi
 import com.simposio.taskeer.ui.components.actionsIn
@@ -51,6 +52,7 @@ import com.simposio.taskeer.ui.tasks.EmptyAction
 import com.simposio.taskeer.ui.tasks.EmptyScreen
 import com.simposio.taskeer.ui.tasks.SwipeHintState
 import com.simposio.taskeer.ui.tasks.emptyStateFor
+import com.simposio.taskeer.ui.tasks.firstPeekableId
 import com.simposio.taskeer.ui.tasks.rememberAssignToBoardHost
 import com.simposio.taskeer.ui.tasks.rememberTaskActionsSheet
 import com.simposio.taskeer.ui.tasks.rememberTaskEditorHost
@@ -63,6 +65,7 @@ fun MyDayScreen(
     viewModelFactory: ViewModelProvider.Factory,
     swipeHint: SwipeHintState,
     onAddTask: () -> Unit,
+    onDelete: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: MyDayViewModel = viewModel(factory = viewModelFactory)
@@ -70,7 +73,11 @@ fun MyDayScreen(
     val editorHost = rememberTaskEditorHost(viewModelFactory)
     val openAssign = rememberAssignToBoardHost(viewModelFactory)
     val handle: (RowContext, String, RowAction) -> Unit = { context, id, action ->
-        if (action == RowAction.ASSIGN_TO_BOARD) openAssign(id) else viewModel.onRowAction(context, id, action)
+        when (action) {
+            RowAction.ASSIGN_TO_BOARD -> openAssign(id)
+            RowAction.DELETE -> onDelete(id)
+            else -> viewModel.onRowAction(context, id, action)
+        }
     }
     val openActions = rememberTaskActionsSheet(
         onAction = handle,
@@ -110,7 +117,7 @@ fun MyDayContent(
         val hasSuggestions = state.suggestions.isNotEmpty()
         val firstRowKey = when {
             hasSuggestions && state.suggestionsExpanded -> SUGGESTION_KEY_PREFIX + state.suggestions.first().id
-            else -> state.items.firstOrNull()?.id
+            else -> firstPeekableId(state.items.map { it.toRow() }, RowContext.MY_DAY)
         }
         LazyColumn(
             modifier = Modifier.weight(1f),
@@ -134,6 +141,7 @@ fun MyDayContent(
                             onOpen = { onOpenTask(row.id) },
                             onMore = { onMore(row, RowContext.SUGGESTION) },
                             primaryAction = RowAction.KEEP_TODAY,
+                            modifier = rowItemModifier(),
                             peek = swipeHint.shouldPlay() && firstRowKey == SUGGESTION_KEY_PREFIX + row.id,
                             onPeekDone = swipeHint::markPlayed,
                         )
@@ -148,6 +156,7 @@ fun MyDayContent(
                     onAction = { onRowAction(RowContext.MY_DAY, row, it) },
                     onOpen = { onOpenTask(row.id) },
                     onMore = { onMore(row, RowContext.MY_DAY) },
+                    modifier = rowItemModifier(),
                     peek = swipeHint.shouldPlay() && firstRowKey == row.id,
                     onPeekDone = swipeHint::markPlayed,
                 )

@@ -8,6 +8,7 @@ import com.simposio.taskeer.domain.planned.PlannedItem
 import com.simposio.taskeer.domain.task.RescheduleTarget
 import com.simposio.taskeer.domain.task.isOverdue
 import com.simposio.taskeer.ui.components.RowAction
+import com.simposio.taskeer.ui.tasks.CompletionSettler
 import com.simposio.taskeer.ui.tasks.TaskRescheduler
 import java.time.Instant
 import java.time.LocalDate
@@ -15,6 +16,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 // Las dos vistas por fecha comparten las acciones de fila; solo cambia cómo agrupan.
@@ -23,11 +25,19 @@ class PlannedRowHandler(
     private val taskRepository: TaskRepository,
     private val rescheduler: TaskRescheduler,
     private val error: MutableStateFlow<DomainError?>,
+    settleMillis: () -> Long = { 0L },
 ) {
+    private val settler = CompletionSettler(scope, settleMillis)
+
+    val settling: StateFlow<Set<String>> = settler.settling
+
     // PICK_DATE abre el selector de la pantalla y no pasa por aquí.
     fun onRowAction(taskId: String, action: RowAction) {
         when (action) {
-            RowAction.COMPLETE -> execute { taskRepository.setCompleted(taskId, true) }
+            RowAction.COMPLETE -> {
+                settler.begin(taskId)
+                execute { taskRepository.setCompleted(taskId, true) }
+            }
             RowAction.RESCHEDULE_TOMORROW -> reschedule(taskId, RescheduleTarget.TOMORROW)
             RowAction.RESCHEDULE_NEXT_WEEK -> reschedule(taskId, RescheduleTarget.NEXT_WEEK)
             RowAction.RESCHEDULE_SOMEDAY -> reschedule(taskId, RescheduleTarget.SOMEDAY)

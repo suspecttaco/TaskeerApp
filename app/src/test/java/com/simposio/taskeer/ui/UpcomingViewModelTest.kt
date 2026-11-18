@@ -32,6 +32,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.test.advanceTimeBy
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -223,9 +224,54 @@ class UpcomingViewModelTest {
         assertNull(row.boardName)
     }
 
-    private fun TestScope.viewModel(): UpcomingViewModel {
+    @Test
+    fun completar_laSacaDeLaVistaAlTerminarLaPausa() = runTest {
+        val a = item("a", "2026-11-17T18:00:00Z")
+        val b = item("b", "2026-11-17T19:00:00Z")
+        repository.set(a, b)
+        tasks.inbox.value = listOf(a.task, b.task)
+        val viewModel = viewModel(settleMillis = 500L)
+
+        viewModel.onRowAction("a", RowAction.COMPLETE)
+        repository.set(b)
+
+        val retained = viewModel.uiState.value.days[0].items
+        assertEquals(listOf("a", "b"), retained.map { it.id })
+        assertTrue(retained.first().isCompleted)
+        advanceTimeBy(500)
+        testScheduler.runCurrent()
+        assertEquals(listOf("b"), viewModel.uiState.value.days[0].items.map { it.id })
+    }
+
+    @Test
+    fun completar_sinAnimaciones_laSacaEnSeguida() = runTest {
+        val a = item("a", "2026-11-17T18:00:00Z")
+        repository.set(a)
+        tasks.inbox.value = listOf(a.task)
+        val viewModel = viewModel(settleMillis = 0L)
+
+        viewModel.onRowAction("a", RowAction.COMPLETE)
+        repository.set()
+
+        assertTrue(viewModel.uiState.value.days[0].items.isEmpty())
+    }
+
+    @Test
+    fun delete_noSeGestionaAqui() = runTest {
+        val a = item("a", "2026-11-17T18:00:00Z")
+        repository.set(a)
+        tasks.inbox.value = listOf(a.task)
+        val viewModel = viewModel()
+
+        viewModel.onRowAction("a", RowAction.DELETE)
+
+        assertTrue(tasks.completions.isEmpty())
+        assertEquals(listOf("a"), viewModel.uiState.value.days[0].items.map { it.id })
+    }
+
+    private fun TestScope.viewModel(settleMillis: Long = 0L): UpcomingViewModel {
         val rescheduler = TaskRescheduler(tasks, converter) { LocalDate.of(2026, 11, 17) }
-        val viewModel = UpcomingViewModel(repository, tasks, converter, rescheduler) { now }
+        val viewModel = UpcomingViewModel(repository, tasks, converter, rescheduler, settleMillis = { settleMillis }) { now }
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }

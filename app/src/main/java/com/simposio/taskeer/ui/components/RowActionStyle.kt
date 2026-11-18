@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EventBusy
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Star
@@ -33,6 +34,7 @@ internal fun RowAction.icon(): ImageVector = when (this) {
     RowAction.PICK_DATE -> Icons.Filled.CalendarMonth
     RowAction.ASSIGN_TO_BOARD -> Icons.AutoMirrored.Filled.DriveFileMove
     RowAction.MOVE_TO_LIST -> Icons.AutoMirrored.Filled.PlaylistAdd
+    RowAction.DELETE -> Icons.Filled.Delete
 }
 
 @StringRes
@@ -49,6 +51,7 @@ internal fun RowAction.labelRes(): Int = when (this) {
     RowAction.PICK_DATE -> R.string.row_action_pick_date
     RowAction.ASSIGN_TO_BOARD -> R.string.row_action_assign
     RowAction.MOVE_TO_LIST -> R.string.row_action_move_to_list
+    RowAction.DELETE -> R.string.row_action_delete
 }
 
 @StringRes
@@ -56,11 +59,13 @@ internal fun RowAction.swipeLabelRes(): Int = when (this) {
     RowAction.COMPLETE -> R.string.swipe_complete
     RowAction.REMOVE_FROM_MY_DAY -> R.string.swipe_remove_today
     RowAction.RESCHEDULE_TOMORROW -> R.string.swipe_tomorrow
+    RowAction.DELETE -> R.string.swipe_delete
     else -> labelRes()
 }
 
 @Composable
 internal fun RowAction.swipeContainerColor(): Color = when (this) {
+    RowAction.DELETE -> MaterialTheme.colorScheme.errorContainer
     RowAction.COMPLETE, RowAction.REOPEN, RowAction.KEEP_TODAY -> MaterialTheme.colorScheme.primaryContainer
     RowAction.RESCHEDULE_TOMORROW,
     RowAction.RESCHEDULE_NEXT_WEEK,
@@ -73,4 +78,21 @@ internal fun RowAction.swipeContainerColor(): Color = when (this) {
     RowAction.ASSIGN_TO_BOARD,
     RowAction.MOVE_TO_LIST,
     -> MaterialTheme.colorScheme.secondaryContainer
+}
+
+@Composable
+internal fun RowAction.swipeContentColor(): Color = when (this) {
+    RowAction.DELETE -> MaterialTheme.colorScheme.onErrorContainer
+    RowAction.COMPLETE, RowAction.REOPEN, RowAction.KEEP_TODAY -> MaterialTheme.colorScheme.onPrimaryContainer
+    RowAction.RESCHEDULE_TOMORROW,
+    RowAction.RESCHEDULE_NEXT_WEEK,
+    RowAction.RESCHEDULE_SOMEDAY,
+    RowAction.PICK_DATE,
+    -> MaterialTheme.colorScheme.onTertiaryContainer
+    RowAction.ADD_TO_MY_DAY,
+    RowAction.REMOVE_FROM_MY_DAY,
+    RowAction.DISMISS,
+    RowAction.ASSIGN_TO_BOARD,
+    RowAction.MOVE_TO_LIST,
+    -> MaterialTheme.colorScheme.onSecondaryContainer
 }

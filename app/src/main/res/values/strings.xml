@@ -154,6 +154,8 @@
     <string name="row_action_pick_date">Elegir fecha</string>
     <string name="row_action_assign">Asignar a tablero</string>
     <string name="row_action_move_to_list">Mover a lista…</string>
+    <string name="row_action_delete">Borrar tarea</string>
+    <string name="swipe_delete">Borrar</string>
     <string name="swipe_complete">Completar</string>
     <string name="swipe_remove_today">Quitar de hoy</string>
     <string name="swipe_tomorrow">Mañana</string>
@@ -258,6 +260,13 @@
         <item quantity="other">Se borrarán %1$d tareas completadas</item>
     </plurals>
     <string name="clear_confirm_delete">Borrar</string>
+    <string name="task_deleted">Tarea borrada</string>
+    <plurals name="tasks_deleted">
+        <item quantity="one">%d tarea borrada</item>
+        <item quantity="other">%d tareas borradas</item>
+    </plurals>
+    <string name="task_deleted_undo">Deshacer</string>
+    <string name="task_undo_failed">No se puede deshacer: %s</string>
     <string name="board_new_title">Nuevo tablero</string>
     <string name="board_rename_title">Renombrar tablero</string>
     <string name="board_delete_title">¿Eliminar «%1$s»?</string>

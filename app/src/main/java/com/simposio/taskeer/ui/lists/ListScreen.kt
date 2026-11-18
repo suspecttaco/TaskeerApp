@@ -24,12 +24,14 @@ import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.ui.components.EmptyState
 import com.simposio.taskeer.ui.components.RowAction
 import com.simposio.taskeer.ui.components.RowContext
+import com.simposio.taskeer.ui.components.rowItemModifier
 import com.simposio.taskeer.ui.components.TaskRow
 import com.simposio.taskeer.ui.components.TaskRowUi
 import com.simposio.taskeer.ui.components.actionsIn
 import com.simposio.taskeer.ui.tasks.EmptyScreen
 import com.simposio.taskeer.ui.tasks.SwipeHintState
 import com.simposio.taskeer.ui.tasks.emptyStateFor
+import com.simposio.taskeer.ui.tasks.firstPeekableId
 import com.simposio.taskeer.ui.tasks.rememberMoveToListHost
 import com.simposio.taskeer.ui.tasks.rememberAssignToBoardHost
 import com.simposio.taskeer.ui.tasks.rememberTaskActionsSheet
@@ -44,6 +46,7 @@ fun ListScreen(
     swipeHint: SwipeHintState,
     onAddTask: () -> Unit,
     onListMissing: () -> Unit,
+    onDelete: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: ListViewModel = viewModel(factory = viewModelFactory)
@@ -61,6 +64,7 @@ fun ListScreen(
         when (action) {
             RowAction.ASSIGN_TO_BOARD -> openAssign(id)
             RowAction.MOVE_TO_LIST -> openMove(id, viewModel.listId)
+            RowAction.DELETE -> onDelete(id)
             else -> viewModel.onRowAction(id, action)
         }
     }
@@ -144,6 +148,7 @@ fun ListContent(
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(bottom = Spacing.ChromeClearance),
             ) {
+                val firstPeekable = firstPeekableId(state.items.map { it.toRow() }, RowContext.LIST)
                 items(state.items, key = { it.id }) { task ->
                     val row = task.toRow()
                     TaskRow(
@@ -152,7 +157,8 @@ fun ListContent(
                         onAction = { onRowAction(row, it) },
                         onOpen = { onOpenTask(row.id) },
                         onMore = { onMore(row) },
-                        peek = swipeHint.shouldPlay() && task.id == state.items.first().id,
+                        modifier = rowItemModifier(),
+                        peek = swipeHint.shouldPlay() && task.id == firstPeekable,
                         onPeekDone = swipeHint::markPlayed,
                     )
                 }

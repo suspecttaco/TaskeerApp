@@ -100,6 +100,32 @@ class TaskDaoConventionsTest {
     }
 
     @Test
+    fun laRestauracionEsUnaTransaccionDelDao() {
+        val source = taskDaoSource()
+        val body = source.substring(source.indexOf("open suspend fun upsertRestoredWithSubtasks"))
+
+        assertTrue(
+            Regex("@Transaction\\s+open suspend fun upsertRestoredWithSubtasks").containsMatchIn(source),
+        )
+        assertTrue(body.contains("upsertAll(tasks)"))
+        assertTrue(body.contains("restoreSubtasksOfTask(task.id, deletedAt, now)"))
+        assertTrue(body.contains("restoreRemindersOfTask(task.id, deletedAt, now)"))
+        assertTrue(method("upsertRestoredWithSubtasks").isSuspend())
+    }
+
+    @Test
+    fun restaurar_aislaSubtareasYRecordatoriosDelMismoBorrado() {
+        assertTrue(querySource("restoreSubtasksOfTask").contains("WHERE taskId = :taskId AND deletedAt = :deletedAt"))
+        val reminders = querySource("restoreRemindersOfTask")
+        assertTrue(reminders.contains("status = 'DISMISSED' AND updatedAt = :deletedAt AND remindAt > :now"))
+    }
+
+    @Test
+    fun softDeleteCompleted_devuelveLosIdsBorrados() {
+        assertTrue(taskDaoSource().contains("open suspend fun softDeleteCompleted(deletedAt: Long): List<String>"))
+    }
+
+    @Test
     fun sinDeleteFisico() {
         assertFalse(taskDaoSource().contains("DELETE FROM"))
         assertFalse(taskDaoSource().contains("@Delete"))
@@ -375,6 +401,11 @@ class TaskDaoConventionsTest {
         parameterTypes.lastOrNull()?.name == "kotlin.coroutines.Continuation"
 
     private class FakeTaskDao(private val columnDao: FakeColumnDao) : TaskDao() {
+        override suspend fun findActiveByList(listId: String): List<TaskEntity> = error("no se usa")
+
+        override suspend fun restoreSubtasksOfTask(taskId: String, deletedAt: Long, now: Long) = error("no se usa")
+
+        override suspend fun restoreRemindersOfTask(taskId: String, deletedAt: Long, now: Long): Int = error("no se usa")
         override fun observeByList(listId: String): Flow<List<TaskEntity>> = emptyFlow()
 
         override fun observeActiveCountsByList(): Flow<List<ListCountRow>> = emptyFlow()

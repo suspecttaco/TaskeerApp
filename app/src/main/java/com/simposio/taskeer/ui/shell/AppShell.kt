@@ -8,11 +8,17 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.ViewModelProvider
@@ -38,6 +44,8 @@ import com.simposio.taskeer.ui.navigation.quickAddContextFor
 import com.simposio.taskeer.ui.navigation.withListCount
 import com.simposio.taskeer.ui.quickadd.QuickAddViewModel
 import com.simposio.taskeer.ui.tasks.SwipeHintState
+import com.simposio.taskeer.ui.tasks.TaskDeletionViewModel
+import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 
 @Composable
@@ -59,6 +67,20 @@ fun AppShell(
     val quickAdd: QuickAddViewModel = viewModel(factory = viewModelFactory)
     val quickAddState by quickAdd.uiState.collectAsStateWithLifecycle()
     val clearCompleted: ClearCompletedViewModel = viewModel(factory = viewModelFactory)
+    val deletion: TaskDeletionViewModel = viewModel(factory = viewModelFactory)
+    val pendingUndo by deletion.pending.collectAsStateWithLifecycle()
+    val deletionFailure by deletion.error.collectAsStateWithLifecycle()
+    val snackbarHost = remember { SnackbarHostState() }
+    val deletedCount = pendingUndo?.taskIds?.size ?: 0
+    val deletedMessage = if (deletedCount <= 1) {
+        stringResource(R.string.task_deleted)
+    } else {
+        pluralStringResource(R.plurals.tasks_deleted, deletedCount, deletedCount)
+    }
+    val undoLabel = stringResource(R.string.task_deleted_undo)
+    val failureText = deletionFailure?.let {
+        if (it.whileUndoing) stringResource(R.string.task_undo_failed, it.error.message) else it.error.message
+    }
     val clearState by clearCompleted.uiState.collectAsStateWithLifecycle()
 
     // Los ViewModels de lista y tablero comparten dueño con su pantalla (la entrada de navegación).
@@ -89,6 +111,24 @@ fun AppShell(
             onViewerHandled()
         }
     }
+    // Indefinite: el cierre lo decide el ViewModel al vencer la ventana de deshacer, no la duración de Material.
+    LaunchedEffect(pendingUndo?.token) {
+        if (pendingUndo == null) return@LaunchedEffect
+        val result = snackbarHost.showSnackbar(
+            message = deletedMessage,
+            actionLabel = undoLabel,
+            duration = SnackbarDuration.Indefinite,
+        )
+        if (result == SnackbarResult.ActionPerformed) deletion.undo()
+    }
+    LaunchedEffect(pendingUndo == null) {
+        if (pendingUndo == null) snackbarHost.currentSnackbarData?.dismiss()
+    }
+    LaunchedEffect(deletionFailure) {
+        val text = failureText ?: return@LaunchedEffect
+        snackbarHost.showSnackbar(message = text, duration = SnackbarDuration.Short)
+        deletion.consumeError()
+    }
     LaunchedEffect(destination, listId) {
         quickAdd.close()
         quickAdd.setContext(quickAddContextFor(destination, listId))
@@ -98,9 +138,19 @@ fun AppShell(
     val title = destination.title(listName, boardName)
     val back = backStep(destination, boardId, hasPrevious = navController.previousBackStackEntry != null)
 
+    val snackbarClearance = if (destination == AppDestination.HOME) Spacing.HubBarClearance else Spacing.ChromeClearance
     Scaffold(
         modifier = modifier,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHost,
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .imePadding()
+                    .padding(bottom = snackbarClearance),
+            )
+        },
         topBar = {
             ShellTopBar(
                 kind = chrome.topBar,
@@ -141,6 +191,7 @@ fun AppShell(
                 viewModelFactory = viewModelFactory,
                 swipeHint = swipeHint,
                 onAddForDate = quickAdd::openWithDate,
+                onDelete = deletion::delete,
                 modifier = Modifier
                     .fillMaxSize()
                     .navigationBarsPadding()
@@ -159,7 +210,11 @@ fun AppShell(
             )
         }
     }
-    ClearCompletedDialog(state = clearState, onConfirm = clearCompleted::confirm, onCancel = clearCompleted::cancel)
+    ClearCompletedDialog(
+        state = clearState,
+        onConfirm = { clearCompleted.confirm(deletion::deleteCompleted) },
+        onCancel = clearCompleted::cancel,
+    )
     // Después del NavHost: gana el último registrado, así Atrás cierra la píldora antes de salir de la pantalla.
     BackHandler(enabled = quickAddState.isOpen) { quickAdd.onBack() }
 }

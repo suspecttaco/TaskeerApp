@@ -1,6 +1,8 @@
 package com.simposio.taskeer.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -24,27 +26,30 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 import kotlin.math.roundToInt
-import kotlinx.coroutines.launch
 
 @Composable
 internal fun TaskRow(
@@ -60,13 +65,24 @@ internal fun TaskRow(
 ) {
     val currentActions by rememberUpdatedState(actions)
     val currentOnAction by rememberUpdatedState(onAction)
-    val state = rememberSwipeToDismissBoxState()
-    val scope = rememberCoroutineScope()
+    // confirmValueChange devuelve false: la caja nunca se asienta en «descartada». Con un valor descartado
+    // guardado (rememberSaveable), una fila borrada y luego restaurada con la misma clave reaparecería
+    // deslizada y volvería a ejecutar la acción.
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> currentActions.swipeEnd?.let(currentOnAction)
+                SwipeToDismissBoxValue.EndToStart -> currentActions.swipeStart?.let(currentOnAction)
+                SwipeToDismissBoxValue.Settled -> Unit
+            }
+            false
+        },
+    )
     val peekOffset = remember { Animatable(0f) }
     val peekPx = with(LocalDensity.current) { Spacing.SwipePeek.toPx() }
     LaunchedEffect(peek) {
-        if (peek) {
-            peekOffset.animateTo(peekPx, tween(PEEK_HALF_MILLIS))
+        if (peek && actions.swipeStart != null) {
+            peekOffset.animateTo(-peekPx, tween(PEEK_HALF_MILLIS))
             peekOffset.animateTo(0f, tween(PEEK_HALF_MILLIS))
             onPeekDone()
         }
@@ -78,25 +94,19 @@ internal fun TaskRow(
             state = state,
             enableDismissFromStartToEnd = actions.swipeEnd != null,
             enableDismissFromEndToStart = actions.swipeStart != null,
-            onDismiss = { value ->
-                when (value) {
-                    SwipeToDismissBoxValue.StartToEnd -> currentActions.swipeEnd?.let(currentOnAction)
-                    SwipeToDismissBoxValue.EndToStart -> currentActions.swipeStart?.let(currentOnAction)
-                    SwipeToDismissBoxValue.Settled -> Unit
-                }
-                // La lista se actualiza por el flujo del repositorio: la fila vuelve a su sitio.
-                scope.launch { state.reset() }
-            },
             backgroundContent = {
                 val direction = state.dismissDirection
-                val peeking = direction == SwipeToDismissBoxValue.Settled && peekOffset.value > 0f
+                val peeking = direction == SwipeToDismissBoxValue.Settled && peekOffset.value < 0f
                 val action = when {
-                    direction == SwipeToDismissBoxValue.StartToEnd || peeking -> actions.swipeEnd
-                    direction == SwipeToDismissBoxValue.EndToStart -> actions.swipeStart
+                    direction == SwipeToDismissBoxValue.StartToEnd -> actions.swipeEnd
+                    direction == SwipeToDismissBoxValue.EndToStart || peeking -> actions.swipeStart
                     else -> null
                 }
                 if (action != null) {
-                    SwipeBackground(action = action, atStart = direction != SwipeToDismissBoxValue.EndToStart)
+                    SwipeBackground(
+                        action = action,
+                        atStart = direction == SwipeToDismissBoxValue.StartToEnd,
+                    )
                 }
             },
         ) {
@@ -127,6 +137,7 @@ internal fun TaskRow(
 
 @Composable
 private fun SwipeBackground(action: RowAction, atStart: Boolean) {
+    val content = action.swipeContentColor()
     Row(
         modifier = Modifier
             .fillMaxSize()
@@ -138,8 +149,12 @@ private fun SwipeBackground(action: RowAction, atStart: Boolean) {
         ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        DecorativeIcon(icon = action.icon())
-        Text(text = stringResource(action.swipeLabelRes()), style = MaterialTheme.typography.labelLarge)
+        DecorativeIcon(icon = action.icon(), tint = content)
+        Text(
+            text = stringResource(action.swipeLabelRes()),
+            style = MaterialTheme.typography.labelLarge,
+            color = content,
+        )
     }
 }
 
@@ -170,13 +185,7 @@ private fun RowContent(
                 .padding(vertical = Spacing.RowVerticalPadding),
             verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap),
         ) {
-            Text(
-                text = row.title,
-                style = MaterialTheme.typography.bodyLarge,
-                textDecoration = if (row.isCompleted) TextDecoration.LineThrough else null,
-                maxLines = TITLE_MAX_LINES,
-                overflow = TextOverflow.Ellipsis,
-            )
+            CompletableTitle(title = row.title, isCompleted = row.isCompleted)
             SecondLine(row)
         }
         if (primaryAction != null) {
@@ -194,6 +203,49 @@ private fun RowContent(
             onClick = onMore,
         )
     }
+}
+
+@Composable
+private fun CompletableTitle(title: String, isCompleted: Boolean, animate: Boolean = rememberAnimationsEnabled()) {
+    val progress = remember { Animatable(if (isCompleted) 1f else 0f) }
+    LaunchedEffect(isCompleted) {
+        when {
+            !isCompleted -> progress.snapTo(0f)
+            animate -> progress.animateTo(1f, tween(CompletionMotion.StrikeMillis))
+            else -> progress.snapTo(1f)
+        }
+    }
+    val alpha by animateFloatAsState(
+        targetValue = if (isCompleted) CompletionMotion.DimAlpha else 1f,
+        animationSpec = if (animate) tween(CompletionMotion.StrikeMillis) else snap(),
+        label = "titleAlpha",
+    )
+    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)
+    Text(
+        text = title,
+        style = MaterialTheme.typography.bodyLarge,
+        color = color,
+        maxLines = TITLE_MAX_LINES,
+        overflow = TextOverflow.Ellipsis,
+        onTextLayout = { layout = it },
+        modifier = Modifier.drawWithContent {
+            drawContent()
+            val result = layout ?: return@drawWithContent
+            if (progress.value <= 0f) return@drawWithContent
+            for (line in 0 until result.lineCount) {
+                val left = result.getLineLeft(line)
+                val right = result.getLineRight(line)
+                val y = (result.getLineTop(line) + result.getLineBottom(line)) / 2f
+                drawLine(
+                    color = color,
+                    start = Offset(left, y),
+                    end = Offset(left + (right - left) * progress.value, y),
+                    strokeWidth = STRIKE_STROKE_DP.dp.toPx(),
+                )
+            }
+        },
+    )
 }
 
 @Composable
@@ -241,6 +293,7 @@ private fun SecondLine(row: TaskRowUi) {
 private const val SEPARATOR = "·"
 private const val TITLE_MAX_LINES = 2
 private const val PEEK_HALF_MILLIS = 300
+private const val STRIKE_STROKE_DP = 1.5f
 
 @Preview(showBackground = true)
 @Composable

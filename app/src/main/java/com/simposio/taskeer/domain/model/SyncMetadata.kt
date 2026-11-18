@@ -26,3 +26,6 @@ fun SyncMetadata.afterLocalChange(now: Instant): SyncMetadata =
 
 fun SyncMetadata.afterLocalDelete(now: Instant): SyncMetadata =
     copy(updatedAt = now, pending = true, deletedAt = now)
+
+fun SyncMetadata.afterLocalRestore(now: Instant): SyncMetadata =
+    copy(updatedAt = now, pending = true, deletedAt = null)

@@ -123,10 +123,20 @@ private fun TaskActionsSheet(
                 DueDatePickerContent(initialDate = null, onDatePicked = onPickDate)
             } else {
                 actions.sheet.forEachIndexed { index, action ->
+                    val destructive = action == RowAction.DELETE
+                    val error = MaterialTheme.colorScheme.error
                     ListItem(
                         headlineContent = { Text(stringResource(action.labelRes())) },
                         leadingContent = { DecorativeIcon(action.icon()) },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        colors = if (destructive) {
+                            ListItemDefaults.colors(
+                                containerColor = Color.Transparent,
+                                headlineColor = error,
+                                leadingIconColor = error,
+                            )
+                        } else {
+                            ListItemDefaults.colors(containerColor = Color.Transparent)
+                        },
                         modifier = Modifier
                             .then(if (index == 0) Modifier.focusRequester(firstItem) else Modifier)
                             .clickable {

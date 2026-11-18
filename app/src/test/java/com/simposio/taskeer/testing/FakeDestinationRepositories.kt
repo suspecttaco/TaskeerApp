@@ -144,7 +144,9 @@ class FakeDestinationTaskRepository : TaskRepository {
 
     override fun observeCompletedCount(): Flow<Int> = completedCount
 
-    override suspend fun deleteCompleted(): DomainResult<Int> = DomainResult.Success(0)
+    override suspend fun deleteCompleted(): DomainResult<List<String>> = DomainResult.Success(emptyList())
+
+    override suspend fun restoreTasks(ids: List<String>): DomainResult<Unit> = DomainResult.Success(Unit)
 
     override suspend fun deleteTask(id: String): DomainResult<Unit> = unused()
 

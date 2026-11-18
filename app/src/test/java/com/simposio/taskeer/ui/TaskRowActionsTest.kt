@@ -32,7 +32,7 @@ class TaskRowActionsTest {
         val inbox = actions(RowContext.LIST, inbox = true).sheet
 
         assertTrue(RowAction.MOVE_TO_LIST in inbox)
-        assertEquals(RowAction.ASSIGN_TO_BOARD, inbox.last())
+        assertEquals(RowAction.DELETE, inbox.last())
         assertEquals(inbox.indexOf(RowAction.MOVE_TO_LIST) + 1, inbox.indexOf(RowAction.ASSIGN_TO_BOARD))
     }
 
@@ -44,15 +44,45 @@ class TaskRowActionsTest {
     }
 
     @Test
-    fun miDia_derecha_completa() {
-        assertEquals(RowAction.COMPLETE, actions(RowContext.MY_DAY, marked = true).swipeEnd)
+    fun derecha_borraEnLosCuatroContextos() {
+        RowContext.entries.forEach { context ->
+            assertEquals(context.name, RowAction.DELETE, actions(context, marked = true, inbox = true).swipeEnd)
+        }
     }
 
     @Test
-    fun miDia_completada_derechaReabre() {
+    fun completar_yaNoEsGesto() {
+        RowContext.entries.forEach { context ->
+            listOf(false, true).forEach { completed ->
+                val result = actions(context, completed = completed, marked = true, inbox = true)
+                val gestures = listOfNotNull(result.swipeEnd, result.swipeStart)
+                assertTrue(context.name, gestures.none { it == RowAction.COMPLETE || it == RowAction.REOPEN })
+                assertTrue(context.name, gestures.none { it == RowAction.KEEP_TODAY })
+            }
+        }
+    }
+
+    @Test
+    fun hoja_terminaEnBorrarEnLosCuatroContextos() {
+        RowContext.entries.forEach { context ->
+            val sheet = actions(context, marked = true, inbox = true).sheet
+            assertEquals(context.name, RowAction.DELETE, sheet.last())
+            assertEquals(context.name, 1, sheet.count { it == RowAction.DELETE })
+        }
+    }
+
+    @Test
+    fun izquierda_noCambia() {
+        assertEquals(RowAction.REMOVE_FROM_MY_DAY, actions(RowContext.MY_DAY, marked = true).swipeStart)
+        assertEquals(RowAction.ADD_TO_MY_DAY, actions(RowContext.LIST, marked = false).swipeStart)
+        assertEquals(RowAction.RESCHEDULE_TOMORROW, actions(RowContext.PLANNED).swipeStart)
+        assertEquals(RowAction.DISMISS, actions(RowContext.SUGGESTION).swipeStart)
+    }
+
+    @Test
+    fun miDia_completada_ofreceReabrirEnLaHoja() {
         val result = actions(RowContext.MY_DAY, completed = true, marked = true)
 
-        assertEquals(RowAction.REOPEN, result.swipeEnd)
         assertEquals(RowAction.REOPEN, result.sheet.first())
     }
 
@@ -75,10 +105,12 @@ class TaskRowActionsTest {
         val board = actions(RowContext.MY_DAY, marked = true, inbox = false).sheet
 
         assertEquals(
-            listOf(RowAction.COMPLETE, RowAction.REMOVE_FROM_MY_DAY) + reschedule + RowAction.ASSIGN_TO_BOARD,
+            listOf(RowAction.COMPLETE, RowAction.REMOVE_FROM_MY_DAY) + reschedule +
+                listOf(RowAction.ASSIGN_TO_BOARD, RowAction.DELETE),
             inbox,
         )
         assertFalse(RowAction.ASSIGN_TO_BOARD in board)
+        assertEquals(RowAction.DELETE, board.last())
     }
 
     @Test
@@ -91,7 +123,7 @@ class TaskRowActionsTest {
     fun lista_bandeja_ofreceAsignar() {
         val sheet = actions(RowContext.LIST, inbox = true).sheet
 
-        assertEquals(RowAction.ASSIGN_TO_BOARD, sheet.last())
+        assertEquals(listOf(RowAction.ASSIGN_TO_BOARD, RowAction.DELETE), sheet.takeLast(2))
         assertEquals(listOf(RowAction.COMPLETE, RowAction.ADD_TO_MY_DAY), sheet.take(2))
     }
 
@@ -99,7 +131,7 @@ class TaskRowActionsTest {
     fun planificado_izquierda_esManana() {
         val result = actions(RowContext.PLANNED)
 
-        assertEquals(RowAction.COMPLETE, result.swipeEnd)
+        assertEquals(RowAction.DELETE, result.swipeEnd)
         assertEquals(RowAction.RESCHEDULE_TOMORROW, result.swipeStart)
     }
 
@@ -107,21 +139,27 @@ class TaskRowActionsTest {
     fun planificado_noOfreceMiDia() {
         val sheet = actions(RowContext.PLANNED, marked = true, inbox = true).sheet
 
-        assertEquals(listOf(RowAction.COMPLETE) + reschedule, sheet)
+        assertEquals(listOf(RowAction.COMPLETE) + reschedule + RowAction.DELETE, sheet)
     }
 
     @Test
-    fun sugerencia_derechaMantiene_izquierdaDescarta() {
+    fun sugerencia_derechaBorra_izquierdaDescarta() {
         val result = actions(RowContext.SUGGESTION)
 
-        assertEquals(RowAction.KEEP_TODAY, result.swipeEnd)
+        assertEquals(RowAction.DELETE, result.swipeEnd)
         assertEquals(RowAction.DISMISS, result.swipeStart)
     }
 
     @Test
-    fun sugerencia_hojaOfreceMantenerMananaCompletarYDescartar() {
+    fun sugerencia_mantenerHoyEnHojaYBoton() {
         assertEquals(
-            listOf(RowAction.KEEP_TODAY, RowAction.RESCHEDULE_TOMORROW, RowAction.COMPLETE, RowAction.DISMISS),
+            listOf(
+                RowAction.KEEP_TODAY,
+                RowAction.RESCHEDULE_TOMORROW,
+                RowAction.COMPLETE,
+                RowAction.DISMISS,
+                RowAction.DELETE,
+            ),
             actions(RowContext.SUGGESTION).sheet,
         )
     }

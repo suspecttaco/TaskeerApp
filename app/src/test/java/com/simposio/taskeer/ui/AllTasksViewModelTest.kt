@@ -31,6 +31,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.test.advanceTimeBy
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -183,9 +184,57 @@ class AllTasksViewModelTest {
         assertNull(viewModel.addDateFor(PlannedGroup.SOMEDAY))
     }
 
-    private fun TestScope.viewModel(): AllTasksViewModel {
+    @Test
+    fun completar_laSacaDeLaVistaAlTerminarLaPausa() = runTest {
+        val a = item("a", "2026-11-17T18:00:00Z")
+        val b = item("b", "2026-11-17T19:00:00Z")
+        items.value = listOf(a, b)
+        tasks.inbox.value = listOf(a.task, b.task)
+        val viewModel = viewModel(settleMillis = 500L)
+
+        viewModel.onRowAction("a", RowAction.COMPLETE)
+        items.value = listOf(b)
+
+        val retained = viewModel.uiState.value.groups[0].items
+        assertEquals(listOf("a", "b"), retained.map { it.id })
+        assertTrue(retained.first().isCompleted)
+        advanceTimeBy(500)
+        testScheduler.runCurrent()
+        assertEquals(listOf("b"), viewModel.uiState.value.groups[0].items.map { it.id })
+    }
+
+    @Test
+    fun completar_sinAnimaciones_laSacaEnSeguida() = runTest {
+        val a = item("a", "2026-11-17T18:00:00Z")
+        items.value = listOf(a)
+        tasks.inbox.value = listOf(a.task)
+        val viewModel = viewModel(settleMillis = 0L)
+
+        viewModel.onRowAction("a", RowAction.COMPLETE)
+        items.value = listOf()
+
+        assertTrue(viewModel.uiState.value.groups[0].items.isEmpty())
+    }
+
+    @Test
+    fun delete_noSeGestionaAqui() = runTest {
+        val a = item("a", "2026-11-17T18:00:00Z")
+        items.value = listOf(a)
+        tasks.inbox.value = listOf(a.task)
+        val viewModel = viewModel()
+
+        viewModel.onRowAction("a", RowAction.DELETE)
+
+        assertTrue(tasks.completions.isEmpty())
+        assertEquals(listOf("a"), viewModel.uiState.value.groups[0].items.map { it.id })
+    }
+
+    private fun TestScope.viewModel(settleMillis: Long = 0L): AllTasksViewModel {
         val rescheduler = TaskRescheduler(tasks, converter) { LocalDate.of(2026, 11, 17) }
-        val viewModel = AllTasksViewModel(repository, tasks, converter, rescheduler, { now }, { today.value })
+        val viewModel = AllTasksViewModel(
+            repository, tasks, converter, rescheduler,
+            settleMillis = { settleMillis }, now = { now }, today = { today.value },
+        )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }

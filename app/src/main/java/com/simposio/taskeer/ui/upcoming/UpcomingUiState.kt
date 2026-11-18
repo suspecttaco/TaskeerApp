@@ -14,6 +14,7 @@ data class PlannedTaskUi(
     val isOverdue: Boolean,
     val isRepeating: Boolean = false,
     val listName: String? = null,
+    val isCompleted: Boolean = false,
 ) {
     val isInbox: Boolean get() = boardName == null
 }

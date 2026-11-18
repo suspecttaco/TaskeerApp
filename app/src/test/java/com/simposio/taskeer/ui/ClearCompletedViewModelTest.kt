@@ -58,14 +58,18 @@ class ClearCompletedViewModelTest {
     }
 
     @Test
-    fun confirm_borraYCierra() = runTest {
+    fun confirm_delegaEnLaOperacionYCierra() = runTest {
         repository.count.value = 2
         val viewModel = viewModel()
         viewModel.requestClear()
+        var calls = 0
 
-        viewModel.confirm()
+        viewModel.confirm {
+            calls++
+            DomainResult.Success(Unit)
+        }
 
-        assertEquals(1, repository.deleteCalls)
+        assertEquals(1, calls)
         assertNull(viewModel.uiState.value.confirmCount)
         assertNull(viewModel.uiState.value.error)
     }
@@ -73,26 +77,24 @@ class ClearCompletedViewModelTest {
     @Test
     fun confirm_falla_muestraError() = runTest {
         val failure = DomainError.NotFound("TASK_NOT_FOUND", "La tarea no existe")
-        repository.failure = failure
         repository.count.value = 2
         val viewModel = viewModel()
         viewModel.requestClear()
 
-        viewModel.confirm()
+        viewModel.confirm { DomainResult.Failure(failure) }
 
         assertEquals(failure, viewModel.uiState.value.error)
         assertEquals(2, viewModel.uiState.value.confirmCount)
     }
 
     @Test
-    fun cancel_noBorra() = runTest {
+    fun cancel_cierraSinConfirmar() = runTest {
         repository.count.value = 2
         val viewModel = viewModel()
         viewModel.requestClear()
 
         viewModel.cancel()
 
-        assertEquals(0, repository.deleteCalls)
         assertNull(viewModel.uiState.value.confirmCount)
     }
 
@@ -116,17 +118,7 @@ class ClearCompletedViewModelTest {
         private val delegate: TaskRepository = FakeDestinationTaskRepository(),
     ) : TaskRepository by delegate {
         val count = MutableStateFlow(0)
-        var failure: DomainError? = null
-        var deleteCalls = 0
 
         override fun observeCompletedCount(): Flow<Int> = count
-
-        override suspend fun deleteCompleted(): DomainResult<Int> {
-            deleteCalls++
-            failure?.let { return DomainResult.Failure(it) }
-            val deleted = count.value
-            count.value = 0
-            return DomainResult.Success(deleted)
-        }
     }
 }

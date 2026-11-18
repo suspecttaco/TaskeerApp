@@ -57,6 +57,14 @@ class AppContainerTest {
     }
 
     @Test
+    fun exponeLaEscalaDeAnimacionInyectable() {
+        val container = container(animationScale = { 0f })
+
+        assertEquals(0f, container.animationScale(), 0f)
+        assertEquals(1f, container().animationScale(), 0f)
+    }
+
+    @Test
     fun entregaElRepositorioDeTablerosInyectado() {
         val boards = FakeBoardRepository()
 
@@ -154,6 +162,7 @@ class AppContainerTest {
         reminderRepository: ReminderRepository = FakeReminderRepository(),
         reminderReconciler: ReminderReconciler =
             reconciler(preferencesRepository, taskRepository, reminderRepository),
+        animationScale: () -> Float = { 1f },
     ): AppContainer = AppContainer(
         preferencesRepository = preferencesRepository,
         timeZoneProvider = TimeZoneProvider { auckland },
@@ -167,6 +176,7 @@ class AppContainerTest {
         reminderRepository = reminderRepository,
         reminderReconciler = reminderReconciler,
         notificationHistoryRepository = FakeNotificationHistoryRepository(),
+        animationScale = animationScale,
     )
 
     private fun reconciler(
@@ -252,7 +262,9 @@ class AppContainerTest {
 
         override fun observeCompletedCount(): Flow<Int> = error("no se usa")
 
-        override suspend fun deleteCompleted(): DomainResult<Int> = error("no se usa")
+        override suspend fun deleteCompleted(): DomainResult<List<String>> = error("no se usa")
+
+        override suspend fun restoreTasks(ids: List<String>): DomainResult<Unit> = error("no se usa")
 
         override suspend fun deleteTask(id: String): DomainResult<Unit> = unused()
 

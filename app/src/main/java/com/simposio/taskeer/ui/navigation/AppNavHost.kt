@@ -30,6 +30,7 @@ fun AppNavHost(
     viewModelFactory: ViewModelProvider.Factory,
     swipeHint: SwipeHintState,
     onAddForDate: (LocalDate?) -> Unit,
+    onDelete: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     NavHost(
@@ -38,7 +39,7 @@ fun AppNavHost(
         modifier = modifier,
     ) {
         composable(AppDestination.MY_DAY.route) {
-            MyDayScreen(viewModelFactory, swipeHint, onAddTask = { onAddForDate(null) })
+            MyDayScreen(viewModelFactory, swipeHint, onAddTask = { onAddForDate(null) }, onDelete = onDelete)
         }
         composable(AppDestination.HOME.route) {
             HomeScreen(
@@ -53,10 +54,10 @@ fun AppNavHost(
             )
         }
         composable(AppDestination.UPCOMING_7_DAYS.route) {
-            UpcomingScreen(viewModelFactory, swipeHint, onAddForDate)
+            UpcomingScreen(viewModelFactory, swipeHint, onAddForDate, onDelete)
         }
         composable(AppDestination.ALL_TASKS.route) {
-            AllTasksScreen(viewModelFactory, swipeHint, onAddForDate)
+            AllTasksScreen(viewModelFactory, swipeHint, onAddForDate, onDelete)
         }
         composable(AppDestination.CALENDAR.route) { CalendarPlaceholderScreen() }
         composable(
@@ -68,6 +69,7 @@ fun AppNavHost(
                 swipeHint = swipeHint,
                 onAddTask = { onAddForDate(null) },
                 onListMissing = navController::navigateHome,
+                onDelete = onDelete,
             )
         }
         composable(AppDestination.SETTINGS.route) { SettingsScreen(viewModelFactory) }

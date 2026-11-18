@@ -29,6 +29,7 @@ class AppContainer(
     val notificationHistoryRepository: NotificationHistoryRepository,
     val notificationsEnabled: () -> Boolean = { true },
     val sdkInt: Int = 0,
+    val animationScale: () -> Float = { 1f },
 ) {
     val dateTimeConverter: DateTimeConverter = DateTimeConverter(timeZoneProvider)
 }

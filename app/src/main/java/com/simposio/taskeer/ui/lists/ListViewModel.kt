@@ -14,7 +14,9 @@ import com.simposio.taskeer.domain.task.RescheduleTarget
 import com.simposio.taskeer.domain.task.isOverdue
 import com.simposio.taskeer.ui.components.RowAction
 import com.simposio.taskeer.ui.tasks.DUE_DATE_TIME_FORMATTER
+import com.simposio.taskeer.ui.tasks.CompletionSettler
 import com.simposio.taskeer.ui.tasks.TaskRescheduler
+import com.simposio.taskeer.ui.tasks.settleOrder
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,25 +33,34 @@ class ListViewModel(
     private val dateTimeConverter: DateTimeConverter,
     savedStateHandle: SavedStateHandle,
     private val rescheduler: TaskRescheduler = TaskRescheduler(taskRepository, dateTimeConverter),
+    settleMillis: () -> Long = { 0L },
     private val now: () -> Instant = Instant::now,
 ) : ViewModel() {
 
     val listId: String = requireNotNull(savedStateHandle[LIST_ID_ARG]) { "Falta el listId de la ruta" }
 
     private val error = MutableStateFlow<DomainError?>(null)
+    private val settler = CompletionSettler(viewModelScope, settleMillis)
+    private var shownItems: List<ListTaskUi> = emptyList()
 
     val uiState: StateFlow<ListUiState> = combine(
         taskRepository.observeList(listId),
         taskListRepository.observeLists(),
         myDayRepository.observeMarkedTaskIds(),
         error,
-    ) { tasks, lists, marked, error ->
+        settler.settling,
+    ) { tasks, lists, marked, error, settling ->
         val instant = now()
         val (pending, completed) = tasks.partition { !it.isCompleted }
         val list = lists.firstOrNull { it.list.id == listId }
         ListUiState(
             listName = list?.list?.name,
-            items = (pending + completed).map { it.toUi(it.id in marked, instant) },
+            items = settleOrder(
+                previous = shownItems,
+                next = (pending + completed).map { it.toUi(it.id in marked, instant) },
+                settling = settling,
+                id = { it.id },
+            ).also { shownItems = it },
             missing = lists.isNotEmpty() && list == null,
             error = error,
         )
@@ -67,6 +78,7 @@ class ListViewModel(
 
     fun toggleCompleted(taskId: String) {
         val completed = uiState.value.items.firstOrNull { it.id == taskId }?.isCompleted ?: return
+        if (!completed) settler.begin(taskId)
         viewModelScope.launch {
             when (val result = taskRepository.setCompleted(taskId, !completed)) {
                 is DomainResult.Failure -> error.value = result.error

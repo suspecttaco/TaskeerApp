@@ -26,6 +26,8 @@ import com.simposio.taskeer.domain.task.newTask
 import com.simposio.taskeer.domain.task.reopened
 import com.simposio.taskeer.domain.task.reopeningColumn
 import com.simposio.taskeer.domain.task.resolvePlacement
+import com.simposio.taskeer.domain.task.restored
+import com.simposio.taskeer.domain.task.restoredAt
 import com.simposio.taskeer.domain.task.softDeleted
 import com.simposio.taskeer.domain.task.updated
 import com.simposio.taskeer.domain.task.withCompletionFor
@@ -264,6 +266,32 @@ class TaskRulesTest {
 
         assertEquals(now, updated.createdAt)
         assertEquals(now, updated.softDeleted(otherNow).createdAt)
+    }
+
+    @Test
+    fun restored_limpiaDeletedAtYMarcaPendiente() {
+        val created = (newTask("c", TaskDraft(title = "T"), 0, now) as DomainResult.Success).value
+        val deleted = created.softDeleted(later).let { it.copy(sync = it.sync.copy(pending = false)) }
+        val restoreAt = later.plusSeconds(5)
+
+        val restored = deleted.restored(restoreAt)
+
+        assertNull(restored.sync.deletedAt)
+        assertEquals(restoreAt, restored.sync.updatedAt)
+        assertTrue(restored.sync.pending)
+        assertEquals(created.id, restored.id)
+    }
+
+    @Test
+    fun restoredAt_fijaUbicacionYPosicion() {
+        val created = (newTask("c", TaskDraft(title = "T"), 0, now) as DomainResult.Success).value
+
+        val restored = created.softDeleted(later).restoredAt(columnId = null, listId = "lista", position = 4, now = later)
+
+        assertEquals("lista", restored.listId)
+        assertNull(restored.columnId)
+        assertEquals(4, restored.position)
+        assertNull(restored.sync.deletedAt)
     }
 
     @Test

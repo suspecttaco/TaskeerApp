@@ -21,3 +21,6 @@ fun resolvePlacement(columnId: String?, listId: String?, defaultListId: String):
     columnId != null -> DomainResult.Success(TaskPlacement.InColumn(columnId))
     else -> DomainResult.Success(TaskPlacement.InList(listId ?: defaultListId))
 }
+
+fun restoredPosition(original: Int, occupied: Set<Int>, activeCount: Int): Int =
+    if (original !in occupied) original else activeCount
