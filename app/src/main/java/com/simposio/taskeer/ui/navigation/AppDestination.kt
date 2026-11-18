@@ -8,6 +8,7 @@ enum class AppDestination(val route: String) {
     BOARD("board/{boardId}"),
     BOARD_COLUMNS("board_columns/{boardId}"),
     NOTIFICATIONS("notifications"),
+    PLANNED("planned"),
     ;
 
     fun upRoute(boardId: String): String? = when (this) {

@@ -14,6 +14,7 @@ import com.simposio.taskeer.ui.myday.QuickAddViewModel
 import com.simposio.taskeer.ui.notifications.NotificationsViewModel
 import com.simposio.taskeer.ui.notifications.UnreadCounterViewModel
 import com.simposio.taskeer.ui.permission.NotificationPermissionViewModel
+import com.simposio.taskeer.ui.planned.PlannedViewModel
 import com.simposio.taskeer.ui.settings.SettingsViewModel
 import com.simposio.taskeer.ui.tasks.AssignToBoardViewModel
 import com.simposio.taskeer.ui.tasks.RemindersViewModel
@@ -59,6 +60,12 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
             ) as T
         modelClass.isAssignableFrom(MyDayViewModel::class.java) ->
             MyDayViewModel(container.myDayRepository, container.taskRepository, container.dateTimeConverter) as T
+        modelClass.isAssignableFrom(PlannedViewModel::class.java) ->
+            PlannedViewModel(
+                container.plannedRepository,
+                container.taskRepository,
+                container.dateTimeConverter,
+            ) as T
         modelClass.isAssignableFrom(QuickAddViewModel::class.java) ->
             QuickAddViewModel(
                 container.taskRepository,
