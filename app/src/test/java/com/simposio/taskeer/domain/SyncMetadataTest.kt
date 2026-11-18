@@ -2,6 +2,7 @@ package com.simposio.taskeer.domain
 
 import com.simposio.taskeer.domain.model.afterLocalChange
 import com.simposio.taskeer.domain.model.afterLocalDelete
+import com.simposio.taskeer.domain.model.afterLocalRestore
 import com.simposio.taskeer.domain.model.newClientId
 import com.simposio.taskeer.domain.model.newSyncMetadata
 import java.time.Instant
@@ -64,5 +65,18 @@ class SyncMetadataTest {
     @Test
     fun isDeleted_verdaderoTrasBorrado() {
         assertTrue(newSyncMetadata(now).afterLocalDelete(now).isDeleted)
+    }
+
+    @Test
+    fun afterLocalRestore_limpiaDeletedAtYMarcaPendiente() {
+        val deleted = newSyncMetadata(now).afterLocalDelete(now.plusSeconds(10)).copy(pending = false)
+        val restoreAt = now.plusSeconds(20)
+
+        val restored = deleted.afterLocalRestore(restoreAt)
+
+        assertNull(restored.deletedAt)
+        assertEquals(restoreAt, restored.updatedAt)
+        assertTrue(restored.pending)
+        assertEquals(deleted.clientId, restored.clientId)
     }
 }

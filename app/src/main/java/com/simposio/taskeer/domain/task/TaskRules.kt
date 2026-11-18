@@ -8,6 +8,7 @@ import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.model.afterLocalChange
 import com.simposio.taskeer.domain.model.afterLocalDelete
+import com.simposio.taskeer.domain.model.afterLocalRestore
 import com.simposio.taskeer.domain.model.newClientId
 import com.simposio.taskeer.domain.model.newSyncMetadata
 import java.time.Instant
@@ -19,6 +20,9 @@ const val TASK_DESCRIPTION_TOO_LONG = "TASK_DESCRIPTION_TOO_LONG"
 const val TASK_DESCRIPTION_MAX_LENGTH = 5000
 const val TASK_NOT_FOUND = "TASK_NOT_FOUND"
 const val TASK_INDEX_OUT_OF_BOUNDS = "TASK_INDEX_OUT_OF_BOUNDS"
+
+// Código local: la API no define restaurar una tarea.
+const val TASK_NOT_DELETED = "TASK_NOT_DELETED"
 
 // Códigos locales: la API exige columnId, la bandeja sin tablero solo existe en la app.
 const val TASK_NOT_IN_INBOX = "TASK_NOT_IN_INBOX"
@@ -114,6 +118,11 @@ fun Task.withCompletionFor(destination: Column, now: Instant): Task =
     if (destination.isDoneColumn) completed(now) else this
 
 fun Task.softDeleted(now: Instant): Task = copy(sync = sync.afterLocalDelete(now))
+
+fun Task.restored(now: Instant): Task = copy(sync = sync.afterLocalRestore(now))
+
+fun Task.restoredAt(columnId: String?, listId: String?, position: Int, now: Instant): Task =
+    copy(columnId = columnId, listId = listId, position = position, sync = sync.afterLocalRestore(now))
 
 fun checkSameBoard(sourceBoardId: String, destination: Column): DomainError? =
     if (destination.boardId == sourceBoardId) {
