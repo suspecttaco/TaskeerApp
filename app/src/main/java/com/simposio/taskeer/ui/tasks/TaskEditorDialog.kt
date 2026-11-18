@@ -54,6 +54,7 @@ fun TaskEditorDialog(
     onPriorityChange: (TaskPriority) -> Unit,
     onDueAtChange: (LocalDateTime?) -> Unit,
     onAssigneeChange: (String?) -> Unit,
+    repeatActions: RepeatActions,
     subtasks: SubtasksUiState,
     subtaskActions: SubtaskActions,
     subtaskDraftActions: SubtaskDraftActions,
@@ -148,6 +149,9 @@ fun TaskEditorDialog(
                         )
                     }
                 }
+
+                AppDivider()
+                RepeatSection(state = state, actions = repeatActions)
 
                 AppDivider()
                 SectionHeader(
@@ -268,6 +272,7 @@ private fun TaskEditorDialogPreview() {
             onPriorityChange = {},
             onDueAtChange = {},
             onAssigneeChange = {},
+            repeatActions = RepeatActions.None,
             subtasks = SubtasksUiState(),
             subtaskActions = SubtaskActions.None,
             subtaskDraftActions = SubtaskDraftActions.None,

@@ -90,6 +90,21 @@ class UiPresentationRulesTest {
         assertTrue(!Regex("RadioOption\\([^)]*priority", RegexOption.DOT_MATCHES_ALL).containsMatchIn(source))
     }
 
+    @Test
+    fun selectorDeRepeticion_tomaLosTextosDeRecursosYNoLlevaLaRegla() {
+        val section = File(sourcesRoot, "ui/tasks/RepeatSection.kt").readText()
+        val strings = File(sourcesRoot, "../../../../res/values/strings.xml").readText()
+
+        listOf("Repetir", "No se repite", "Cada día", "Entre semana", "Cada semana", "Cada mes", "Cada año", "Personalizada…")
+            .forEach { label ->
+                assertTrue("$label debe vivir en strings.xml", strings.contains(">$label<"))
+                assertTrue("$label no debe estar escrito en el composable", !section.contains("\"$label\""))
+            }
+        assertTrue(section.contains("R.string.task_repeat_hint_needs_due"))
+        assertTrue("el composable no construye reglas", !section.contains("TaskRepeat("))
+        assertTrue("el composable no calcula fechas", !section.contains("nextDueAt"))
+    }
+
     private fun uiFiles(): List<File> = File(sourcesRoot, "ui").walkTopDown()
         .filter { it.isFile && it.extension == "kt" }
         .toList()
