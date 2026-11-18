@@ -50,6 +50,26 @@ class MyDayDaoConventionsTest {
     }
 
     @Test
+    fun consultas_incluyenTareasSinColumnaDeCualquierLista() {
+        val visible = constantSource("VISIBLE_ANY")
+
+        assertTrue("las tareas sin columna son visibles sea cual sea su lista", visible.contains("t.columnId IS NULL OR"))
+        assertFalse("la visibilidad no depende de la lista", visible.contains("listId"))
+        assertFalse(visible.contains("task_lists"))
+    }
+
+    @Test
+    fun consultas_unenTaskLists() {
+        assertTrue(constantValue("FROM_TASKS").contains("LEFT JOIN task_lists l ON t.listId = l.id"))
+        listOf("observePinned", "observeSuggestions").forEach { name ->
+            assertTrue("$name une task_lists", querySource(name).contains("LEFT JOIN task_lists l ON t.listId = l.id"))
+        }
+        listOf("observePinned", "observeAssigned", "observeSuggestions", "observeDated").forEach { name ->
+            assertTrue("$name expone listName", querySource(name).contains("l.name AS listName"))
+        }
+    }
+
+    @Test
     fun pinned_exigeMarcaDeHoyYCompletadaHoyOPendiente() {
         val pinned = querySource("observePinned")
 

@@ -7,4 +7,5 @@ data class MyDayRow(
     val boardId: String?,
     val boardName: String?,
     val addedAt: Long?,
+    val listName: String? = null,
 )

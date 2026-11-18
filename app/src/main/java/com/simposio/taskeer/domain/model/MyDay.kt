@@ -7,6 +7,7 @@ data class MyDayTask(
     val boardId: String?,
     val boardName: String?,
     val addedAt: Instant?,
+    val listName: String? = null,
 )
 
 data class MyDay(

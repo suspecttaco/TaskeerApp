@@ -21,9 +21,10 @@ abstract class MyDayDao {
     abstract suspend fun upsert(entry: MyDayEntryEntity)
 
     @Query(
-        "SELECT t.*, b.id AS boardId, b.name AS boardName, m.addedAt AS addedAt " +
+        "SELECT t.*, b.id AS boardId, b.name AS boardName, l.name AS listName, m.addedAt AS addedAt " +
             "FROM my_day_tasks m JOIN tasks t ON t.id = m.id " +
             "LEFT JOIN columns c ON t.columnId = c.id LEFT JOIN boards b ON c.boardId = b.id " +
+            "LEFT JOIN task_lists l ON t.listId = l.id " +
             "WHERE m.deletedAt IS NULL AND m.addedAt >= :dayStart AND " + VISIBLE_ANY + " AND " +
             OPEN_OR_DONE_TODAY + " " +
             "ORDER BY m.addedAt DESC, t.id ASC",
@@ -31,7 +32,7 @@ abstract class MyDayDao {
     abstract fun observePinned(dayStart: Long): Flow<List<MyDayRow>>
 
     @Query(
-        "SELECT t.*, b.id AS boardId, b.name AS boardName, NULL AS addedAt " + FROM_TASKS +
+        "SELECT t.*, b.id AS boardId, b.name AS boardName, l.name AS listName, NULL AS addedAt " + FROM_TASKS +
             "WHERE " + VISIBLE_ANY + " AND " + OPEN_OR_DONE_TODAY + " AND t.assigneeId = :assigneeId " +
             "AND t.dueAt IS NOT NULL AND t.dueAt < :dayEnd " +
             "ORDER BY t.dueAt ASC, t.id ASC",
@@ -39,16 +40,17 @@ abstract class MyDayDao {
     abstract fun observeAssigned(assigneeId: String, dayStart: Long, dayEnd: Long): Flow<List<MyDayRow>>
 
     @Query(
-        "SELECT t.*, b.id AS boardId, b.name AS boardName, m.addedAt AS addedAt " +
+        "SELECT t.*, b.id AS boardId, b.name AS boardName, l.name AS listName, m.addedAt AS addedAt " +
             "FROM my_day_tasks m JOIN tasks t ON t.id = m.id " +
             "LEFT JOIN columns c ON t.columnId = c.id LEFT JOIN boards b ON c.boardId = b.id " +
+            "LEFT JOIN task_lists l ON t.listId = l.id " +
             "WHERE m.deletedAt IS NULL AND m.addedAt < :dayStart AND " + VISIBLE_ANY + " AND " + OPEN + " " +
             "ORDER BY m.addedAt DESC, t.id ASC",
     )
     abstract fun observeSuggestions(dayStart: Long): Flow<List<MyDayRow>>
 
     @Query(
-        "SELECT t.*, b.id AS boardId, b.name AS boardName, NULL AS addedAt " + FROM_TASKS +
+        "SELECT t.*, b.id AS boardId, b.name AS boardName, l.name AS listName, NULL AS addedAt " + FROM_TASKS +
             "WHERE " + VISIBLE_ANY + " AND " + OPEN + " AND t.assigneeId = :assigneeId " +
             "AND t.dueAt IS NOT NULL " +
             "ORDER BY t.dueAt ASC, t.id ASC",
@@ -64,7 +66,8 @@ abstract class MyDayDao {
 }
 
 private const val FROM_TASKS =
-    "FROM tasks t LEFT JOIN columns c ON t.columnId = c.id LEFT JOIN boards b ON c.boardId = b.id "
+    "FROM tasks t LEFT JOIN columns c ON t.columnId = c.id LEFT JOIN boards b ON c.boardId = b.id " +
+        "LEFT JOIN task_lists l ON t.listId = l.id "
 
 // c.id/b.id IS NOT NULL: con LEFT JOIN, una columna inexistente pasaría el filtro de deletedAt.
 private const val VISIBLE_ANY =

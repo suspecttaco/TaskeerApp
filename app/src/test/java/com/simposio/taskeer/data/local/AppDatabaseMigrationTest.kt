@@ -1,5 +1,7 @@
 package com.simposio.taskeer.data.local
 
+import com.simposio.taskeer.domain.list.SEEDED_TASK_LIST_ID
+import com.simposio.taskeer.domain.list.SEEDED_TASK_LIST_NAME
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -11,10 +13,10 @@ class AppDatabaseMigrationTest {
     private val source: String = File(resolveLocalRoot(), "AppDatabase.kt").readText()
 
     @Test
-    fun versionActual_esTrece() {
+    fun versionActual_esCatorce() {
         assertTrue(
-            "AppDatabase debe declarar la versión 13",
-            Regex("version\\s*=\\s*13\\b").containsMatchIn(source),
+            "AppDatabase debe declarar la versión 14",
+            Regex("version\\s*=\\s*14\\b").containsMatchIn(source),
         )
     }
 
@@ -146,12 +148,12 @@ class AppDatabaseMigrationTest {
     }
 
     @Test
-    fun migraciones_formanLaCadenaCompleta1a13() {
+    fun migraciones_formanLaCadenaCompleta1a14() {
         assertTrue(
-            "MIGRATIONS debe incluir de MIGRATION_1_2 a MIGRATION_12_13",
+            "MIGRATIONS debe incluir de MIGRATION_1_2 a MIGRATION_13_14",
             Regex(
                 "MIGRATIONS[^=]*=\\s*listOf\\(\\s*MIGRATION_1_2\\s*,\\s*MIGRATION_2_3\\s*,\\s*" +
-                    "MIGRATION_3_4\\s*,\\s*MIGRATION_4_5\\s*,\\s*MIGRATION_5_6\\s*,\\s*MIGRATION_6_7\\s*,\\s*MIGRATION_7_8\\s*,\\s*MIGRATION_8_9\\s*,\\s*MIGRATION_9_10\\s*,\\s*MIGRATION_10_11\\s*,\\s*MIGRATION_11_12\\s*,\\s*MIGRATION_12_13\\s*,?\\s*\\)",
+                    "MIGRATION_3_4\\s*,\\s*MIGRATION_4_5\\s*,\\s*MIGRATION_5_6\\s*,\\s*MIGRATION_6_7\\s*,\\s*MIGRATION_7_8\\s*,\\s*MIGRATION_8_9\\s*,\\s*MIGRATION_9_10\\s*,\\s*MIGRATION_10_11\\s*,\\s*MIGRATION_11_12\\s*,\\s*MIGRATION_12_13\\s*,\\s*MIGRATION_13_14\\s*,?\\s*\\)",
             ).containsMatchIn(source),
         )
         assertTrue("las migraciones se aplican con addMigrations", source.contains("addMigrations("))
@@ -417,6 +419,114 @@ class AppDatabaseMigrationTest {
         listOf("DROP", "DELETE").forEach { assertFalse(it, Regex("\\b$it\\b").containsMatchIn(body.uppercase())) }
     }
 
+    @Test
+    fun migracion13a14_estaDeclaradaYEnMigrations() {
+        assertTrue(source.contains("Migration(13, 14)"))
+        assertTrue(Regex("MIGRATIONS[^=]*=\\s*listOf\\([^)]*MIGRATION_13_14").containsMatchIn(source))
+        assertFalse("sin borrado destructivo", source.contains("fallbackToDestructiveMigration"))
+    }
+
+    @Test
+    fun migracion13a14_creaTaskListsYSuIndice() {
+        val body = migration13to14()
+
+        assertTrue(body.contains("CREATE TABLE IF NOT EXISTS `task_lists` ("))
+        listOf(
+            "`id` TEXT NOT NULL", "`name` TEXT NOT NULL", "`position` INTEGER NOT NULL",
+            "`createdAt` INTEGER NOT NULL", "`updatedAt` INTEGER NOT NULL", "`pending` INTEGER NOT NULL",
+            "`deletedAt` INTEGER, ", "PRIMARY KEY(`id`)",
+        ).forEach { assertTrue("task_lists debe declarar $it", body.contains(it)) }
+        assertTrue(
+            body.contains(
+                "CREATE INDEX IF NOT EXISTS `index_task_lists_deletedAt_position` ON `task_lists` (`deletedAt`, `position`)",
+            ),
+        )
+    }
+
+    @Test
+    fun migracion13a14_siembraLaListaPorDefectoConInsertOrIgnore() {
+        val seed = seedSql()
+
+        assertTrue(seed.contains("INSERT OR IGNORE INTO `task_lists`"))
+        assertTrue(seed.contains("VALUES ('e1882473-b35a-3d7f-a6fa-43e4f940dc11', 'Tareas', 0, ?, ?, 1, NULL)"))
+        assertTrue("la migración usa la siembra compartida", migration13to14().contains("execSQL(SEED_DEFAULT_LIST_SQL"))
+    }
+
+    @Test
+    fun migracion13a14_anadeListIdNulableSinReconstruirTasks() {
+        val body = migration13to14()
+
+        assertTrue(body.contains("ALTER TABLE `tasks` ADD COLUMN `listId` TEXT\")"))
+        assertFalse("sin NOT NULL", body.substringAfter("ADD COLUMN `listId`").substringBefore(")").contains("NOT NULL"))
+        assertFalse("no reconstruye tasks", body.contains("tasks_new"))
+        assertFalse(body.contains("RENAME"))
+    }
+
+    @Test
+    fun migracion13a14_rellenaListIdDeTodasLasTareasSinColumna() {
+        val body = migration13to14()
+        val update = body.substring(body.indexOf("UPDATE `tasks`"), body.indexOf("`columnId` IS NULL") + "`columnId` IS NULL".length)
+
+        assertTrue(update.contains("SET `listId` = 'e1882473-b35a-3d7f-a6fa-43e4f940dc11'"))
+        assertTrue(body.contains("WHERE `columnId` IS NULL\""))
+        assertFalse("incluye las borradas", update.contains("deletedAt"))
+        assertFalse("incluye las completadas", update.contains("completedAt"))
+    }
+
+    @Test
+    fun migracion13a14_noTocaUpdatedAtNiPendingDeTasks() {
+        val body = migration13to14()
+        val update = body.substring(body.indexOf("UPDATE `tasks`")).substringBefore("\")")
+
+        assertEquals(6, Regex("execSQL\\(").findAll(body).count())
+        assertFalse(update.contains("updatedAt"))
+        assertFalse(update.contains("pending"))
+        listOf("DROP", "DELETE").forEach { assertFalse(it, Regex("\\b$it\\b").containsMatchIn(body.uppercase())) }
+    }
+
+    @Test
+    fun migracion13a14_creaElIndiceDeListId() {
+        assertTrue(
+            migration13to14().contains("CREATE INDEX IF NOT EXISTS `index_tasks_listId` ON `tasks` (`listId`)"),
+        )
+    }
+
+    @Test
+    fun migracion13a14_literalDeLaListaPorDefectoCoincideConLaConstante() {
+        val literal = "'$SEEDED_TASK_LIST_ID'"
+
+        assertTrue(seedSql().contains(literal))
+        assertTrue(migration13to14().contains("SET `listId` = $literal"))
+        assertFalse("la migración no referencia la constante del código", migration13to14().contains("SEEDED_TASK_LIST_ID"))
+        assertTrue(seedSql().contains("'$SEEDED_TASK_LIST_NAME'"))
+    }
+
+    @Test
+    fun migracion13a14_siembraAntesDelRelleno() {
+        val body = migration13to14()
+
+        assertTrue(body.indexOf("SEED_DEFAULT_LIST_SQL") in 0 until body.indexOf("UPDATE `tasks`"))
+        assertTrue(body.indexOf("ADD COLUMN `listId`") < body.indexOf("UPDATE `tasks`"))
+        assertTrue(body.indexOf("CREATE TABLE IF NOT EXISTS `task_lists`") < body.indexOf("SEED_DEFAULT_LIST_SQL"))
+    }
+
+    @Test
+    fun create_registraElCallbackDeSiembra() {
+        val create = source.substring(source.indexOf("fun create(context: Context)"))
+
+        assertTrue(create.contains(".addCallback("))
+        assertTrue(create.contains("RoomDatabase.Callback()"))
+        assertTrue(create.contains("override fun onCreate(db: SupportSQLiteDatabase)"))
+        assertTrue(create.contains("db.execSQL(SEED_DEFAULT_LIST_SQL"))
+    }
+
+    @Test
+    fun siembra_esUnaSolaConstanteCompartidaConLaMigracion() {
+        assertEquals(1, Regex("INSERT OR IGNORE INTO").findAll(source).count())
+        assertEquals(1, Regex("private const val SEED_DEFAULT_LIST_SQL").findAll(source).count())
+        assertEquals(2, Regex("execSQL\\(SEED_DEFAULT_LIST_SQL").findAll(source).count())
+    }
+
     private fun migration6to7(): String {
         val start = source.indexOf("Migration(6, 7)")
         assertTrue("debe declarar una Migration(6, 7)", start >= 0)
@@ -462,8 +572,22 @@ class AppDatabaseMigrationTest {
     private fun migration12to13(): String {
         val start = source.indexOf("Migration(12, 13)")
         assertTrue("debe declarar una Migration(12, 13)", start >= 0)
-        val end = source.indexOf("private val MIGRATIONS", start)
+        val end = source.indexOf("private val MIGRATION_13_14", start)
         return source.substring(start, end)
+    }
+
+    private fun migration13to14(): String {
+        val start = source.indexOf("Migration(13, 14)")
+        assertTrue("debe declarar una Migration(13, 14)", start >= 0)
+        val end = source.indexOf("private val MIGRATIONS", start)
+        return source.substring(start, end).substringAfter("override fun migrate")
+            .replace(Regex("\"\\s*\\+\\s*\""), "")
+    }
+
+    private fun seedSql(): String {
+        val start = source.indexOf("private const val SEED_DEFAULT_LIST_SQL")
+        assertTrue("debe declarar SEED_DEFAULT_LIST_SQL", start >= 0)
+        return source.substring(start, source.indexOf("@Database(", start)).replace(Regex("\"\\s*\\+\\s*\""), "")
     }
 
     private fun migration5to6(): String {

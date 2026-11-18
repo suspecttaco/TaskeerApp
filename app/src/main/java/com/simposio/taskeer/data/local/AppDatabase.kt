@@ -7,6 +7,11 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
+// Compartida por la migración 13→14 y por onCreate; el id es el literal de SEEDED_TASK_LIST_ID.
+private const val SEED_DEFAULT_LIST_SQL =
+    "INSERT OR IGNORE INTO `task_lists` (`id`, `name`, `position`, `createdAt`, `updatedAt`, `pending`, `deletedAt`) " +
+        "VALUES ('e1882473-b35a-3d7f-a6fa-43e4f940dc11', 'Tareas', 0, ?, ?, 1, NULL)"
+
 @Database(
     entities = [
         BoardEntity::class,
@@ -16,8 +21,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MyDayEntryEntity::class,
         ReminderEntity::class,
         AppNotificationEntity::class,
+        TaskListEntity::class,
     ],
-    version = 13,
+    version = 14,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -28,6 +34,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun myDayDao(): MyDayDao
     abstract fun reminderDao(): ReminderDao
     abstract fun appNotificationDao(): AppNotificationDao
+    abstract fun taskListDao(): TaskListDao
 
     companion object {
         const val DATABASE_NAME: String = "taskeer.db"
@@ -254,6 +261,38 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_13_14: Migration = object : Migration(13, 14) {
+            // La siembra va antes del relleno para que ninguna tarea apunte a una lista inexistente.
+            // El relleno incluye borradas y completadas (invariante lista XOR columna) y no toca
+            // updatedAt/pending: no es un cambio del usuario. Literales y no constantes del código:
+            // una migración no debe cambiar si el código evoluciona.
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `task_lists` (" +
+                        "`id` TEXT NOT NULL, " +
+                        "`name` TEXT NOT NULL, " +
+                        "`position` INTEGER NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "`updatedAt` INTEGER NOT NULL, " +
+                        "`pending` INTEGER NOT NULL, " +
+                        "`deletedAt` INTEGER, " +
+                        "PRIMARY KEY(`id`))",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_task_lists_deletedAt_position` " +
+                        "ON `task_lists` (`deletedAt`, `position`)",
+                )
+                val now = System.currentTimeMillis()
+                db.execSQL(SEED_DEFAULT_LIST_SQL, arrayOf<Any>(now, now))
+                db.execSQL("ALTER TABLE `tasks` ADD COLUMN `listId` TEXT")
+                db.execSQL(
+                    "UPDATE `tasks` SET `listId` = 'e1882473-b35a-3d7f-a6fa-43e4f940dc11' " +
+                        "WHERE `columnId` IS NULL",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_tasks_listId` ON `tasks` (`listId`)")
+            }
+        }
+
         private val MIGRATIONS: List<Migration> = listOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -267,11 +306,20 @@ abstract class AppDatabase : RoomDatabase() {
             MIGRATION_10_11,
             MIGRATION_11_12,
             MIGRATION_12_13,
+            MIGRATION_13_14,
         )
 
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, DATABASE_NAME)
                 .addMigrations(*MIGRATIONS.toTypedArray())
+                .addCallback(
+                    object : RoomDatabase.Callback() {
+                        override fun onCreate(db: SupportSQLiteDatabase) {
+                            val now = System.currentTimeMillis()
+                            db.execSQL(SEED_DEFAULT_LIST_SQL, arrayOf<Any>(now, now))
+                        }
+                    },
+                )
                 .build()
     }
 }

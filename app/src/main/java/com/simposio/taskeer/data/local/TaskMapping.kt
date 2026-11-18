@@ -9,6 +9,7 @@ import java.time.Instant
 
 fun TaskEntity.toTask(): Task = Task(
     columnId = columnId,
+    listId = listId,
     title = title,
     description = description,
     priority = TaskPriority.fromStorage(priority),
@@ -25,6 +26,7 @@ fun TaskEntity.toTask(): Task = Task(
 fun Task.toEntity(): TaskEntity = TaskEntity(
     id = id,
     columnId = columnId,
+    listId = listId,
     title = title,
     description = description,
     priority = priority.name,

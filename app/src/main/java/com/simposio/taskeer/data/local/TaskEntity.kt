@@ -6,7 +6,7 @@ import androidx.room.PrimaryKey
 
 @Entity(
     tableName = "tasks",
-    indices = [Index(value = ["columnId", "position"])],
+    indices = [Index(value = ["columnId", "position"]), Index(value = ["listId"])],
 )
 data class TaskEntity(
     @PrimaryKey override val id: String,
@@ -29,4 +29,6 @@ data class TaskEntity(
     val repeatAnchorDay: Int? = null,
     // Sin clave foránea: la sucesora puede borrarse sin afectar a la original.
     val repeatSuccessorId: String? = null,
+    // Sin clave foránea, como columnId; exclusivo con columnId (una tarea está en lista o en columna).
+    val listId: String? = null,
 ) : SyncableEntity
