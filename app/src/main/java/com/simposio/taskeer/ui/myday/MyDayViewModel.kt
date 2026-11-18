@@ -12,6 +12,7 @@ import com.simposio.taskeer.domain.myday.MyDayItem
 import com.simposio.taskeer.domain.myday.MyDaySort
 import com.simposio.taskeer.domain.myday.applyMyDay
 import com.simposio.taskeer.domain.myday.mergeMyDay
+import com.simposio.taskeer.domain.myday.suggestionsFor
 import com.simposio.taskeer.domain.task.isOverdue
 import com.simposio.taskeer.ui.tasks.DUE_DATE_TIME_FORMATTER
 import java.time.Instant
@@ -32,23 +33,34 @@ class MyDayViewModel(
     private val error = MutableStateFlow<DomainError?>(null)
     private val sort = MutableStateFlow(MyDaySort.DUE_DATE)
     private val filter = MutableStateFlow(MyDayFilter.ALL)
+    private val suggestionsExpanded = MutableStateFlow(true)
+
+    private data class Controls(
+        val sort: MyDaySort,
+        val filter: MyDayFilter,
+        val suggestionsExpanded: Boolean,
+        val error: DomainError?,
+    )
+
+    private val controls = combine(sort, filter, suggestionsExpanded, error, ::Controls)
 
     val uiState: StateFlow<MyDayUiState> = combine(
         repository.observeMyDay(),
         repository.observeOverdueCount(),
-        sort,
-        filter,
-        error,
-    ) { myDay, overdueCount, sort, filter, error ->
+        controls,
+    ) { myDay, overdueCount, controls ->
         val instant = now()
         val all = mergeMyDay(myDay)
         MyDayUiState(
-            items = applyMyDay(all, filter, sort, instant).map { it.toUi(instant) },
-            sort = sort,
-            filter = filter,
+            items = applyMyDay(all, controls.filter, controls.sort, instant).map { it.toUi(instant) },
+            sort = controls.sort,
+            filter = controls.filter,
             overdueCount = overdueCount,
             totalCount = all.size,
-            error = error,
+            completedCount = all.count { it.task.isCompleted },
+            suggestions = suggestionsFor(myDay).map { MyDaySuggestionUi(it.task.id, it.task.title, it.boardName) },
+            suggestionsExpanded = controls.suggestionsExpanded,
+            error = controls.error,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), MyDayUiState())
 
@@ -60,14 +72,26 @@ class MyDayViewModel(
         filter.value = value
     }
 
-    fun toggleMarked(taskId: String) {
-        val isMarked = uiState.value.items.firstOrNull { it.id == taskId }?.isMarked ?: return
+    fun toggleSuggestions() {
+        suggestionsExpanded.value = !suggestionsExpanded.value
+    }
+
+    fun addSuggestion(taskId: String) = setMarked(taskId, true)
+
+    fun dismissSuggestion(taskId: String) = setMarked(taskId, false)
+
+    private fun setMarked(taskId: String, marked: Boolean) {
         viewModelScope.launch {
-            when (val result = repository.setMarked(taskId, !isMarked)) {
+            when (val result = repository.setMarked(taskId, marked)) {
                 is DomainResult.Failure -> error.value = result.error
                 is DomainResult.Success -> error.value = null
             }
         }
+    }
+
+    fun toggleMarked(taskId: String) {
+        val isMarked = uiState.value.items.firstOrNull { it.id == taskId }?.isMarked ?: return
+        setMarked(taskId, !isMarked)
     }
 
     fun toggleCompleted(taskId: String) {

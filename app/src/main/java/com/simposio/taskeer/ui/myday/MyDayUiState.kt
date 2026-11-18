@@ -19,11 +19,20 @@ data class MyDayTaskUi(
     val isInbox: Boolean get() = boardName == null
 }
 
+data class MyDaySuggestionUi(
+    val id: String,
+    val title: String,
+    val boardName: String?,
+)
+
 data class MyDayUiState(
     val items: List<MyDayTaskUi> = emptyList(),
     val sort: MyDaySort = MyDaySort.DUE_DATE,
     val filter: MyDayFilter = MyDayFilter.ALL,
     val overdueCount: Int = 0,
     val totalCount: Int = 0,
+    val completedCount: Int = 0,
+    val suggestions: List<MyDaySuggestionUi> = emptyList(),
+    val suggestionsExpanded: Boolean = true,
     val error: DomainError? = null,
 )
