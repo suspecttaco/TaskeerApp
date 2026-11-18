@@ -7,15 +7,25 @@ import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.MyDay
 import com.simposio.taskeer.domain.model.MyDayTask
+import com.simposio.taskeer.domain.model.RepeatUnit
 import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskPriority
+import com.simposio.taskeer.domain.model.TaskRepeat
 import com.simposio.taskeer.domain.myday.MyDayFilter
 import com.simposio.taskeer.domain.myday.MyDaySort
+import com.simposio.taskeer.domain.task.RescheduleTarget
 import com.simposio.taskeer.testing.FakeDestinationTaskRepository
+import com.simposio.taskeer.ui.components.RowAction
+import com.simposio.taskeer.ui.components.RowContext
+import com.simposio.taskeer.ui.components.actionsIn
 import com.simposio.taskeer.ui.myday.MyDayUiState
 import com.simposio.taskeer.ui.myday.MyDayViewModel
+import com.simposio.taskeer.ui.tasks.TASK_REPEAT_NOT_RESCHEDULABLE
+import com.simposio.taskeer.ui.tasks.TaskRescheduler
+import com.simposio.taskeer.ui.tasks.toRow
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -499,11 +509,182 @@ class MyDayViewModelTest {
         assertEquals(listOf("a"), viewModel.uiState.value.items.map { it.id })
     }
 
+    @Test
+    fun manana_reprogramaYQuitaDeMiDia() = runTest {
+        val pinned = item("a", dueAt = Instant.parse("2026-11-02T17:30:00Z"), addedAt = now)
+        val repository = FakeMyDayRepository(MyDay(listOf(pinned), emptyList()))
+        val tasks = FakeDestinationTaskRepository().apply { inbox.value = listOf(pinned.task) }
+        val viewModel = viewModel(repository, tasks)
+
+        viewModel.reschedule("a", RescheduleTarget.TOMORROW)
+
+        assertEquals(Instant.parse("2026-11-03T17:30:00Z"), tasks.updates.single().second.dueAt)
+        assertEquals(listOf("a" to false), repository.calls)
+        assertTrue(viewModel.uiState.value.items.isEmpty())
+    }
+
+    @Test
+    fun manana_tareaSoloAsignada_soloReprograma() = runTest {
+        val assigned = item("a", dueAt = Instant.parse("2026-11-02T17:30:00Z"))
+        val repository = FakeMyDayRepository(MyDay(emptyList(), listOf(assigned)))
+        val tasks = FakeDestinationTaskRepository().apply { inbox.value = listOf(assigned.task) }
+        val viewModel = viewModel(repository, tasks)
+
+        viewModel.reschedule("a", RescheduleTarget.TOMORROW)
+
+        assertEquals(1, tasks.updates.size)
+        assertTrue(repository.calls.isEmpty())
+    }
+
+    @Test
+    fun proximaSemana_reprogramaSinQuitarDeMiDia() = runTest {
+        val pinned = item("a", addedAt = now)
+        val repository = FakeMyDayRepository(MyDay(listOf(pinned), emptyList()))
+        val tasks = FakeDestinationTaskRepository().apply { inbox.value = listOf(pinned.task) }
+        val viewModel = viewModel(repository, tasks)
+
+        viewModel.reschedule("a", RescheduleTarget.NEXT_WEEK)
+
+        assertEquals(Instant.parse("2026-11-09T08:00:00Z"), tasks.updates.single().second.dueAt)
+        assertTrue(repository.calls.isEmpty())
+    }
+
+    @Test
+    fun rescheduleTo_fallo_exponeError() = runTest {
+        val failure = DomainError.NotFound("TASK_NOT_FOUND", "La tarea no existe")
+        val pinned = item("a", addedAt = now)
+        val tasks = FakeDestinationTaskRepository().apply {
+            inbox.value = listOf(pinned.task)
+            updateFailure = failure
+        }
+        val viewModel = viewModel(FakeMyDayRepository(MyDay(listOf(pinned), emptyList())), tasks)
+
+        viewModel.rescheduleTo("a", LocalDate.of(2026, 12, 1))
+
+        assertEquals(failure, viewModel.uiState.value.error)
+    }
+
+    @Test
+    fun sugerencia_mantenerHoy_marca() = runTest {
+        val repository = FakeMyDayRepository(MyDay(emptyList(), emptyList(), listOf(item("s1", addedAt = now))))
+        val viewModel = viewModel(repository)
+
+        viewModel.addSuggestion("s1")
+
+        assertEquals(listOf("s1" to true), repository.calls)
+        assertEquals(listOf("s1"), viewModel.uiState.value.items.map { it.id })
+    }
+
+    @Test
+    fun sugerencia_descartar_desmarca() = runTest {
+        val repository = FakeMyDayRepository(MyDay(emptyList(), emptyList(), listOf(item("s1", addedAt = now))))
+        val viewModel = viewModel(repository)
+
+        viewModel.dismissSuggestion("s1")
+
+        assertEquals(listOf("s1" to false), repository.calls)
+        assertTrue(viewModel.uiState.value.suggestions.isEmpty())
+    }
+
+    @Test
+    fun sugerencia_completar_laResuelveYDejaDeSugerirse() = runTest {
+        val suggested = item("s1", addedAt = now)
+        val repository = FakeMyDayRepository(MyDay(emptyList(), emptyList(), listOf(suggested)))
+        val tasks = FakeDestinationTaskRepository().apply { inbox.value = listOf(suggested.task) }
+        val viewModel = viewModel(repository, tasks)
+
+        viewModel.completeSuggestion("s1")
+        val done = suggested.copy(task = suggested.task.copy(completedAt = now))
+        repository.emit(MyDay(emptyList(), emptyList(), listOf(done)))
+
+        assertEquals(listOf("s1" to true), tasks.completions)
+        assertTrue(viewModel.uiState.value.suggestions.isEmpty())
+    }
+
+    @Test
+    fun sugerencia_manana_reprogramaYDescarta() = runTest {
+        val suggested = item("s1", dueAt = Instant.parse("2026-11-01T17:30:00Z"), addedAt = now)
+        val repository = FakeMyDayRepository(MyDay(emptyList(), emptyList(), listOf(suggested)))
+        val tasks = FakeDestinationTaskRepository().apply { inbox.value = listOf(suggested.task) }
+        val viewModel = viewModel(repository, tasks)
+
+        viewModel.suggestionTomorrow("s1")
+
+        assertEquals(Instant.parse("2026-11-03T17:30:00Z"), tasks.updates.single().second.dueAt)
+        assertEquals(listOf("s1" to false), repository.calls)
+        assertTrue(viewModel.uiState.value.suggestions.isEmpty())
+    }
+
+    @Test
+    fun sugerencia_conRepeticion_noOfreceManana() = runTest {
+        val repeating = item("s1", dueAt = Instant.parse("2026-11-01T17:30:00Z"), addedAt = now)
+            .let { it.copy(task = it.task.copy(repeat = TaskRepeat(RepeatUnit.DAY, 1, emptySet(), 1))) }
+        val repository = FakeMyDayRepository(MyDay(emptyList(), emptyList(), listOf(repeating)))
+        val tasks = FakeDestinationTaskRepository().apply { inbox.value = listOf(repeating.task) }
+        val viewModel = viewModel(repository, tasks)
+        val row = viewModel.uiState.value.suggestions.single().toRow()
+
+        viewModel.suggestionTomorrow("s1")
+
+        assertTrue(row.isRepeating)
+        assertFalse(RowAction.RESCHEDULE_TOMORROW in row.actionsIn(RowContext.SUGGESTION).sheet)
+        assertTrue(tasks.updates.isEmpty())
+        assertTrue(repository.calls.isEmpty())
+        assertEquals(TASK_REPEAT_NOT_RESCHEDULABLE, viewModel.uiState.value.error?.code)
+    }
+
+    @Test
+    fun sugerencia_exponePrioridadYFecha() = runTest {
+        val suggested = item("s1", priority = TaskPriority.URGENT, dueAt = now.minusSeconds(60), addedAt = now)
+        val viewModel = viewModel(FakeMyDayRepository(MyDay(emptyList(), emptyList(), listOf(suggested))))
+
+        val suggestion = viewModel.uiState.value.suggestions.single()
+
+        assertEquals(TaskPriority.URGENT, suggestion.priority)
+        assertTrue(suggestion.isOverdue)
+        assertEquals(false, suggestion.due.isNullOrBlank())
+    }
+
+    @Test
+    fun onRowAction_quitarDeMiDia_desmarca() = runTest {
+        val repository = FakeMyDayRepository(MyDay(listOf(item("p1", addedAt = now)), emptyList()))
+        val viewModel = viewModel(repository)
+
+        viewModel.onRowAction(RowContext.MY_DAY, "p1", RowAction.REMOVE_FROM_MY_DAY)
+
+        assertEquals(listOf("p1" to false), repository.calls)
+    }
+
+    @Test
+    fun onRowAction_reabrir_completaALaInversa() = runTest {
+        val done = item("a", addedAt = now).let { it.copy(task = it.task.copy(completedAt = now)) }
+        val tasks = FakeDestinationTaskRepository().apply { inbox.value = listOf(done.task) }
+        val viewModel = viewModel(FakeMyDayRepository(MyDay(listOf(done), emptyList())), tasks)
+
+        viewModel.onRowAction(RowContext.MY_DAY, "a", RowAction.REOPEN)
+
+        assertEquals(listOf("a" to false), tasks.completions)
+    }
+
+    @Test
+    fun onRowAction_sugerenciaMantener_marcaYDescartarDesmarca() = runTest {
+        val repository = FakeMyDayRepository(
+            MyDay(emptyList(), emptyList(), listOf(item("s1", addedAt = now), item("s2", addedAt = now))),
+        )
+        val viewModel = viewModel(repository)
+
+        viewModel.onRowAction(RowContext.SUGGESTION, "s1", RowAction.KEEP_TODAY)
+        viewModel.onRowAction(RowContext.SUGGESTION, "s2", RowAction.DISMISS)
+
+        assertEquals(listOf("s1" to true, "s2" to false), repository.calls)
+    }
+
     private fun TestScope.viewModel(
         repository: FakeMyDayRepository,
         tasks: FakeDestinationTaskRepository = FakeDestinationTaskRepository(),
     ): MyDayViewModel {
-        val viewModel = MyDayViewModel(repository, tasks, madrid) { now }
+        val rescheduler = TaskRescheduler(tasks, madrid) { LocalDate.of(2026, 11, 2) }
+        val viewModel = MyDayViewModel(repository, tasks, madrid, rescheduler) { now }
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }

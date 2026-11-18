@@ -6,15 +6,21 @@ import com.simposio.taskeer.domain.date.TimeZoneProvider
 import com.simposio.taskeer.domain.date.dayWindowAt
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.SyncMetadata
+import com.simposio.taskeer.domain.model.RepeatUnit
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskPriority
+import com.simposio.taskeer.domain.model.TaskRepeat
 import com.simposio.taskeer.domain.planned.PlannedItem
 import com.simposio.taskeer.domain.planned.PlannedView
 import com.simposio.taskeer.domain.planned.groupPlanned
+import com.simposio.taskeer.domain.task.RescheduleTarget
 import com.simposio.taskeer.testing.FakeDestinationTaskRepository
+import com.simposio.taskeer.ui.components.RowAction
 import com.simposio.taskeer.ui.planned.PlannedSectionKind
 import com.simposio.taskeer.ui.planned.PlannedViewModel
+import com.simposio.taskeer.ui.tasks.TaskRescheduler
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -128,8 +134,60 @@ class PlannedViewModelTest {
         assertFalse(viewModel.uiState.value.sections.isEmpty())
     }
 
+    @Test
+    fun manana_soloReprograma() = runTest {
+        val planned = item("a", "2026-11-17T18:00:00Z")
+        repository.set(planned)
+        tasks.inbox.value = listOf(planned.task)
+        val viewModel = viewModel()
+
+        viewModel.reschedule("a", RescheduleTarget.TOMORROW)
+
+        assertEquals(Instant.parse("2026-11-18T18:00:00Z"), tasks.updates.single().second.dueAt)
+        assertTrue(tasks.completions.isEmpty())
+        assertNull(viewModel.uiState.value.error)
+    }
+
+    @Test
+    fun rescheduleTo_fallo_exponeError() = runTest {
+        val failure = DomainError.NotFound("TASK_NOT_FOUND", "La tarea no existe")
+        val planned = item("a", "2026-11-17T18:00:00Z")
+        repository.set(planned)
+        tasks.inbox.value = listOf(planned.task)
+        tasks.updateFailure = failure
+        val viewModel = viewModel()
+
+        viewModel.rescheduleTo("a", LocalDate.of(2026, 12, 1))
+
+        assertEquals(failure, viewModel.uiState.value.error)
+    }
+
+    @Test
+    fun fila_tareaRepetida_exponeIsRepeating() = runTest {
+        val repeating = item("a", "2026-11-17T18:00:00Z")
+            .let { it.copy(task = it.task.copy(repeat = TaskRepeat(RepeatUnit.DAY, 1, emptySet(), 17))) }
+        repository.set(repeating)
+
+        assertTrue(viewModel().uiState.value.sections.single().items.single().isRepeating)
+    }
+
+    @Test
+    fun onRowAction_completarYSinFecha() = runTest {
+        val planned = item("a", "2026-11-17T18:00:00Z")
+        repository.set(planned)
+        tasks.inbox.value = listOf(planned.task)
+        val viewModel = viewModel()
+
+        viewModel.onRowAction("a", RowAction.COMPLETE)
+        viewModel.onRowAction("a", RowAction.RESCHEDULE_SOMEDAY)
+
+        assertEquals(listOf("a" to true), tasks.completions)
+        assertNull(tasks.updates.single().second.dueAt)
+    }
+
     private fun TestScope.viewModel(): PlannedViewModel {
-        val viewModel = PlannedViewModel(repository, tasks, converter) { now }
+        val rescheduler = TaskRescheduler(tasks, converter) { LocalDate.of(2026, 11, 17) }
+        val viewModel = PlannedViewModel(repository, tasks, converter, rescheduler) { now }
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }
