@@ -37,10 +37,10 @@ class ClearCompletedViewModel(private val taskRepository: TaskRepository) : View
         if (count > 0) local.value = Local(confirmCount = count)
     }
 
-    fun confirm() {
+    fun confirm(delete: suspend () -> DomainResult<Unit>) {
         if (local.value.confirmCount == null) return
         viewModelScope.launch {
-            when (val result = taskRepository.deleteCompleted()) {
+            when (val result = delete()) {
                 is DomainResult.Failure -> local.update { it.copy(error = result.error) }
                 is DomainResult.Success -> local.value = Local()
             }

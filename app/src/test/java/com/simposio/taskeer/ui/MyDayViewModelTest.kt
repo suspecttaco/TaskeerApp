@@ -38,6 +38,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.test.advanceTimeBy
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -697,12 +698,78 @@ class MyDayViewModelTest {
         assertEquals(listOf("s1" to true, "s2" to false), repository.calls)
     }
 
+    @Test
+    fun completar_conservaLaPosicionHastaTerminarLaPausa() = runTest {
+        val a = item("a", dueAt = now.plusSeconds(10), addedAt = now)
+        val b = item("b", dueAt = now.plusSeconds(20), addedAt = now)
+        val c = item("c", dueAt = now.plusSeconds(30), addedAt = now)
+        val repository = FakeMyDayRepository(MyDay(listOf(a, b, c), emptyList()))
+        val tasks = FakeDestinationTaskRepository().apply { inbox.value = listOf(a.task, b.task, c.task) }
+        val viewModel = viewModel(repository, tasks, settleMillis = 500L)
+
+        viewModel.onRowAction(RowContext.MY_DAY, "a", RowAction.COMPLETE)
+        val done = a.copy(task = a.task.copy(completedAt = now))
+        repository.emit(MyDay(listOf(done, b, c), emptyList()))
+
+        assertEquals(listOf("a", "b", "c"), viewModel.uiState.value.items.map { it.id })
+        assertTrue(viewModel.uiState.value.items.first().isCompleted)
+        advanceTimeBy(499)
+        assertEquals(listOf("a", "b", "c"), viewModel.uiState.value.items.map { it.id })
+        advanceTimeBy(1)
+        testScheduler.runCurrent()
+        assertEquals(listOf("b", "c", "a"), viewModel.uiState.value.items.map { it.id })
+    }
+
+    @Test
+    fun reabrir_noEspera() = runTest {
+        val a = item("a", dueAt = now.plusSeconds(10), addedAt = now)
+        val b = item("b", dueAt = now.plusSeconds(20), addedAt = now)
+        val done = a.copy(task = a.task.copy(completedAt = now))
+        val repository = FakeMyDayRepository(MyDay(listOf(done, b), emptyList()))
+        val tasks = FakeDestinationTaskRepository().apply { inbox.value = listOf(done.task, b.task) }
+        val viewModel = viewModel(repository, tasks, settleMillis = 500L)
+        assertEquals(listOf("b", "a"), viewModel.uiState.value.items.map { it.id })
+
+        viewModel.onRowAction(RowContext.MY_DAY, "a", RowAction.REOPEN)
+        repository.emit(MyDay(listOf(a, b), emptyList()))
+
+        assertEquals(listOf("a", "b"), viewModel.uiState.value.items.map { it.id })
+    }
+
+    @Test
+    fun completar_sinAnimaciones_reordenaEnSeguida() = runTest {
+        val a = item("a", dueAt = now.plusSeconds(10), addedAt = now)
+        val b = item("b", dueAt = now.plusSeconds(20), addedAt = now)
+        val repository = FakeMyDayRepository(MyDay(listOf(a, b), emptyList()))
+        val tasks = FakeDestinationTaskRepository().apply { inbox.value = listOf(a.task, b.task) }
+        val viewModel = viewModel(repository, tasks, settleMillis = 0L)
+
+        viewModel.onRowAction(RowContext.MY_DAY, "a", RowAction.COMPLETE)
+        repository.emit(MyDay(listOf(a.copy(task = a.task.copy(completedAt = now)), b), emptyList()))
+
+        assertEquals(listOf("b", "a"), viewModel.uiState.value.items.map { it.id })
+    }
+
+    @Test
+    fun delete_noSeGestionaAqui() = runTest {
+        val a = item("a", addedAt = now)
+        val tasks = FakeDestinationTaskRepository().apply { inbox.value = listOf(a.task) }
+        val viewModel = viewModel(FakeMyDayRepository(MyDay(listOf(a), emptyList())), tasks)
+
+        viewModel.onRowAction(RowContext.MY_DAY, "a", RowAction.DELETE)
+        viewModel.onRowAction(RowContext.SUGGESTION, "a", RowAction.DELETE)
+
+        assertTrue(tasks.completions.isEmpty())
+        assertEquals(listOf("a"), viewModel.uiState.value.items.map { it.id })
+    }
+
     private fun TestScope.viewModel(
         repository: FakeMyDayRepository,
         tasks: FakeDestinationTaskRepository = FakeDestinationTaskRepository(),
+        settleMillis: Long = 0L,
     ): MyDayViewModel {
         val rescheduler = TaskRescheduler(tasks, madrid) { LocalDate.of(2026, 11, 2) }
-        val viewModel = MyDayViewModel(repository, tasks, madrid, rescheduler) { now }
+        val viewModel = MyDayViewModel(repository, tasks, madrid, rescheduler, { settleMillis }) { now }
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }

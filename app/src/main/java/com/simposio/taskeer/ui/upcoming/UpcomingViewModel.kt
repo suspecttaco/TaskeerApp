@@ -9,6 +9,7 @@ import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.task.RescheduleTarget
 import com.simposio.taskeer.ui.components.RowAction
 import com.simposio.taskeer.ui.tasks.TaskRescheduler
+import com.simposio.taskeer.ui.tasks.settleOrder
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,19 +23,33 @@ class UpcomingViewModel(
     taskRepository: TaskRepository,
     private val dateTimeConverter: DateTimeConverter,
     rescheduler: TaskRescheduler = TaskRescheduler(taskRepository, dateTimeConverter),
+    settleMillis: () -> Long = { 0L },
     private val now: () -> Instant = Instant::now,
 ) : ViewModel() {
 
     private val error = MutableStateFlow<DomainError?>(null)
-    private val handler = PlannedRowHandler(viewModelScope, taskRepository, rescheduler, error)
+    private val handler = PlannedRowHandler(viewModelScope, taskRepository, rescheduler, error, settleMillis)
+    private var shownDays: List<UpcomingDayUi> = emptyList()
 
-    val uiState: StateFlow<UpcomingUiState> = combine(repository.observeUpcoming(), error) { days, error ->
+    val uiState: StateFlow<UpcomingUiState> = combine(
+        repository.observeUpcoming(),
+        error,
+        handler.settling,
+    ) { days, error, settling ->
         val instant = now()
+        val settled = days.map { day ->
+            val items = day.items.map { it.toPlannedTaskUi(dateTimeConverter, instant) }
+            val previous = shownDays.firstOrNull { it.date == day.date }?.items.orEmpty()
+            UpcomingDayUi(
+                day.date,
+                day.label,
+                settleOrder(previous, items, settling, { it.id }, { it.copy(isCompleted = true) }),
+            )
+        }
+        shownDays = settled
         UpcomingUiState(
-            days = days.map { day ->
-                UpcomingDayUi(day.date, day.label, day.items.map { it.toPlannedTaskUi(dateTimeConverter, instant) })
-            },
-            isEmpty = days.all { it.items.isEmpty() },
+            days = settled,
+            isEmpty = settled.all { it.items.isEmpty() },
             error = error,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UpcomingUiState())

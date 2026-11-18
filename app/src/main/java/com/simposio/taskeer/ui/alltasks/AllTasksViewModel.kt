@@ -12,6 +12,7 @@ import com.simposio.taskeer.domain.planned.addTargetDate
 import com.simposio.taskeer.domain.task.RescheduleTarget
 import com.simposio.taskeer.ui.components.RowAction
 import com.simposio.taskeer.ui.tasks.TaskRescheduler
+import com.simposio.taskeer.ui.tasks.settleOrder
 import com.simposio.taskeer.ui.upcoming.PlannedRowHandler
 import com.simposio.taskeer.ui.upcoming.toPlannedTaskUi
 import java.time.Instant
@@ -27,14 +28,20 @@ class AllTasksViewModel(
     taskRepository: TaskRepository,
     private val dateTimeConverter: DateTimeConverter,
     rescheduler: TaskRescheduler = TaskRescheduler(taskRepository, dateTimeConverter),
+    settleMillis: () -> Long = { 0L },
     private val now: () -> Instant = Instant::now,
     private val today: () -> LocalDate = { dateTimeConverter.toLocalDateTime(Instant.now()).toLocalDate() },
 ) : ViewModel() {
 
     private val error = MutableStateFlow<DomainError?>(null)
-    private val handler = PlannedRowHandler(viewModelScope, taskRepository, rescheduler, error)
+    private val handler = PlannedRowHandler(viewModelScope, taskRepository, rescheduler, error, settleMillis)
+    private var shownGroups: List<AllTasksGroupUi> = emptyList()
 
-    val uiState: StateFlow<AllTasksUiState> = combine(repository.observeAllTasks(), error) { view, error ->
+    val uiState: StateFlow<AllTasksUiState> = combine(
+        repository.observeAllTasks(),
+        error,
+        handler.settling,
+    ) { view, error, settling ->
         val instant = now()
         val groups = listOf(
             PlannedGroup.TODAY to view.today,
@@ -42,8 +49,11 @@ class AllTasksViewModel(
             PlannedGroup.UPCOMING to view.upcoming,
             PlannedGroup.SOMEDAY to view.someday,
         ).map { (group, items) ->
-            AllTasksGroupUi(group, items.map { it.toPlannedTaskUi(dateTimeConverter, instant) })
+            val ui = items.map { it.toPlannedTaskUi(dateTimeConverter, instant) }
+            val previous = shownGroups.firstOrNull { it.group == group }?.items.orEmpty()
+            AllTasksGroupUi(group, settleOrder(previous, ui, settling, { it.id }, { it.copy(isCompleted = true) }))
         }
+        shownGroups = groups
         AllTasksUiState(groups = groups, isEmpty = groups.all { it.items.isEmpty() }, error = error)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), AllTasksUiState())
 

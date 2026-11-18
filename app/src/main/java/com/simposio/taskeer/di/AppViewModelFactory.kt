@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.simposio.taskeer.ui.app.AppViewModel
+import com.simposio.taskeer.ui.components.settleMillis
 import com.simposio.taskeer.ui.board.BoardViewModel
 import com.simposio.taskeer.ui.boards.BoardsViewModel
 import com.simposio.taskeer.ui.columns.ColumnsViewModel
@@ -22,12 +23,15 @@ import com.simposio.taskeer.ui.tasks.AssignToBoardViewModel
 import com.simposio.taskeer.ui.tasks.MoveToListViewModel
 import com.simposio.taskeer.ui.tasks.RemindersViewModel
 import com.simposio.taskeer.ui.tasks.SubtasksViewModel
+import com.simposio.taskeer.ui.tasks.TaskDeletionViewModel
 import com.simposio.taskeer.ui.tasks.TaskEditorViewModel
 import com.simposio.taskeer.ui.tasks.TaskRescheduler
 import com.simposio.taskeer.ui.tasks.TasksViewModel
 import com.simposio.taskeer.ui.upcoming.UpcomingViewModel
 
 class AppViewModelFactory(private val container: AppContainer) : ViewModelProvider.Factory {
+
+    private fun currentSettleMillis(): Long = settleMillis(container.animationScale())
 
     private fun rescheduler() = TaskRescheduler(container.taskRepository, container.dateTimeConverter)
 
@@ -71,6 +75,7 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 container.taskRepository,
                 container.dateTimeConverter,
                 rescheduler(),
+                settleMillis = ::currentSettleMillis,
             ) as T
         modelClass.isAssignableFrom(UpcomingViewModel::class.java) ->
             UpcomingViewModel(
@@ -78,6 +83,7 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 container.taskRepository,
                 container.dateTimeConverter,
                 rescheduler(),
+                settleMillis = ::currentSettleMillis,
             ) as T
         modelClass.isAssignableFrom(AllTasksViewModel::class.java) ->
             AllTasksViewModel(
@@ -85,9 +91,12 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 container.taskRepository,
                 container.dateTimeConverter,
                 rescheduler(),
+                settleMillis = ::currentSettleMillis,
             ) as T
         modelClass.isAssignableFrom(ClearCompletedViewModel::class.java) ->
             ClearCompletedViewModel(container.taskRepository) as T
+        modelClass.isAssignableFrom(TaskDeletionViewModel::class.java) ->
+            TaskDeletionViewModel(container.taskRepository) as T
         modelClass.isAssignableFrom(QuickAddViewModel::class.java) ->
             QuickAddViewModel(
                 container.taskRepository,
@@ -139,6 +148,7 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 container.dateTimeConverter,
                 extras.createSavedStateHandle(),
                 rescheduler(),
+                settleMillis = ::currentSettleMillis,
             ) as T
 
         modelClass.isAssignableFrom(TasksViewModel::class.java) ->

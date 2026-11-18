@@ -97,6 +97,7 @@ class UiPresentationRulesTest {
         assertTrue(row.contains("customActions ="))
         assertTrue(row.contains("CustomAccessibilityAction("))
         assertTrue(row.contains("actions.sheet"))
+        assertTrue(source("ui/components/RowActionStyle.kt").contains("R.string.row_action_delete"))
     }
 
     @Test
@@ -421,6 +422,88 @@ class UiPresentationRulesTest {
         assertTrue(section.contains("R.string.task_repeat_hint_needs_due"))
         assertTrue("el composable no construye reglas", !section.contains("TaskRepeat("))
         assertTrue("el composable no calcula fechas", !section.contains("nextDueAt"))
+    }
+
+    @Test
+    fun fondoDeBorrarUsaColoresDeError() {
+        val style = source("ui/components/RowActionStyle.kt")
+
+        assertTrue(style.contains("RowAction.DELETE -> MaterialTheme.colorScheme.errorContainer"))
+        assertTrue(style.contains("RowAction.DELETE -> MaterialTheme.colorScheme.onErrorContainer"))
+        assertTrue(style.contains("RowAction.DELETE -> Icons.Filled.Delete"))
+        assertTrue(source("ui/components/TaskRow.kt").contains("action.swipeContentColor()"))
+    }
+
+    @Test
+    fun accionBorrarTieneEtiquetaEnRecursos() {
+        val strings = File(sourcesRoot, "../../../../res/values/strings.xml").readText()
+
+        assertTrue(strings.contains("""name="row_action_delete">Borrar tarea</string>"""))
+        assertTrue(strings.contains("""name="swipe_delete">Borrar</string>"""))
+        assertTrue(strings.contains("""name="task_deleted_undo">Deshacer</string>"""))
+    }
+
+    @Test
+    fun appShellTieneSnackbarHostAnclado() {
+        val shell = source("ui/shell/AppShell.kt")
+
+        assertTrue(shell.contains("snackbarHost"))
+        assertTrue(shell.contains("Spacing.ChromeClearance"))
+        assertTrue(shell.contains("Spacing.HubBarClearance"))
+        assertTrue(shell.contains("SnackbarDuration.Indefinite"))
+        assertTrue(shell.contains("navigationBarsPadding()") && shell.contains("imePadding()"))
+        assertTrue("sin duración literal", !Regex("""Duration\.of|\d+\.seconds|[0-9_]{4,}L""").containsMatchIn(shell))
+    }
+
+    @Test
+    fun laVentanaDeDeshacerSoloSeDefineEnDominio() {
+        val violations = (uiFiles() + File(sourcesRoot, "data").walkTopDown().filter { it.extension == "kt" })
+            .filter { it.readText().contains("UNDO_WINDOW") && it.name != "TaskDeletionViewModel.kt" }
+            .map { it.name }
+
+        assertTrue("UNDO_WINDOW solo lo usa el ViewModel de borrado: $violations", violations.isEmpty())
+        assertTrue(source("ui/tasks/TaskDeletionViewModel.kt").contains("UNDO_WINDOW"))
+        assertTrue(!source("ui/tasks/TaskDeletionViewModel.kt").contains("ofSeconds"))
+        assertTrue(source("domain/task/DeletionUndoWindow.kt").contains("val UNDO_WINDOW: Duration"))
+    }
+
+    @Test
+    fun taskRowAnimaLaCompletada() {
+        val row = source("ui/components/TaskRow.kt")
+        val checkbox = source("ui/components/CompleteCheckbox.kt")
+
+        assertTrue(row.contains("Animatable("))
+        assertTrue(row.contains("animateFloatAsState("))
+        assertTrue(!row.contains("TextDecoration.LineThrough"))
+        assertTrue(checkbox.contains("graphicsLayer"))
+        assertTrue(checkbox.contains("Animatable("))
+    }
+
+    @Test
+    fun lasListasAnimanElMovimientoDeLasFilas() {
+        LIST_SCREENS.forEach { path ->
+            assertTrue("$path debe usar rowItemModifier()", source(path).contains("modifier = rowItemModifier()"))
+        }
+        val motion = source("ui/components/CompletionMotion.kt")
+        assertTrue(motion.contains("Modifier.animateItem()"))
+        assertTrue(motion.contains("animateItem(fadeInSpec = null, placementSpec = null, fadeOutSpec = null)"))
+    }
+
+    @Test
+    fun filaNoSeAsientaEnDescartada_paraSobrevivirABorrarYRestaurar() {
+        val row = source("ui/components/TaskRow.kt")
+
+        assertTrue(row.contains("confirmValueChange"))
+        assertTrue("sin onDismiss: dejaría el estado descartado guardado", !row.contains("onDismiss = {"))
+        assertTrue(!row.contains("state.reset()"))
+    }
+
+    @Test
+    fun lasPantallasDeTareasReciben_onDelete() {
+        LIST_SCREENS.forEach { path ->
+            assertTrue("$path debe recibir onDelete", source(path).contains("onDelete: (String) -> Unit"))
+        }
+        assertTrue(source("ui/shell/AppShell.kt").contains("onDelete = deletion::delete"))
     }
 
     private fun source(path: String): String = File(sourcesRoot, path).readText()

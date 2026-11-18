@@ -2,6 +2,7 @@ package com.simposio.taskeer.di
 
 import android.content.Context
 import android.os.Build
+import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
@@ -91,6 +92,9 @@ fun createAppContainer(context: Context): AppContainer {
         notificationHistoryRepository = notificationHistoryRepository,
         notificationsEnabled = { NotificationManagerCompat.from(context).areNotificationsEnabled() },
         sdkInt = Build.VERSION.SDK_INT,
+        animationScale = {
+            Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+        },
     )
 }
 

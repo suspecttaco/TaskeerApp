@@ -15,6 +15,7 @@ enum class RowAction {
     PICK_DATE,
     ASSIGN_TO_BOARD,
     MOVE_TO_LIST,
+    DELETE,
 }
 
 data class RowActions(val swipeEnd: RowAction?, val swipeStart: RowAction?, val sheet: List<RowAction>)
@@ -40,34 +41,35 @@ fun rowActions(
         RowContext.MY_DAY -> {
             val remove = RowAction.REMOVE_FROM_MY_DAY.takeIf { isMarked }
             RowActions(
-                swipeEnd = complete,
+                swipeEnd = RowAction.DELETE,
                 swipeStart = remove,
                 sheet = listOfNotNull(complete, remove) + reschedule +
-                    listOfNotNull(RowAction.ASSIGN_TO_BOARD.takeIf { isInbox }),
+                    listOfNotNull(RowAction.ASSIGN_TO_BOARD.takeIf { isInbox }) + RowAction.DELETE,
             )
         }
         RowContext.LIST -> {
             val toggleMyDay = if (isMarked) RowAction.REMOVE_FROM_MY_DAY else RowAction.ADD_TO_MY_DAY
             RowActions(
-                swipeEnd = complete,
+                swipeEnd = RowAction.DELETE,
                 swipeStart = toggleMyDay,
                 sheet = listOf(complete, toggleMyDay) + reschedule + RowAction.MOVE_TO_LIST +
-                    listOfNotNull(RowAction.ASSIGN_TO_BOARD.takeIf { isInbox }),
+                    listOfNotNull(RowAction.ASSIGN_TO_BOARD.takeIf { isInbox }) + RowAction.DELETE,
             )
         }
         RowContext.PLANNED -> RowActions(
-            swipeEnd = RowAction.COMPLETE,
+            swipeEnd = RowAction.DELETE,
             swipeStart = RowAction.RESCHEDULE_TOMORROW.takeIf { !isRepeating },
-            sheet = listOf(RowAction.COMPLETE) + reschedule,
+            sheet = listOf(RowAction.COMPLETE) + reschedule + RowAction.DELETE,
         )
         RowContext.SUGGESTION -> RowActions(
-            swipeEnd = RowAction.KEEP_TODAY,
+            swipeEnd = RowAction.DELETE,
             swipeStart = RowAction.DISMISS,
             sheet = listOfNotNull(
                 RowAction.KEEP_TODAY,
                 RowAction.RESCHEDULE_TOMORROW.takeIf { !isRepeating },
                 RowAction.COMPLETE,
                 RowAction.DISMISS,
+                RowAction.DELETE,
             ),
         )
     }

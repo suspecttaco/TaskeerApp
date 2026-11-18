@@ -32,12 +32,14 @@ import com.simposio.taskeer.ui.components.DateGroupHeader
 import com.simposio.taskeer.ui.components.EmptyState
 import com.simposio.taskeer.ui.components.RowAction
 import com.simposio.taskeer.ui.components.RowContext
+import com.simposio.taskeer.ui.components.rowItemModifier
 import com.simposio.taskeer.ui.components.TaskRow
 import com.simposio.taskeer.ui.components.TaskRowUi
 import com.simposio.taskeer.ui.components.actionsIn
 import com.simposio.taskeer.ui.tasks.EmptyScreen
 import com.simposio.taskeer.ui.tasks.SwipeHintState
 import com.simposio.taskeer.ui.tasks.emptyStateFor
+import com.simposio.taskeer.ui.tasks.firstPeekableId
 import com.simposio.taskeer.ui.tasks.rememberTaskActionsSheet
 import com.simposio.taskeer.ui.tasks.rememberTaskEditorHost
 import com.simposio.taskeer.ui.tasks.toRow
@@ -55,23 +57,26 @@ fun UpcomingScreen(
     viewModelFactory: ViewModelProvider.Factory,
     swipeHint: SwipeHintState,
     onAddForDate: (LocalDate?) -> Unit,
+    onDelete: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: UpcomingViewModel = viewModel(factory = viewModelFactory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val editorHost = rememberTaskEditorHost(viewModelFactory)
     val openActions = rememberTaskActionsSheet(
-        onAction = { _, id, action -> viewModel.onRowAction(id, action) },
+        onAction = { _, id, action ->
+            if (action == RowAction.DELETE) onDelete(id) else viewModel.onRowAction(id, action)
+        },
         onPickDate = { _, id, date -> viewModel.rescheduleTo(id, date) },
     )
     UpcomingContent(
         state = state,
         onOpenTask = editorHost.openForEdit,
         onRowAction = { row, action ->
-            if (action == RowAction.PICK_DATE) {
-                openActions(row, RowContext.PLANNED, true)
-            } else {
-                viewModel.onRowAction(row.id, action)
+            when (action) {
+                RowAction.PICK_DATE -> openActions(row, RowContext.PLANNED, true)
+                RowAction.DELETE -> onDelete(row.id)
+                else -> viewModel.onRowAction(row.id, action)
             }
         },
         onMore = { row -> openActions(row, RowContext.PLANNED, false) },
@@ -93,7 +98,10 @@ fun UpcomingContent(
 ) {
     val collapsedState = rememberSaveable(saver = CollapsedSaver) { mutableStateOf(emptySet<String>()) }
     var collapsed by collapsedState
-    val firstId = state.days.firstNotNullOfOrNull { day -> day.items.firstOrNull()?.id }
+    val firstId = firstPeekableId(
+        state.days.flatMap { day -> day.items.map { it.toRow() } },
+        RowContext.PLANNED,
+    )
     val titles = state.days.map { it.label.text() }
     val addDescriptions = titles.map { stringResource(R.string.group_add_to, it) }
     Column(modifier = modifier.fillMaxSize()) {
@@ -130,6 +138,7 @@ fun UpcomingContent(
                             onAction = { onRowAction(row, it) },
                             onOpen = { onOpenTask(row.id) },
                             onMore = { onMore(row) },
+                            modifier = rowItemModifier(),
                             peek = swipeHint.shouldPlay() && row.id == firstId,
                             onPeekDone = swipeHint::markPlayed,
                         )

@@ -19,6 +19,7 @@ import com.simposio.taskeer.ui.alltasks.AllTasksViewModel
 import com.simposio.taskeer.ui.lists.TaskListsViewModel
 import com.simposio.taskeer.ui.quickadd.QuickAddViewModel
 import com.simposio.taskeer.ui.shell.ClearCompletedViewModel
+import com.simposio.taskeer.ui.tasks.TaskDeletionViewModel
 import com.simposio.taskeer.ui.tasks.MoveToListViewModel
 import com.simposio.taskeer.ui.upcoming.UpcomingViewModel
 import java.lang.reflect.Proxy
@@ -53,6 +54,13 @@ class AppViewModelFactoryTest {
         assertEquals(UpcomingViewModel::class.java, factory.create(UpcomingViewModel::class.java).javaClass)
         assertEquals(AllTasksViewModel::class.java, factory.create(AllTasksViewModel::class.java).javaClass)
         assertEquals(ClearCompletedViewModel::class.java, factory.create(ClearCompletedViewModel::class.java).javaClass)
+    }
+
+    @Test
+    fun crea_borradoConDeshacer() {
+        val factory = AppViewModelFactory(container())
+
+        assertEquals(TaskDeletionViewModel::class.java, factory.create(TaskDeletionViewModel::class.java).javaClass)
     }
 
     private fun container(): AppContainer = AppContainer(

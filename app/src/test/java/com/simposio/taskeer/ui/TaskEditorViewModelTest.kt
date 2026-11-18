@@ -630,7 +630,9 @@ class TaskEditorViewModelTest {
 
         override fun observeCompletedCount(): Flow<Int> = error("no se usa")
 
-        override suspend fun deleteCompleted(): DomainResult<Int> = error("no se usa")
+        override suspend fun deleteCompleted(): DomainResult<List<String>> = error("no se usa")
+
+        override suspend fun restoreTasks(ids: List<String>): DomainResult<Unit> = error("no se usa")
 
         override suspend fun deleteTask(id: String): DomainResult<Unit> {
             deleteCalls++
