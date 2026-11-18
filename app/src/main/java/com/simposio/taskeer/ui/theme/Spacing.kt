@@ -11,4 +11,9 @@ internal object Spacing {
     val IconSize = 20.dp
     val ActionIconSize = 24.dp
     val DotSize = 8.dp
+    val RowVerticalPadding = 12.dp
+    val SheetContentGap = 12.dp
+    val FabClearance = 88.dp
+    val SwipePeek = 64.dp
+    val EmptyIconSize = 48.dp
 }

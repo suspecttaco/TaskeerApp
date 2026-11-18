@@ -18,11 +18,13 @@ import com.simposio.taskeer.ui.myday.MyDayScreen
 import com.simposio.taskeer.ui.notifications.NotificationsScreen
 import com.simposio.taskeer.ui.planned.PlannedScreen
 import com.simposio.taskeer.ui.settings.SettingsScreen
+import com.simposio.taskeer.ui.tasks.SwipeHintState
 
 @Composable
 fun AppNavHost(
     navController: NavHostController,
     viewModelFactory: ViewModelProvider.Factory,
+    swipeHint: SwipeHintState,
     modifier: Modifier = Modifier,
 ) {
     NavHost(
@@ -30,8 +32,8 @@ fun AppNavHost(
         startDestination = AppDestination.START.route,
         modifier = modifier,
     ) {
-        composable(AppDestination.MY_DAY.route) { MyDayScreen(viewModelFactory) }
-        composable(AppDestination.INBOX.route) { InboxScreen(viewModelFactory) }
+        composable(AppDestination.MY_DAY.route) { MyDayScreen(viewModelFactory, swipeHint) }
+        composable(AppDestination.INBOX.route) { InboxScreen(viewModelFactory, swipeHint) }
         composable(AppDestination.WORKSPACES.route) {
             BoardsScreen(
                 viewModelFactory = viewModelFactory,
@@ -42,7 +44,13 @@ fun AppNavHost(
         }
         composable(AppDestination.SETTINGS.route) { SettingsScreen(viewModelFactory) }
         composable(AppDestination.NOTIFICATIONS.route) { NotificationsScreen(viewModelFactory) }
-        composable(AppDestination.PLANNED.route) { PlannedScreen(viewModelFactory) }
+        composable(AppDestination.PLANNED.route) {
+            PlannedScreen(
+                viewModelFactory = viewModelFactory,
+                swipeHint = swipeHint,
+                onGoToInbox = { navController.navigateTopLevel(AppDestination.INBOX) },
+            )
+        }
         composable(
             route = AppDestination.BOARD.route,
             arguments = listOf(

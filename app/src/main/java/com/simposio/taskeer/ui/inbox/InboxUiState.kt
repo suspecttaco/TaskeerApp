@@ -11,6 +11,7 @@ data class InboxTaskUi(
     val isOverdue: Boolean,
     val isMarked: Boolean,
     val isCompleted: Boolean = false,
+    val isRepeating: Boolean = false,
 )
 
 data class InboxUiState(

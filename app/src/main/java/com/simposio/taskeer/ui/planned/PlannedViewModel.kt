@@ -9,8 +9,12 @@ import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.planned.PlannedItem
 import com.simposio.taskeer.domain.planned.PlannedView
+import com.simposio.taskeer.domain.task.RescheduleTarget
 import com.simposio.taskeer.domain.task.isOverdue
+import com.simposio.taskeer.ui.components.RowAction
+import com.simposio.taskeer.ui.tasks.TaskRescheduler
 import java.time.Instant
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +28,7 @@ class PlannedViewModel(
     repository: PlannedRepository,
     private val taskRepository: TaskRepository,
     private val dateTimeConverter: DateTimeConverter,
+    private val rescheduler: TaskRescheduler = TaskRescheduler(taskRepository, dateTimeConverter),
     private val now: () -> Instant = Instant::now,
 ) : ViewModel() {
 
@@ -36,6 +41,30 @@ class PlannedViewModel(
     fun toggleCompleted(taskId: String) {
         viewModelScope.launch {
             when (val result = taskRepository.setCompleted(taskId, true)) {
+                is DomainResult.Failure -> error.value = result.error
+                is DomainResult.Success -> error.value = null
+            }
+        }
+    }
+
+    // PICK_DATE abre el selector de la pantalla y no pasa por aquí.
+    fun onRowAction(taskId: String, action: RowAction) {
+        when (action) {
+            RowAction.COMPLETE -> toggleCompleted(taskId)
+            RowAction.RESCHEDULE_TOMORROW -> reschedule(taskId, RescheduleTarget.TOMORROW)
+            RowAction.RESCHEDULE_NEXT_WEEK -> reschedule(taskId, RescheduleTarget.NEXT_WEEK)
+            RowAction.RESCHEDULE_SOMEDAY -> reschedule(taskId, RescheduleTarget.SOMEDAY)
+            else -> Unit
+        }
+    }
+
+    fun reschedule(taskId: String, target: RescheduleTarget) = execute { rescheduler.reschedule(taskId, target) }
+
+    fun rescheduleTo(taskId: String, date: LocalDate) = execute { rescheduler.rescheduleTo(taskId, date) }
+
+    private fun execute(action: suspend () -> DomainResult<Unit>) {
+        viewModelScope.launch {
+            when (val result = action()) {
                 is DomainResult.Failure -> error.value = result.error
                 is DomainResult.Success -> error.value = null
             }
@@ -64,6 +93,7 @@ class PlannedViewModel(
         boardName = boardName,
         time = task.dueAt?.let { dateTimeConverter.toLocalDateTime(it).format(TIME_FORMATTER) }.orEmpty(),
         isOverdue = isOverdue(task.dueAt, task.isCompleted, now),
+        isRepeating = task.repeat != null,
     )
 
     private companion object {

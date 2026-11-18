@@ -40,16 +40,9 @@ class NavigationPolicyTest {
     }
 
     @Test
-    fun volverDesdePlanificado_sinAnterior_navegaAMiDia() {
-        assertEquals(
-            BackStep.Navigate("my_day"),
-            backStep(AppDestination.PLANNED, null, hasPrevious = false),
-        )
-    }
-
-    @Test
-    fun volverDesdePlanificado_conAnterior_hacePop() {
-        assertEquals(BackStep.Pop, backStep(AppDestination.PLANNED, null, hasPrevious = true))
+    fun volverDesdePlanificado_noHaceNada() {
+        assertEquals(BackStep.None, backStep(AppDestination.PLANNED, null, hasPrevious = true))
+        assertEquals(BackStep.None, backStep(AppDestination.PLANNED, null, hasPrevious = false))
     }
 
     @Test
@@ -69,6 +62,7 @@ class NavigationPolicyTest {
     @Test
     fun volver_enDestinosSinBotonVolver_noHaceNada() {
         assertEquals(BackStep.None, backStep(AppDestination.INBOX, null, hasPrevious = true))
+        assertEquals(BackStep.None, backStep(AppDestination.PLANNED, null, hasPrevious = true))
         assertEquals(BackStep.None, backStep(AppDestination.BOARD, "b1", hasPrevious = true))
     }
 

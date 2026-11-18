@@ -1,56 +1,69 @@
 package com.simposio.taskeer.ui.planned
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.Inbox
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.TaskPriority
-import com.simposio.taskeer.ui.board.color
-import com.simposio.taskeer.ui.board.labelRes
-import com.simposio.taskeer.ui.components.CompleteCheckbox
-import com.simposio.taskeer.ui.components.IconLabel
+import com.simposio.taskeer.ui.components.EmptyState
+import com.simposio.taskeer.ui.components.RowAction
+import com.simposio.taskeer.ui.components.RowContext
 import com.simposio.taskeer.ui.components.SectionHeader
+import com.simposio.taskeer.ui.components.TaskRow
+import com.simposio.taskeer.ui.components.TaskRowUi
+import com.simposio.taskeer.ui.components.actionsIn
+import com.simposio.taskeer.ui.tasks.EmptyScreen
+import com.simposio.taskeer.ui.tasks.SwipeHintState
+import com.simposio.taskeer.ui.tasks.emptyStateFor
+import com.simposio.taskeer.ui.tasks.rememberTaskActionsSheet
 import com.simposio.taskeer.ui.tasks.rememberTaskEditorHost
+import com.simposio.taskeer.ui.tasks.toRow
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 import java.time.LocalDate
 
 @Composable
-fun PlannedScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifier = Modifier) {
+fun PlannedScreen(
+    viewModelFactory: ViewModelProvider.Factory,
+    swipeHint: SwipeHintState,
+    onGoToInbox: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val viewModel: PlannedViewModel = viewModel(factory = viewModelFactory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val editorHost = rememberTaskEditorHost(viewModelFactory)
+    val openActions = rememberTaskActionsSheet(
+        onAction = { _, id, action -> viewModel.onRowAction(id, action) },
+        onPickDate = { _, id, date -> viewModel.rescheduleTo(id, date) },
+    )
     PlannedContent(
         state = state,
         onOpenTask = editorHost.openForEdit,
-        onToggleCompleted = viewModel::toggleCompleted,
+        onRowAction = { row, action ->
+            if (action == RowAction.PICK_DATE) {
+                openActions(row, RowContext.PLANNED, true)
+            } else {
+                viewModel.onRowAction(row.id, action)
+            }
+        },
+        onMore = { row -> openActions(row, RowContext.PLANNED, false) },
+        onGoToInbox = onGoToInbox,
+        swipeHint = swipeHint,
         modifier = modifier,
     )
 }
@@ -59,56 +72,86 @@ fun PlannedScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifie
 fun PlannedContent(
     state: PlannedUiState,
     onOpenTask: (String) -> Unit,
-    onToggleCompleted: (String) -> Unit,
+    onRowAction: (TaskRowUi, RowAction) -> Unit,
+    onMore: (TaskRowUi) -> Unit,
+    onGoToInbox: () -> Unit,
+    swipeHint: SwipeHintState,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(Spacing.ScreenPadding),
-        verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap),
-    ) {
+    Column(modifier = modifier.fillMaxSize()) {
         state.error?.let { error ->
             Text(
                 text = error.message,
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(Spacing.ScreenPadding),
             )
         }
         if (state.sections.isEmpty()) {
-            Text(text = stringResource(R.string.planned_empty), style = MaterialTheme.typography.bodyMedium)
-        }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap)) {
-            state.sections.forEach { section ->
-                item(key = "section-${section.kind}") {
-                    SectionHeader(text = stringResource(section.kind.titleRes()))
-                }
-                if (section.kind == PlannedSectionKind.UPCOMING) {
-                    section.days.forEach { day ->
-                        item(key = "day-${day.date}") {
-                            Text(
-                                text = day.label,
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        plannedRows(day.items, onOpenTask, onToggleCompleted)
+            val spec = emptyStateFor(EmptyScreen.PLANNED, hasTasks = false, filterActive = false)
+            EmptyState(
+                icon = Icons.Filled.CalendarMonth,
+                text = stringResource(spec.textRes),
+                actionLabel = stringResource(spec.actionRes),
+                onAction = onGoToInbox,
+                modifier = Modifier.weight(1f).fillMaxSize(),
+            )
+        } else {
+            val firstId = state.firstTaskId()
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                state.sections.forEach { section ->
+                    item(key = "section-${section.kind}") {
+                        SectionHeader(
+                            text = stringResource(section.kind.titleRes()),
+                            modifier = Modifier.padding(horizontal = Spacing.ScreenPadding, vertical = Spacing.InlineGap),
+                        )
                     }
-                } else {
-                    plannedRows(section.items, onOpenTask, onToggleCompleted)
+                    if (section.kind == PlannedSectionKind.UPCOMING) {
+                        section.days.forEach { day ->
+                            item(key = "day-${day.date}") {
+                                Text(
+                                    text = day.label,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = Spacing.ScreenPadding),
+                                )
+                            }
+                            plannedRows(day.items, firstId, swipeHint, onOpenTask, onRowAction, onMore)
+                        }
+                    } else {
+                        plannedRows(section.items, firstId, swipeHint, onOpenTask, onRowAction, onMore)
+                    }
                 }
             }
         }
     }
 }
 
+private fun PlannedUiState.firstTaskId(): String? = sections.firstOrNull()?.let { section ->
+    section.items.firstOrNull() ?: section.days.firstOrNull()?.items?.firstOrNull()
+}?.id
+
 private fun LazyListScope.plannedRows(
     tasks: List<PlannedTaskUi>,
+    firstId: String?,
+    swipeHint: SwipeHintState,
     onOpen: (String) -> Unit,
-    onToggleCompleted: (String) -> Unit,
+    onRowAction: (TaskRowUi, RowAction) -> Unit,
+    onMore: (TaskRowUi) -> Unit,
 ) {
     tasks.forEach { task ->
-        item(key = "task-${task.id}") { PlannedTaskCard(task, onOpen, onToggleCompleted) }
+        item(key = "task-${task.id}") {
+            val row = task.toRow()
+            TaskRow(
+                row = row,
+                actions = row.actionsIn(RowContext.PLANNED),
+                onAction = { onRowAction(row, it) },
+                onOpen = { onOpen(row.id) },
+                onMore = { onMore(row) },
+                peek = swipeHint.shouldPlay() && row.id == firstId,
+                onPeekDone = swipeHint::markPlayed,
+            )
+        }
     }
 }
 
@@ -118,55 +161,6 @@ private fun PlannedSectionKind.titleRes(): Int = when (this) {
     PlannedSectionKind.TODAY -> R.string.planned_today
     PlannedSectionKind.TOMORROW -> R.string.planned_tomorrow
     PlannedSectionKind.UPCOMING -> R.string.planned_upcoming
-}
-
-@Composable
-private fun PlannedTaskCard(
-    task: PlannedTaskUi,
-    onOpen: (String) -> Unit,
-    onToggleCompleted: (String) -> Unit,
-) {
-    Card(
-        onClick = { onOpen(task.id) },
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = Spacing.CardPadding, vertical = Spacing.ItemGap),
-            verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                CompleteCheckbox(completed = false, onToggle = { onToggleCompleted(task.id) })
-                Text(
-                    text = task.title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            IconLabel(
-                icon = Icons.Filled.Flag,
-                text = stringResource(task.priority.labelRes()),
-                color = task.priority.color(),
-                style = MaterialTheme.typography.labelMedium,
-            )
-            if (task.isInbox) {
-                IconLabel(icon = Icons.Filled.Inbox, text = stringResource(R.string.inbox_title))
-            } else {
-                IconLabel(icon = Icons.Filled.Dashboard, text = requireNotNull(task.boardName))
-            }
-            if (task.isOverdue) {
-                IconLabel(
-                    icon = Icons.Filled.Warning,
-                    text = task.time,
-                    color = MaterialTheme.colorScheme.error,
-                    contentDescription = stringResource(R.string.task_overdue_description, task.time),
-                )
-            } else {
-                IconLabel(icon = Icons.Filled.Schedule, text = task.time)
-            }
-        }
-    }
 }
 
 @Preview(showBackground = true, heightDp = 640)
@@ -197,7 +191,25 @@ private fun PlannedContentPreview() {
                 ),
             ),
             onOpenTask = {},
-            onToggleCompleted = {},
+            onRowAction = { _, _ -> },
+            onMore = {},
+            onGoToInbox = {},
+            swipeHint = SwipeHintState(played = true),
+        )
+    }
+}
+
+@Preview(showBackground = true, heightDp = 480)
+@Composable
+private fun PlannedEmptyPreview() {
+    TaskeerTheme {
+        PlannedContent(
+            state = PlannedUiState(),
+            onOpenTask = {},
+            onRowAction = { _, _ -> },
+            onMore = {},
+            onGoToInbox = {},
+            swipeHint = SwipeHintState(played = true),
         )
     }
 }

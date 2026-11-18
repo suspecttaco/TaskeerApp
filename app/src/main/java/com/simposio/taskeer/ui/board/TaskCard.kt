@@ -1,6 +1,5 @@
 package com.simposio.taskeer.ui.board
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,7 +18,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.style.TextDecoration
@@ -29,6 +27,8 @@ import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.ui.components.CompleteCheckbox
 import com.simposio.taskeer.ui.components.IconLabel
 import com.simposio.taskeer.ui.components.MyDayToggle
+import com.simposio.taskeer.ui.components.color
+import com.simposio.taskeer.ui.components.labelRes
 import com.simposio.taskeer.ui.tasks.DUE_DATE_TIME_FORMATTER
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
@@ -88,22 +88,6 @@ internal fun TaskCard(
             }
         }
     }
-}
-
-@Composable
-internal fun TaskPriority.color(): Color = when (this) {
-    TaskPriority.LOW -> MaterialTheme.colorScheme.secondary
-    TaskPriority.MEDIUM -> MaterialTheme.colorScheme.primary
-    TaskPriority.HIGH -> MaterialTheme.colorScheme.tertiary
-    TaskPriority.URGENT -> MaterialTheme.colorScheme.error
-}
-
-@StringRes
-internal fun TaskPriority.labelRes(): Int = when (this) {
-    TaskPriority.LOW -> R.string.task_priority_low
-    TaskPriority.MEDIUM -> R.string.task_priority_medium
-    TaskPriority.HIGH -> R.string.task_priority_high
-    TaskPriority.URGENT -> R.string.task_priority_urgent
 }
 
 @Preview(showBackground = true)

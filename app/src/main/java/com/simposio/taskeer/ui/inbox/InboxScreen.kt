@@ -1,21 +1,14 @@
 package com.simposio.taskeer.ui.inbox
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.DriveFileMove
-import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,36 +17,56 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.TaskPriority
-import com.simposio.taskeer.ui.board.color
-import com.simposio.taskeer.ui.board.labelRes
-import com.simposio.taskeer.ui.components.ActionIcon
-import com.simposio.taskeer.ui.components.CompleteCheckbox
-import com.simposio.taskeer.ui.components.IconLabel
-import com.simposio.taskeer.ui.components.MyDayToggle
+import com.simposio.taskeer.ui.components.EmptyState
+import com.simposio.taskeer.ui.components.QuickAddFab
+import com.simposio.taskeer.ui.components.RowAction
+import com.simposio.taskeer.ui.components.RowContext
+import com.simposio.taskeer.ui.components.TaskRow
+import com.simposio.taskeer.ui.components.TaskRowUi
+import com.simposio.taskeer.ui.components.actionsIn
+import com.simposio.taskeer.ui.quickadd.QuickAddContext
+import com.simposio.taskeer.ui.quickadd.rememberQuickAddHost
+import com.simposio.taskeer.ui.tasks.EmptyScreen
+import com.simposio.taskeer.ui.tasks.SwipeHintState
+import com.simposio.taskeer.ui.tasks.emptyStateFor
 import com.simposio.taskeer.ui.tasks.rememberAssignToBoardHost
+import com.simposio.taskeer.ui.tasks.rememberTaskActionsSheet
 import com.simposio.taskeer.ui.tasks.rememberTaskEditorHost
+import com.simposio.taskeer.ui.tasks.toRow
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 
 @Composable
-fun InboxScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifier = Modifier) {
+fun InboxScreen(
+    viewModelFactory: ViewModelProvider.Factory,
+    swipeHint: SwipeHintState,
+    modifier: Modifier = Modifier,
+) {
     val viewModel: InboxViewModel = viewModel(factory = viewModelFactory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val editorHost = rememberTaskEditorHost(viewModelFactory)
     val openAssign = rememberAssignToBoardHost(viewModelFactory)
+    val openQuickAdd = rememberQuickAddHost(viewModelFactory, QuickAddContext.Inbox)
+    val handle: (String, RowAction) -> Unit = { id, action ->
+        if (action == RowAction.ASSIGN_TO_BOARD) openAssign(id) else viewModel.onRowAction(id, action)
+    }
+    val openActions = rememberTaskActionsSheet(
+        onAction = { _, id, action -> handle(id, action) },
+        onPickDate = { _, id, date -> viewModel.rescheduleTo(id, date) },
+    )
     InboxContent(
         state = state,
         onOpenTask = editorHost.openForEdit,
-        onToggleMarked = viewModel::toggleMarked,
-        onToggleCompleted = viewModel::toggleCompleted,
-        onAssign = openAssign,
+        onRowAction = { row, action ->
+            if (action == RowAction.PICK_DATE) openActions(row, RowContext.INBOX, true) else handle(row.id, action)
+        },
+        onMore = { row -> openActions(row, RowContext.INBOX, false) },
+        onAddTask = openQuickAdd,
+        swipeHint = swipeHint,
         modifier = modifier,
     )
 }
@@ -62,87 +75,57 @@ fun InboxScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifier 
 fun InboxContent(
     state: InboxUiState,
     onOpenTask: (String) -> Unit,
-    onToggleMarked: (String) -> Unit,
-    onToggleCompleted: (String) -> Unit,
-    onAssign: (String) -> Unit,
+    onRowAction: (TaskRowUi, RowAction) -> Unit,
+    onMore: (TaskRowUi) -> Unit,
+    onAddTask: () -> Unit,
+    swipeHint: SwipeHintState,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(Spacing.ScreenPadding),
-        verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap),
-    ) {
-        state.error?.let { error ->
-            Text(
-                text = error.message,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-        if (state.items.isEmpty()) {
-            Text(text = stringResource(R.string.inbox_empty), style = MaterialTheme.typography.bodyMedium)
-        }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap)) {
-            items(state.items, key = { it.id }) { task ->
-                InboxTaskCard(task, onOpenTask, onToggleMarked, onToggleCompleted, onAssign)
-            }
-        }
-    }
-}
-
-@Composable
-private fun InboxTaskCard(
-    task: InboxTaskUi,
-    onOpen: (String) -> Unit,
-    onToggleMarked: (String) -> Unit,
-    onToggleCompleted: (String) -> Unit,
-    onAssign: (String) -> Unit,
-) {
-    Card(
-        onClick = { onOpen(task.id) },
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = Spacing.CardPadding, vertical = Spacing.ItemGap),
-            verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                CompleteCheckbox(completed = task.isCompleted, onToggle = { onToggleCompleted(task.id) })
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            state.error?.let { error ->
                 Text(
-                    text = task.title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null,
-                    modifier = Modifier.weight(1f),
+                    text = error.message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(Spacing.ScreenPadding),
                 )
-                ActionIcon(
-                    icon = Icons.AutoMirrored.Filled.DriveFileMove,
-                    contentDescription = stringResource(R.string.assign_description),
-                    onClick = { onAssign(task.id) },
-                )
-                MyDayToggle(inMyDay = task.isMarked, onToggle = { onToggleMarked(task.id) })
             }
-            IconLabel(
-                icon = Icons.Filled.Flag,
-                text = stringResource(task.priority.labelRes()),
-                color = task.priority.color(),
-                style = MaterialTheme.typography.labelMedium,
-            )
-            task.due?.let { due ->
-                if (task.isOverdue) {
-                    IconLabel(
-                        icon = Icons.Filled.Warning,
-                        text = due,
-                        color = MaterialTheme.colorScheme.error,
-                        contentDescription = stringResource(R.string.task_overdue_description, due),
-                    )
-                } else {
-                    IconLabel(icon = Icons.Filled.Schedule, text = due)
+            if (state.items.isEmpty()) {
+                val spec = emptyStateFor(EmptyScreen.INBOX, hasTasks = false, filterActive = false)
+                EmptyState(
+                    icon = Icons.Filled.Inbox,
+                    text = stringResource(spec.textRes),
+                    actionLabel = stringResource(spec.actionRes),
+                    onAction = onAddTask,
+                    modifier = Modifier.weight(1f).fillMaxSize(),
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(bottom = Spacing.FabClearance),
+                ) {
+                    items(state.items, key = { it.id }) { task ->
+                        val row = task.toRow()
+                        TaskRow(
+                            row = row,
+                            actions = row.actionsIn(RowContext.INBOX),
+                            onAction = { onRowAction(row, it) },
+                            onOpen = { onOpenTask(row.id) },
+                            onMore = { onMore(row) },
+                            peek = swipeHint.shouldPlay() && task.id == state.items.first().id,
+                            onPeekDone = swipeHint::markPlayed,
+                        )
+                    }
                 }
             }
         }
+        QuickAddFab(
+            onClick = onAddTask,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(Spacing.ScreenPadding),
+        )
     }
 }
 
@@ -159,9 +142,25 @@ private fun InboxContentPreview() {
                 ),
             ),
             onOpenTask = {},
-            onToggleMarked = {},
-            onToggleCompleted = {},
-            onAssign = {},
+            onRowAction = { _, _ -> },
+            onMore = {},
+            onAddTask = {},
+            swipeHint = SwipeHintState(played = true),
+        )
+    }
+}
+
+@Preview(showBackground = true, heightDp = 480)
+@Composable
+private fun InboxEmptyPreview() {
+    TaskeerTheme {
+        InboxContent(
+            state = InboxUiState(),
+            onOpenTask = {},
+            onRowAction = { _, _ -> },
+            onMore = {},
+            onAddTask = {},
+            swipeHint = SwipeHintState(played = true),
         )
     }
 }

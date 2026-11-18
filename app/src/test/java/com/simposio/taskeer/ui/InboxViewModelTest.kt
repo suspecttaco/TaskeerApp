@@ -11,10 +11,14 @@ import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.RepeatUnit
 import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.domain.model.TaskRepeat
+import com.simposio.taskeer.domain.task.RescheduleTarget
 import com.simposio.taskeer.domain.task.successorIdFor
 import com.simposio.taskeer.testing.FakeDestinationTaskRepository
+import com.simposio.taskeer.ui.components.RowAction
 import com.simposio.taskeer.ui.inbox.InboxViewModel
+import com.simposio.taskeer.ui.tasks.TaskRescheduler
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -162,6 +166,60 @@ class InboxViewModelTest {
         assertFalse(viewModel.uiState.value.items.single().isCompleted)
     }
 
+    @Test
+    fun manana_soloReprograma() = runTest {
+        tasks.inbox.value = listOf(task("a", dueAt = Instant.parse("2026-11-01T17:30:00Z")))
+        myDay.marked.value = setOf("a")
+        val viewModel = viewModel()
+
+        viewModel.reschedule("a", RescheduleTarget.TOMORROW)
+
+        assertEquals(Instant.parse("2026-11-03T17:30:00Z"), tasks.updates.single().second.dueAt)
+        assertTrue(myDay.calls.isEmpty())
+        assertTrue(viewModel.uiState.value.items.single().isMarked)
+    }
+
+    @Test
+    fun rescheduleTo_fallo_exponeError() = runTest {
+        val failure = DomainError.NotFound("TASK_NOT_FOUND", "La tarea no existe")
+        tasks.inbox.value = listOf(task("a"))
+        tasks.updateFailure = failure
+        val viewModel = viewModel()
+
+        viewModel.rescheduleTo("a", LocalDate.of(2026, 12, 1))
+
+        assertEquals(failure, viewModel.uiState.value.error)
+    }
+
+    @Test
+    fun tareaRepetida_exponeIsRepeating() = runTest {
+        tasks.inbox.value = listOf(task("a").copy(repeat = TaskRepeat(RepeatUnit.DAY, 1, emptySet(), 2)), task("b"))
+
+        val items = viewModel().uiState.value.items
+
+        assertEquals(mapOf("a" to true, "b" to false), items.associate { it.id to it.isRepeating })
+    }
+
+    @Test
+    fun onRowAction_anadirYQuitarDeMiDia_alternaLaMarca() = runTest {
+        tasks.inbox.value = listOf(task("a"))
+        val viewModel = viewModel()
+
+        viewModel.onRowAction("a", RowAction.ADD_TO_MY_DAY)
+
+        assertEquals(listOf("a" to true), myDay.calls)
+    }
+
+    @Test
+    fun onRowAction_proximaSemana_reprograma() = runTest {
+        tasks.inbox.value = listOf(task("a", dueAt = Instant.parse("2026-11-01T17:30:00Z")))
+        val viewModel = viewModel()
+
+        viewModel.onRowAction("a", RowAction.RESCHEDULE_NEXT_WEEK)
+
+        assertEquals(Instant.parse("2026-11-09T17:30:00Z"), tasks.updates.single().second.dueAt)
+    }
+
     private fun task(id: String, dueAt: Instant? = null, completedAt: Instant? = null) = Task(
         columnId = null,
         title = "Tarea $id",
@@ -176,7 +234,8 @@ class InboxViewModelTest {
     )
 
     private fun TestScope.viewModel(): InboxViewModel {
-        val viewModel = InboxViewModel(tasks, myDay, madrid) { now }
+        val rescheduler = TaskRescheduler(tasks, madrid) { LocalDate.of(2026, 11, 2) }
+        val viewModel = InboxViewModel(tasks, myDay, madrid, rescheduler) { now }
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }

@@ -63,6 +63,8 @@ class FakeDestinationTaskRepository : TaskRepository {
     var assignFailure: DomainError? = null
     val completions = mutableListOf<Pair<String, Boolean>>()
     var completeFailure: DomainError? = null
+    val updates = mutableListOf<Pair<String, TaskDraft>>()
+    var updateFailure: DomainError? = null
 
     override fun observeInbox(): Flow<List<Task>> = inbox
 
@@ -90,11 +92,19 @@ class FakeDestinationTaskRepository : TaskRepository {
 
     override suspend fun activeTaskCount(): Int = 0
 
-    override suspend fun getTask(id: String): DomainResult<Task> = unused()
+    override suspend fun getTask(id: String): DomainResult<Task> =
+        inbox.value.firstOrNull { it.id == id }?.let { DomainResult.Success(it) }
+            ?: DomainResult.Failure(DomainError.NotFound("TASK_NOT_FOUND", "La tarea no existe"))
 
     override suspend fun createTask(columnId: String?, draft: TaskDraft): DomainResult<Task> = unused()
 
-    override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> = unused()
+    override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> {
+        updates += id to draft
+        updateFailure?.let { return DomainResult.Failure(it) }
+        val updated = inbox.value.first { it.id == id }.copy(dueAt = draft.dueAt)
+        inbox.value = inbox.value.map { if (it.id == id) updated else it }
+        return DomainResult.Success(updated)
+    }
 
     override suspend fun moveTask(id: String, toColumnId: String, toIndex: Int): DomainResult<Task> = unused()
 

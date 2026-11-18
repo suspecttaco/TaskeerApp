@@ -1,8 +1,9 @@
 package com.simposio.taskeer.ui.tasks
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -41,43 +42,58 @@ fun DestinationPickerDialog(
         modifier = modifier,
         title = { Text(title) },
         text = {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap)) {
-                error?.let { failure ->
-                    item(key = "error") {
-                        Text(
-                            text = failure.message,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-                if (allowInbox) {
-                    item(key = "inbox") {
-                        RadioOption(
-                            label = stringResource(R.string.destination_inbox),
-                            selected = selectedColumnId == null,
-                            onSelect = onSelectInbox,
-                        )
-                    }
-                }
-                if (destinations.isEmpty()) {
-                    item(key = "no-boards") {
-                        Text(
-                            text = stringResource(R.string.destination_no_boards),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-                items(destinations, key = { it.board.id }) { destination ->
-                    BoardDestinationSection(destination, selectedColumnId, onSelectColumn)
-                }
-            }
+            DestinationOptions(
+                destinations = destinations,
+                allowInbox = allowInbox,
+                selectedColumnId = selectedColumnId,
+                onSelectInbox = onSelectInbox,
+                onSelectColumn = onSelectColumn,
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                error = error,
+            )
         },
         confirmButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.destination_picker_close)) }
         },
     )
+}
+
+@Composable
+internal fun DestinationOptions(
+    destinations: List<BoardDestination>,
+    allowInbox: Boolean,
+    selectedColumnId: String?,
+    onSelectInbox: () -> Unit,
+    onSelectColumn: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    error: DomainError? = null,
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap)) {
+        error?.let { failure ->
+            Text(
+                text = failure.message,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        if (allowInbox) {
+            RadioOption(
+                label = stringResource(R.string.destination_inbox),
+                selected = selectedColumnId == null,
+                onSelect = onSelectInbox,
+            )
+        }
+        if (destinations.isEmpty()) {
+            Text(
+                text = stringResource(R.string.destination_no_boards),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        destinations.forEach { destination ->
+            BoardDestinationSection(destination, selectedColumnId, onSelectColumn)
+        }
+    }
 }
 
 @Composable

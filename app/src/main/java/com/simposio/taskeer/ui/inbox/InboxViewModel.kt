@@ -8,9 +8,13 @@ import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.Task
+import com.simposio.taskeer.domain.task.RescheduleTarget
 import com.simposio.taskeer.domain.task.isOverdue
+import com.simposio.taskeer.ui.components.RowAction
 import com.simposio.taskeer.ui.tasks.DUE_DATE_TIME_FORMATTER
+import com.simposio.taskeer.ui.tasks.TaskRescheduler
 import java.time.Instant
+import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +26,7 @@ class InboxViewModel(
     private val taskRepository: TaskRepository,
     private val myDayRepository: MyDayRepository,
     private val dateTimeConverter: DateTimeConverter,
+    private val rescheduler: TaskRescheduler = TaskRescheduler(taskRepository, dateTimeConverter),
     private val now: () -> Instant = Instant::now,
 ) : ViewModel() {
 
@@ -57,6 +62,31 @@ class InboxViewModel(
         }
     }
 
+    // PICK_DATE y ASSIGN_TO_BOARD abren superficies de la pantalla y no pasan por aquí.
+    fun onRowAction(taskId: String, action: RowAction) {
+        when (action) {
+            RowAction.COMPLETE, RowAction.REOPEN -> toggleCompleted(taskId)
+            RowAction.ADD_TO_MY_DAY, RowAction.REMOVE_FROM_MY_DAY -> toggleMarked(taskId)
+            RowAction.RESCHEDULE_TOMORROW -> reschedule(taskId, RescheduleTarget.TOMORROW)
+            RowAction.RESCHEDULE_NEXT_WEEK -> reschedule(taskId, RescheduleTarget.NEXT_WEEK)
+            RowAction.RESCHEDULE_SOMEDAY -> reschedule(taskId, RescheduleTarget.SOMEDAY)
+            else -> Unit
+        }
+    }
+
+    fun reschedule(taskId: String, target: RescheduleTarget) = execute { rescheduler.reschedule(taskId, target) }
+
+    fun rescheduleTo(taskId: String, date: LocalDate) = execute { rescheduler.rescheduleTo(taskId, date) }
+
+    private fun execute(action: suspend () -> DomainResult<Unit>) {
+        viewModelScope.launch {
+            when (val result = action()) {
+                is DomainResult.Failure -> error.value = result.error
+                is DomainResult.Success -> error.value = null
+            }
+        }
+    }
+
     private fun Task.toUi(isMarked: Boolean, now: Instant): InboxTaskUi = InboxTaskUi(
         id = id,
         title = title,
@@ -65,6 +95,7 @@ class InboxViewModel(
         isOverdue = isOverdue(dueAt, isCompleted, now),
         isCompleted = isCompleted,
         isMarked = isMarked,
+        isRepeating = repeat != null,
     )
 
     private companion object {

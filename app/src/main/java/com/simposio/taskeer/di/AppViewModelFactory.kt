@@ -10,19 +10,22 @@ import com.simposio.taskeer.ui.boards.BoardsViewModel
 import com.simposio.taskeer.ui.columns.ColumnsViewModel
 import com.simposio.taskeer.ui.inbox.InboxViewModel
 import com.simposio.taskeer.ui.myday.MyDayViewModel
-import com.simposio.taskeer.ui.myday.QuickAddViewModel
 import com.simposio.taskeer.ui.notifications.NotificationsViewModel
 import com.simposio.taskeer.ui.notifications.UnreadCounterViewModel
 import com.simposio.taskeer.ui.permission.NotificationPermissionViewModel
 import com.simposio.taskeer.ui.planned.PlannedViewModel
+import com.simposio.taskeer.ui.quickadd.QuickAddViewModel
 import com.simposio.taskeer.ui.settings.SettingsViewModel
 import com.simposio.taskeer.ui.tasks.AssignToBoardViewModel
 import com.simposio.taskeer.ui.tasks.RemindersViewModel
 import com.simposio.taskeer.ui.tasks.SubtasksViewModel
 import com.simposio.taskeer.ui.tasks.TaskEditorViewModel
+import com.simposio.taskeer.ui.tasks.TaskRescheduler
 import com.simposio.taskeer.ui.tasks.TasksViewModel
 
 class AppViewModelFactory(private val container: AppContainer) : ViewModelProvider.Factory {
+
+    private fun rescheduler() = TaskRescheduler(container.taskRepository, container.dateTimeConverter)
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T = when {
@@ -59,24 +62,32 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 container.sdkInt,
             ) as T
         modelClass.isAssignableFrom(MyDayViewModel::class.java) ->
-            MyDayViewModel(container.myDayRepository, container.taskRepository, container.dateTimeConverter) as T
+            MyDayViewModel(
+                container.myDayRepository,
+                container.taskRepository,
+                container.dateTimeConverter,
+                rescheduler(),
+            ) as T
         modelClass.isAssignableFrom(PlannedViewModel::class.java) ->
             PlannedViewModel(
                 container.plannedRepository,
                 container.taskRepository,
                 container.dateTimeConverter,
+                rescheduler(),
             ) as T
         modelClass.isAssignableFrom(QuickAddViewModel::class.java) ->
             QuickAddViewModel(
                 container.taskRepository,
                 container.boardRepository,
                 container.columnRepository,
+                container.dateTimeConverter,
             ) as T
         modelClass.isAssignableFrom(InboxViewModel::class.java) ->
             InboxViewModel(
                 container.taskRepository,
                 container.myDayRepository,
                 container.dateTimeConverter,
+                rescheduler(),
             ) as T
         modelClass.isAssignableFrom(AssignToBoardViewModel::class.java) ->
             AssignToBoardViewModel(

@@ -22,11 +22,14 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.simposio.taskeer.R
@@ -38,7 +41,10 @@ import com.simposio.taskeer.ui.navigation.AppDestination
 import com.simposio.taskeer.ui.navigation.AppNavHost
 import com.simposio.taskeer.ui.navigation.BackStep
 import com.simposio.taskeer.ui.navigation.backStep
-import com.simposio.taskeer.ui.navigation.topLevelNavSpec
+import com.simposio.taskeer.ui.myday.MyDaySortMenu
+import com.simposio.taskeer.ui.myday.MyDayViewModel
+import com.simposio.taskeer.ui.navigation.navigateTopLevel
+import com.simposio.taskeer.ui.tasks.SwipeHintState
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -51,7 +57,7 @@ fun AppShell(
     onViewerHandled: () -> Unit = {},
 ) {
     val navController = rememberNavController()
-    val navSpec = topLevelNavSpec()
+    val swipeHint = rememberSaveable(saver = SwipeHintState.Saver) { SwipeHintState() }
     val currentEntry by navController.currentBackStackEntryAsState()
     val currentDestination = AppDestination.fromRoute(currentEntry?.destination?.route)
 
@@ -93,13 +99,12 @@ fun AppShell(
                 },
                 actions = {
                     if (currentDestination == AppDestination.MY_DAY) {
-                        ActionIcon(
-                            icon = Icons.Filled.CalendarMonth,
-                            contentDescription = stringResource(R.string.nav_planned),
-                            onClick = {
-                                navController.navigate(AppDestination.PLANNED.route) { launchSingleTop = true }
-                            },
-                        )
+                        currentEntry?.let { entry ->
+                            // Mismo propietario que MyDayScreen (la entrada de navegación): comparten el MyDayViewModel.
+                            val myDay: MyDayViewModel = viewModel(viewModelStoreOwner = entry, factory = viewModelFactory)
+                            val myDayState by myDay.uiState.collectAsStateWithLifecycle()
+                            MyDaySortMenu(sort = myDayState.sort, onSort = myDay::setSort)
+                        }
                     }
                     NotificationsAction(
                         unreadCount = unreadCount,
@@ -117,13 +122,7 @@ fun AppShell(
                 AppDestination.topLevel.forEach { destination ->
                     NavigationBarItem(
                         selected = destination == currentDestination,
-                        onClick = {
-                            navController.navigate(destination.route) {
-                                popUpTo(navSpec.popUpToRoute) { saveState = navSpec.saveState }
-                                restoreState = navSpec.restoreState
-                                launchSingleTop = navSpec.launchSingleTop
-                            }
-                        },
+                        onClick = { navController.navigateTopLevel(destination) },
                         icon = { DecorativeIcon(destination.icon()) },
                         label = { Text(stringResource(destination.labelRes())) },
                     )
@@ -134,6 +133,7 @@ fun AppShell(
         AppNavHost(
             navController = navController,
             viewModelFactory = viewModelFactory,
+            swipeHint = swipeHint,
             modifier = Modifier
                 .padding(innerPadding)
                 .consumeWindowInsets(innerPadding),
@@ -161,10 +161,14 @@ private fun NotificationsAction(unreadCount: Int, onClick: () -> Unit) {
 
 private fun AppDestination.icon(): ImageVector = when (this) {
     AppDestination.MY_DAY -> Icons.Filled.WbSunny
+    AppDestination.PLANNED -> Icons.Filled.CalendarMonth
     AppDestination.INBOX -> Icons.Filled.Inbox
     AppDestination.WORKSPACES -> Icons.Filled.Dashboard
     AppDestination.SETTINGS -> Icons.Filled.Settings
-    else -> Icons.Filled.WbSunny
+    AppDestination.BOARD,
+    AppDestination.BOARD_COLUMNS,
+    AppDestination.NOTIFICATIONS,
+    -> Icons.Filled.WbSunny
 }
 
 @StringRes
@@ -176,7 +180,7 @@ private fun AppDestination.labelRes(): Int = when (this) {
     AppDestination.BOARD -> R.string.board_title
     AppDestination.BOARD_COLUMNS -> R.string.columns_title
     AppDestination.NOTIFICATIONS -> R.string.notifications_title
-    AppDestination.PLANNED -> R.string.planned_title
+    AppDestination.PLANNED -> R.string.nav_planned
 }
 
 @Preview(showBackground = true)
