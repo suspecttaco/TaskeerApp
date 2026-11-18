@@ -7,6 +7,9 @@ import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.model.TaskPriority
+import com.simposio.taskeer.domain.model.TaskRepeat
+import com.simposio.taskeer.domain.model.RepeatUnit
+import com.simposio.taskeer.domain.task.TASK_REPEAT_REQUIRES_DUE
 import com.simposio.taskeer.domain.model.Column
 import com.simposio.taskeer.domain.task.assignedToColumn
 import com.simposio.taskeer.domain.task.checkSameBoard
@@ -389,6 +392,47 @@ class TaskRulesTest {
     @Test
     fun isOverdue_completada_esFalso() {
         assertFalse(isOverdue(dueAt = now.minusSeconds(3600), isCompleted = true, now = now))
+    }
+
+    @Test
+    fun newTask_conRepeticionSinFecha_fallaRequiresDue() {
+        val draft = TaskDraft(title = "Tarea", repeat = TaskRepeat(RepeatUnit.DAY, 1, emptySet(), 1))
+
+        val error = (newTask("columna-1", draft, 0, now) as DomainResult.Failure).error
+
+        assertEquals(TASK_REPEAT_REQUIRES_DUE, error.code)
+    }
+
+    @Test
+    fun updated_conRepeticionSinFecha_fallaRequiresDue() {
+        val draft = TaskDraft(title = "Tarea", repeat = TaskRepeat(RepeatUnit.DAY, 1, emptySet(), 1))
+
+        val error = (task().updated(draft, later) as DomainResult.Failure).error
+
+        assertEquals(TASK_REPEAT_REQUIRES_DUE, error.code)
+    }
+
+    @Test
+    fun newTask_conRepeticionYFecha_guardaLaRegla() {
+        val rule = TaskRepeat(RepeatUnit.MONTH, 2, emptySet(), 31)
+        val draft = TaskDraft(title = "Tarea", dueAt = later, repeat = rule)
+
+        val created = (newTask("columna-1", draft, 0, now) as DomainResult.Success).value
+
+        assertEquals(rule, created.repeat)
+        assertNull(created.repeatSuccessorId)
+    }
+
+    @Test
+    fun updated_conservaRepeatSuccessorId() {
+        val rule = TaskRepeat(RepeatUnit.DAY, 1, emptySet(), 1)
+        val original = task().copy(repeat = rule, repeatSuccessorId = "sucesora")
+        val draft = TaskDraft(title = "Otro", dueAt = later, repeat = rule)
+
+        val updated = (original.updated(draft, later) as DomainResult.Success).value
+
+        assertEquals("sucesora", updated.repeatSuccessorId)
+        assertEquals(rule, updated.repeat)
     }
 
     private fun tk(id: String, columnId: String, position: Int): Task =

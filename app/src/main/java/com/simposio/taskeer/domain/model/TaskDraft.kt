@@ -9,4 +9,5 @@ data class TaskDraft(
     // Instante UTC: la conversión desde la fecha local la hace la capa de presentación.
     val dueAt: Instant? = null,
     val assigneeId: String? = null,
+    val repeat: TaskRepeat? = null,
 )

@@ -12,6 +12,8 @@ data class Task(
     val position: Int,
     val createdAt: Instant,
     val completedAt: Instant?,
+    val repeat: TaskRepeat? = null,
+    val repeatSuccessorId: String? = null,
     val sync: SyncMetadata,
 ) {
     val id: String get() = sync.clientId
