@@ -19,7 +19,7 @@ enum class AppDestination(val route: String) {
     companion object {
         val START: AppDestination = MY_DAY
 
-        val topLevel: List<AppDestination> = listOf(MY_DAY, INBOX, WORKSPACES, SETTINGS)
+        val topLevel: List<AppDestination> = listOf(MY_DAY, PLANNED, INBOX, WORKSPACES, SETTINGS)
 
         fun boardRoute(boardId: String): String = "board/$boardId"
 

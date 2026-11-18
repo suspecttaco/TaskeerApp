@@ -31,6 +31,7 @@ class AppDestinationTest {
         assertEquals(
             listOf(
                 AppDestination.MY_DAY,
+                AppDestination.PLANNED,
                 AppDestination.INBOX,
                 AppDestination.WORKSPACES,
                 AppDestination.SETTINGS,
@@ -85,22 +86,15 @@ class AppDestinationTest {
     }
 
     @Test
-    fun planned_noEsDeNivelSuperior() {
-        assertFalse(AppDestination.PLANNED in AppDestination.topLevel)
+    fun planned_esDeNivelSuperiorConRutaPropia() {
+        assertTrue(AppDestination.PLANNED in AppDestination.topLevel)
         assertEquals("planned", AppDestination.PLANNED.route)
         assertEquals(AppDestination.PLANNED, AppDestination.fromRoute("planned"))
     }
 
     @Test
-    fun topLevel_noCambia() {
-        assertEquals(
-            listOf(
-                AppDestination.MY_DAY,
-                AppDestination.INBOX,
-                AppDestination.WORKSPACES,
-                AppDestination.SETTINGS,
-            ),
-            AppDestination.topLevel,
-        )
+    fun topLevel_incluyePlanificadoEnSegundoLugar() {
+        assertEquals(AppDestination.PLANNED, AppDestination.topLevel[1])
+        assertEquals(5, AppDestination.topLevel.size)
     }
 }
