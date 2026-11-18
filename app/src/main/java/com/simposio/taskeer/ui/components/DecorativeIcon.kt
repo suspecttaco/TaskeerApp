@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 
@@ -18,12 +19,13 @@ internal fun DecorativeIcon(
     icon: ImageVector,
     modifier: Modifier = Modifier,
     tint: Color = LocalContentColor.current,
+    size: Dp = Spacing.IconSize,
 ) {
     Icon(
         imageVector = icon,
         contentDescription = null,
         tint = tint,
-        modifier = modifier.size(Spacing.IconSize),
+        modifier = modifier.size(size),
     )
 }
 

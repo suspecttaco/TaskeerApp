@@ -1,6 +1,7 @@
 package com.simposio.taskeer.architecture
 
 import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -62,9 +63,163 @@ class UiPresentationRulesTest {
     }
 
     @Test
-    fun pantallasDeTareasUsanLaCasillaCompartida() {
-        listOf("ui/board/TaskCard.kt", "ui/inbox/InboxScreen.kt", "ui/myday/MyDayScreen.kt").forEach { path ->
-            assertTrue("$path debe usar CompleteCheckbox", File(sourcesRoot, path).readText().contains("CompleteCheckbox("))
+    fun tableroUsaLaCasillaCompartida() {
+        assertTrue(source("ui/board/TaskCard.kt").contains("CompleteCheckbox("))
+    }
+
+    @Test
+    fun pantallasDeTareasUsanTaskRow() {
+        LIST_SCREENS.forEach { path ->
+            val text = source(path)
+            assertTrue("$path debe usar TaskRow", text.contains("TaskRow("))
+            assertTrue("$path no debe pintar tarjetas propias", !text.contains("Card("))
+        }
+        assertTrue(source("ui/components/TaskRow.kt").contains("CompleteCheckbox("))
+    }
+
+    @Test
+    fun taskRowTieneObjetivosTactilesYDescripciones() {
+        val row = source("ui/components/TaskRow.kt")
+
+        assertTrue(row.contains("CompleteCheckbox("))
+        assertTrue(row.contains("ActionIcon("))
+        assertTrue(row.contains("R.string.row_more"))
+        assertTrue(row.contains("PriorityDot("))
+        assertTrue(source("ui/components/PriorityStyle.kt").contains("R.string.task_priority_description"))
+        assertTrue(row.contains("R.string.task_overdue_description"))
+        assertTrue(source("ui/components/ActionIcon.kt").contains("IconButton("))
+    }
+
+    @Test
+    fun taskRowExponeAccionesPersonalizadas() {
+        val row = source("ui/components/TaskRow.kt")
+
+        assertTrue(row.contains("customActions ="))
+        assertTrue(row.contains("CustomAccessibilityAction("))
+        assertTrue(row.contains("actions.sheet"))
+    }
+
+    @Test
+    fun filasDeListaNoUsanMyDayToggle() {
+        LIST_SCREENS.plus("ui/components/TaskRow.kt").forEach { path ->
+            assertTrue("$path no debe usar MyDayToggle", !source(path).contains("MyDayToggle("))
+        }
+    }
+
+    @Test
+    fun pantallasDeListaTienenBotonFlotante() {
+        listOf("ui/myday/MyDayScreen.kt", "ui/inbox/InboxScreen.kt", "ui/board/BoardScreen.kt").forEach { path ->
+            assertTrue("$path debe tener QuickAddFab", source(path).contains("QuickAddFab("))
+        }
+        assertTrue(source("ui/components/QuickAddFab.kt").contains("R.string.fab_new_task"))
+    }
+
+    @Test
+    fun miDiaYaNoUsaQuickAddBar() {
+        assertTrue(!File(sourcesRoot, "ui/myday/QuickAddBar.kt").exists())
+        val users = uiFiles().filter { it.readText().contains("QuickAddBar") }.map { it.name }
+
+        assertTrue("QuickAddBar sin uso: $users", users.isEmpty())
+    }
+
+    @Test
+    fun miDiaTieneUnaSolaFilaDeChips() {
+        val screen = source("ui/myday/MyDayScreen.kt")
+
+        assertEquals(1, Regex("FilterChip\\(").findAll(screen).count())
+        assertTrue(!screen.contains("MyDaySort"))
+        assertTrue(!screen.contains("my_day_sort"))
+    }
+
+    @Test
+    fun appShellNoTieneAccesoACalendarioEnLaBarraSuperior() {
+        val shell = source("ui/shell/AppShell.kt")
+        val actions = shell.substringAfter("actions = {").substringBefore("bottomBar")
+
+        assertTrue(!actions.contains("CalendarMonth"))
+        assertTrue(actions.contains("MyDaySortMenu("))
+    }
+
+    @Test
+    fun emptyStateExigeAccion() {
+        val empty = source("ui/components/EmptyState.kt")
+
+        assertTrue(empty.contains("actionLabel: String,"))
+        assertTrue(empty.contains("onAction: () -> Unit,"))
+        assertTrue(empty.contains("FilledTonalButton("))
+        LIST_SCREENS.forEach { assertTrue("$it debe usar EmptyState", source(it).contains("EmptyState(")) }
+    }
+
+    @Test
+    fun altaRapidaNoUsaDialogos() {
+        quickAddFiles().forEach { file ->
+            val text = file.readText()
+            listOf("AlertDialog", "Dialog(", "DatePickerDialog", "DueDatePickerDialog", "DueTimePickerDialog")
+                .forEach { forbidden ->
+                    assertTrue("${file.name} no debe usar $forbidden", !text.contains(forbidden))
+                }
+        }
+    }
+
+    @Test
+    fun altaRapidaNoApilaSelectores() {
+        val sheets = quickAddFiles().sumOf { Regex("ModalBottomSheet\\(").findAll(it.readText()).count() }
+
+        assertEquals("un único bottom sheet en la alta rápida", 1, sheets)
+        assertTrue(source("ui/quickadd/QuickAddSheet.kt").contains("QuickAddPanel.DATE"))
+    }
+
+    @Test
+    fun bottomSheetsSonModalesConAsaYAccionDeCierre() {
+        val sheetFiles = uiFiles().filter { it.readText().contains("ModalBottomSheet(") }
+        val names = sheetFiles.map { it.name }.toSet()
+
+        assertEquals(setOf("QuickAddSheet.kt", "TaskActionsSheet.kt", "AssignToBoardHost.kt"), names)
+        sheetFiles.forEach { file ->
+            val text = file.readText()
+            assertTrue("${file.name}: asa", text.contains("dragHandle ="))
+            assertTrue("${file.name}: asa accesible", text.contains("R.string.quick_add_drag_handle"))
+            assertTrue("${file.name}: sheetState", text.contains("sheetState ="))
+            assertTrue("${file.name}: cerrar", text.contains("R.string.quick_add_close"))
+            assertTrue("${file.name}: título anunciado", text.contains("paneTitle"))
+        }
+        val quickAdd = source("ui/quickadd/QuickAddSheet.kt")
+        assertTrue(quickAdd.contains("imePadding()"))
+        val sheetCall = quickAdd.indexOf("ModalBottomSheet(")
+        val backHandler = quickAdd.indexOf("BackHandler(enabled = state.panel != null)")
+        assertTrue("BackHandler dentro del contenido del sheet (diálogo con su propio despachador)", sheetCall in 0 until backHandler)
+        assertEquals("un único BackHandler", 1, Regex("BackHandler\\(").findAll(quickAdd).count())
+        assertTrue(quickAdd.contains("ImeAction.Done"))
+    }
+
+    @Test
+    fun selectorDeDestinoCompartidoNoEsDialogo() {
+        val picker = source("ui/tasks/DestinationPickerDialog.kt")
+        val options = picker.substringAfter("fun DestinationOptions(").substringBefore("@Composable")
+
+        assertTrue(options.contains("RadioOption("))
+        assertTrue(!options.contains("AlertDialog"))
+    }
+
+    @Test
+    fun asignarATableroUsaBottomSheet() {
+        val host = source("ui/tasks/AssignToBoardHost.kt")
+
+        assertTrue(host.contains("ModalBottomSheet("))
+        assertTrue(host.contains("DestinationOptions("))
+        assertTrue(!host.contains("DestinationPickerDialog("))
+    }
+
+    @Test
+    fun textosNuevosVivenEnStringsXml() {
+        val strings = File(sourcesRoot, "../../../../res/values/strings.xml").readText()
+        val literal = Regex("(Text\\(\\s*\"|contentDescription\\s*=\\s*\")")
+        NEW_UI_FILES.forEach { path ->
+            val text = source(path)
+            assertTrue("$path tiene texto literal", !literal.containsMatchIn(text))
+            Regex("R\\.string\\.([a-z0-9_]+)").findAll(text).map { it.groupValues[1] }.forEach { name ->
+                assertTrue("$path usa R.string.$name inexistente", strings.contains("name=\"$name\""))
+            }
         }
     }
 
@@ -105,6 +260,12 @@ class UiPresentationRulesTest {
         assertTrue("el composable no calcula fechas", !section.contains("nextDueAt"))
     }
 
+    private fun source(path: String): String = File(sourcesRoot, path).readText()
+
+    private fun quickAddFiles(): List<File> = File(sourcesRoot, "ui/quickadd").walkTopDown()
+        .filter { it.isFile && it.extension == "kt" }
+        .toList()
+
     private fun uiFiles(): List<File> = File(sourcesRoot, "ui").walkTopDown()
         .filter { it.isFile && it.extension == "kt" }
         .toList()
@@ -120,5 +281,19 @@ class UiPresentationRulesTest {
 
     private companion object {
         val GLYPHS = listOf("★", "☆", "✓")
+        val LIST_SCREENS = listOf("ui/myday/MyDayScreen.kt", "ui/inbox/InboxScreen.kt", "ui/planned/PlannedScreen.kt")
+        val NEW_UI_FILES = listOf(
+            "ui/components/TaskRow.kt",
+            "ui/components/EmptyState.kt",
+            "ui/components/QuickAddFab.kt",
+            "ui/components/RowActionStyle.kt",
+            "ui/quickadd/QuickAddSheet.kt",
+            "ui/tasks/TaskActionsSheet.kt",
+            "ui/tasks/AssignToBoardHost.kt",
+            "ui/myday/MyDaySortMenu.kt",
+            "ui/myday/MyDayScreen.kt",
+            "ui/inbox/InboxScreen.kt",
+            "ui/planned/PlannedScreen.kt",
+        )
     }
 }
