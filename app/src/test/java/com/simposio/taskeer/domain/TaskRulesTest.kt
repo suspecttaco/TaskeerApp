@@ -11,6 +11,9 @@ import com.simposio.taskeer.domain.model.TaskRepeat
 import com.simposio.taskeer.domain.model.RepeatUnit
 import com.simposio.taskeer.domain.task.TASK_REPEAT_REQUIRES_DUE
 import com.simposio.taskeer.domain.model.Column
+import com.simposio.taskeer.domain.task.TASK_IN_BOARD
+import com.simposio.taskeer.domain.task.TASK_PLACEMENT_CONFLICT
+import com.simposio.taskeer.domain.task.TaskPlacement
 import com.simposio.taskeer.domain.task.assignedToColumn
 import com.simposio.taskeer.domain.task.checkSameBoard
 import com.simposio.taskeer.domain.task.closingColumn
@@ -18,9 +21,11 @@ import com.simposio.taskeer.domain.task.completed
 import com.simposio.taskeer.domain.task.isOverdue
 import com.simposio.taskeer.domain.task.isTaskCompleted
 import com.simposio.taskeer.domain.task.movedTask
+import com.simposio.taskeer.domain.task.movedToList
 import com.simposio.taskeer.domain.task.newTask
 import com.simposio.taskeer.domain.task.reopened
 import com.simposio.taskeer.domain.task.reopeningColumn
+import com.simposio.taskeer.domain.task.resolvePlacement
 import com.simposio.taskeer.domain.task.softDeleted
 import com.simposio.taskeer.domain.task.updated
 import com.simposio.taskeer.domain.task.withCompletionFor
@@ -445,7 +450,7 @@ class TaskRulesTest {
         val task = (newTask(null, TaskDraft(title = "Comprar pan"), position = 3, now = now) as DomainResult.Success).value
 
         assertNull(task.columnId)
-        assertTrue(task.isInbox)
+        assertTrue(task.isInList)
         assertEquals(LocalUser.ID, task.assigneeId)
         assertEquals(3, task.position)
         assertTrue(task.sync.pending)
@@ -574,13 +579,99 @@ class TaskRulesTest {
         sync = SyncMetadata(id, now, pending = false, deletedAt = if (deleted) now else null),
     )
 
+    @Test
+    fun newTask_enLista_tieneListIdYNoColumna() {
+        val created = (newTask(null, TaskDraft(title = "Leche"), 2, now, listId = "lista-1") as DomainResult.Success).value
+
+        assertEquals("lista-1", created.listId)
+        assertNull(created.columnId)
+    }
+
+    @Test
+    fun newTask_enColumna_noTieneListId() {
+        val created = (newTask("columna-1", TaskDraft(title = "Leche"), 0, now) as DomainResult.Success).value
+
+        assertNull(created.listId)
+    }
+
+    @Test
+    fun resolvePlacement_soloColumna() {
+        assertEquals(
+            TaskPlacement.InColumn("columna-1"),
+            (resolvePlacement("columna-1", null, "por-defecto") as DomainResult.Success).value,
+        )
+    }
+
+    @Test
+    fun resolvePlacement_soloLista() {
+        assertEquals(
+            TaskPlacement.InList("lista-1"),
+            (resolvePlacement(null, "lista-1", "por-defecto") as DomainResult.Success).value,
+        )
+    }
+
+    @Test
+    fun resolvePlacement_sinNada_usaLaListaPorDefectoRecibida() {
+        assertEquals(
+            TaskPlacement.InList("por-defecto"),
+            (resolvePlacement(null, null, "por-defecto") as DomainResult.Success).value,
+        )
+    }
+
+    @Test
+    fun resolvePlacement_ambos_fallaConflict() {
+        val error = (resolvePlacement("columna-1", "lista-1", "por-defecto") as DomainResult.Failure).error
+
+        assertTrue(error is DomainError.Validation)
+        assertEquals(TASK_PLACEMENT_CONFLICT, error.code)
+    }
+
+    @Test
+    fun movedToList_cambiaListIdPosicionYMarcaPendiente() {
+        val current = task(columnId = null, listId = "lista-1", sync = SyncMetadata("t", now, pending = false, deletedAt = null))
+
+        val moved = (current.movedToList("lista-2", 4, later) as DomainResult.Success).value
+
+        assertEquals("lista-2", moved.listId)
+        assertEquals(4, moved.position)
+        assertEquals(later, moved.sync.updatedAt)
+        assertTrue(moved.sync.pending)
+    }
+
+    @Test
+    fun movedToList_mismaLista_devuelveLaMismaTarea() {
+        val current = task(columnId = null, listId = "lista-1", position = 1)
+
+        assertEquals(current, (current.movedToList("lista-1", 9, later) as DomainResult.Success).value)
+    }
+
+    @Test
+    fun movedToList_tareaDeTablero_fallaTaskInBoard() {
+        val error = (task(columnId = "columna-1").movedToList("lista-1", 0, later) as DomainResult.Failure).error
+
+        assertTrue(error is DomainError.Validation)
+        assertEquals(TASK_IN_BOARD, error.code)
+    }
+
+    @Test
+    fun assignedToColumn_quitaListId() {
+        val current = task(columnId = null, listId = "lista-1")
+
+        val assigned = (current.assignedToColumn("columna-2", 0, later) as DomainResult.Success).value
+
+        assertNull(assigned.listId)
+        assertEquals("columna-2", assigned.columnId)
+    }
+
     private fun task(
         columnId: String? = "columna-1",
+        listId: String? = null,
         title: String = "Tarea",
         position: Int = 0,
         sync: SyncMetadata = SyncMetadata("tarea-1", now, pending = true, deletedAt = null),
     ): Task = Task(
         columnId = columnId,
+        listId = listId,
         title = title,
         description = null,
         priority = TaskPriority.MEDIUM,

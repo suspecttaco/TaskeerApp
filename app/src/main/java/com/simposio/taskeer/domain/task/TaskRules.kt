@@ -36,6 +36,7 @@ fun newTask(
     position: Int,
     now: Instant,
     clientId: String = newClientId(),
+    listId: String? = null,
 ): DomainResult<Task> {
     val title = draft.title.trim()
     val description = draft.description.normalized()
@@ -44,6 +45,7 @@ fun newTask(
     return DomainResult.Success(
         Task(
             columnId = columnId,
+            listId = listId,
             title = title,
             description = description,
             priority = draft.priority,
@@ -81,9 +83,15 @@ fun Task.assignedToColumn(columnId: String, position: Int, now: Instant): Domain
         validation(TASK_NOT_IN_INBOX, "La tarea ya pertenece a un tablero")
     } else {
         DomainResult.Success(
-            copy(columnId = columnId, position = position, sync = sync.afterLocalChange(now)),
+            copy(columnId = columnId, listId = null, position = position, sync = sync.afterLocalChange(now)),
         )
     }
+
+fun Task.movedToList(listId: String, position: Int, now: Instant): DomainResult<Task> = when {
+    columnId != null -> validation(TASK_IN_BOARD, "La tarea está en un tablero: no se puede pasar a una lista")
+    this.listId == listId -> DomainResult.Success(this)
+    else -> DomainResult.Success(copy(listId = listId, position = position, sync = sync.afterLocalChange(now)))
+}
 
 fun isTaskCompleted(completedAt: Instant?): Boolean = completedAt != null
 
