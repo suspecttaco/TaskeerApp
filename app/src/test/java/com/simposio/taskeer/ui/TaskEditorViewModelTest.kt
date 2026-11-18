@@ -11,13 +11,19 @@ import com.simposio.taskeer.domain.model.ReminderCandidate
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskCreation
 import com.simposio.taskeer.domain.model.TaskDraft
+import com.simposio.taskeer.domain.model.RepeatUnit
 import com.simposio.taskeer.domain.model.TaskPriority
+import com.simposio.taskeer.domain.model.TaskRepeat
+import com.simposio.taskeer.domain.task.RepeatPreset
+import com.simposio.taskeer.domain.task.RepeatPresets
+import com.simposio.taskeer.domain.task.TASK_REPEAT_INVALID
 import com.simposio.taskeer.domain.task.newTask
 import com.simposio.taskeer.domain.task.newTaskWithExtras
 import com.simposio.taskeer.testing.FakePreferencesRepository
 import com.simposio.taskeer.ui.tasks.SubtaskDraftItem
 import com.simposio.taskeer.ui.tasks.TaskEditorUiState
 import com.simposio.taskeer.ui.tasks.TaskEditorViewModel
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -402,6 +408,135 @@ class TaskEditorViewModelTest {
         assertEquals("Comprar pan", repository.lastCreated?.title)
     }
 
+    private val dueDate = LocalDateTime.of(2026, 12, 15, 9, 0)
+
+    @Test
+    fun repetir_seleccionarPreset_actualizaElEstado() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+        viewModel.openForCreate("c1")
+        viewModel.onDueAtChange(dueDate)
+
+        viewModel.onRepeatPresetChange(RepeatPreset.WEEKDAYS)
+
+        assertEquals(RepeatPresets.weekdays(15), viewModel.uiState.value.repeat)
+        assertEquals(RepeatPreset.WEEKDAYS, viewModel.uiState.value.repeatPreset)
+    }
+
+    @Test
+    fun repetir_personalizada_construyeLaRegla() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+        viewModel.openForCreate("c1")
+        viewModel.onDueAtChange(dueDate)
+
+        viewModel.onRepeatPresetChange(RepeatPreset.CUSTOM)
+        viewModel.onRepeatIntervalChange("3")
+        viewModel.onRepeatUnitChange(RepeatUnit.WEEK)
+        viewModel.onRepeatWeekdayToggle(DayOfWeek.MONDAY)
+        viewModel.onRepeatWeekdayToggle(DayOfWeek.THURSDAY)
+        viewModel.onRepeatWeekdayToggle(DayOfWeek.MONDAY)
+
+        assertEquals(
+            TaskRepeat(RepeatUnit.WEEK, 3, setOf(DayOfWeek.THURSDAY), 15),
+            viewModel.uiState.value.repeat,
+        )
+        assertEquals(RepeatPreset.CUSTOM, viewModel.uiState.value.repeatPreset)
+    }
+
+    @Test
+    fun guardar_conRepeticion_enviaLaReglaConAncla() = runTest {
+        val repository = FakeTaskRepository()
+        val viewModel = viewModel(repository)
+        viewModel.openForCreate("c1")
+        viewModel.onTitleChange("Pagar renta")
+        viewModel.onDueAtChange(LocalDateTime.of(2026, 12, 31, 9, 0))
+        viewModel.onRepeatPresetChange(RepeatPreset.MONTHLY)
+
+        viewModel.save()
+
+        assertEquals(RepeatPresets.monthly(31), repository.lastCreation?.task?.repeat)
+    }
+
+    @Test
+    fun abrirParaEditar_recuperaLaRegla() = runTest {
+        val rule = TaskRepeat(RepeatUnit.WEEK, 2, setOf(DayOfWeek.FRIDAY), 10)
+        val viewModel = viewModel(FakeTaskRepository(task("t1", "Informe", dueAt = now, repeat = rule)))
+
+        viewModel.openForEdit("t1")
+
+        assertEquals(rule, viewModel.uiState.value.repeat)
+        assertEquals(RepeatPreset.CUSTOM, viewModel.uiState.value.repeatPreset)
+        assertEquals("2", viewModel.uiState.value.repeatIntervalText)
+    }
+
+    @Test
+    fun repetir_sinFecha_estaDeshabilitado() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+        viewModel.openForCreate("c1")
+
+        viewModel.onRepeatPresetChange(RepeatPreset.DAILY)
+
+        assertFalse(viewModel.uiState.value.repeatEnabled)
+        assertNull(viewModel.uiState.value.repeat)
+    }
+
+    @Test
+    fun quitarFecha_reiniciaLaRepeticion() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+        viewModel.openForCreate("c1")
+        viewModel.onDueAtChange(dueDate)
+        viewModel.onRepeatPresetChange(RepeatPreset.CUSTOM)
+
+        viewModel.onDueAtChange(null)
+
+        assertNull(viewModel.uiState.value.repeat)
+        assertEquals(RepeatPreset.NONE, viewModel.uiState.value.repeatPreset)
+    }
+
+    @Test
+    fun anclaSeCalculaDelDiaLocalDeLaFecha() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+        viewModel.openForCreate("c1")
+        viewModel.onDueAtChange(LocalDateTime.of(2027, 3, 5, 23, 30))
+        viewModel.onRepeatPresetChange(RepeatPreset.MONTHLY)
+
+        assertEquals(5, viewModel.uiState.value.repeat?.anchorDay)
+
+        viewModel.onDueAtChange(LocalDateTime.of(2027, 3, 6, 23, 30))
+
+        assertEquals(6, viewModel.uiState.value.repeat?.anchorDay)
+    }
+
+    @Test
+    fun editarSinCambiarFecha_conservaElAncla() = runTest {
+        val rule = TaskRepeat(RepeatUnit.MONTH, 1, emptySet(), 31)
+        val dueAt = Instant.parse("2027-02-28T09:00:00Z")
+        val repository = FakeTaskRepository(task("t1", "Renta", dueAt = dueAt, repeat = rule))
+        val viewModel = viewModel(repository)
+        viewModel.openForEdit("t1")
+
+        viewModel.onRepeatPresetChange(RepeatPreset.MONTHLY)
+        viewModel.onDueAtChange(LocalDateTime.of(2027, 3, 15, 9, 0))
+        viewModel.onDueAtChange(LocalDateTime.of(2027, 2, 28, 18, 0))
+        viewModel.save()
+
+        assertEquals(31, repository.lastUpdateDraft?.repeat?.anchorDay)
+    }
+
+    @Test
+    fun repetirConFallo_exponeError() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+        viewModel.openForCreate("c1")
+        viewModel.onTitleChange("Tarea")
+        viewModel.onDueAtChange(dueDate)
+        viewModel.onRepeatPresetChange(RepeatPreset.CUSTOM)
+        viewModel.onRepeatIntervalChange("0")
+
+        viewModel.save()
+
+        assertEquals(TASK_REPEAT_INVALID, viewModel.uiState.value.error?.code)
+        assertFalse(viewModel.uiState.value.isSaving)
+    }
+
     private fun viewModel(repository: TaskRepository) =
         TaskEditorViewModel(
             repository,
@@ -410,16 +545,17 @@ class TaskEditorViewModelTest {
             { ZoneOffset.UTC },
         ) { now }
 
-    private fun task(id: String, title: String) = Task(
+    private fun task(id: String, title: String, dueAt: Instant? = null, repeat: TaskRepeat? = null) = Task(
         columnId = "c1",
         title = title,
         description = null,
         priority = TaskPriority.MEDIUM,
-        dueAt = null,
+        dueAt = dueAt,
         assigneeId = null,
         position = 0,
         createdAt = Instant.EPOCH,
         completedAt = null,
+        repeat = repeat,
         sync = SyncMetadata(clientId = id, updatedAt = Instant.EPOCH, pending = false, deletedAt = null),
     )
 
@@ -475,8 +611,11 @@ class TaskEditorViewModelTest {
                     }
         }
 
+        var lastUpdateDraft: TaskDraft? = null
+
         override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> {
             updateCalls++
+            lastUpdateDraft = draft
             return stored[id]?.let { DomainResult.Success(it) }
                 ?: DomainResult.Failure(DomainError.NotFound("TASK_NOT_FOUND", "No existe"))
         }

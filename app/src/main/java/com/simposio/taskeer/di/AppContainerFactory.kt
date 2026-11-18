@@ -6,6 +6,9 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
 import com.simposio.taskeer.data.local.AppDatabase
+import com.simposio.taskeer.data.local.ColumnDao
+import com.simposio.taskeer.data.local.ReminderDao
+import com.simposio.taskeer.data.local.SubtaskDao
 import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.reminder.AlarmReminderScheduler
 import com.simposio.taskeer.data.reminder.HistoryRecordingNotifier
@@ -19,7 +22,9 @@ import com.simposio.taskeer.data.repository.PreferencesRepositoryImpl
 import com.simposio.taskeer.data.repository.ReminderCheckpointStoreImpl
 import com.simposio.taskeer.data.repository.ReminderRepositoryImpl
 import com.simposio.taskeer.data.repository.SubtaskRepositoryImpl
+import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.data.repository.TaskRepositoryImpl
+import com.simposio.taskeer.domain.date.TimeZoneProvider
 import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,7 +39,13 @@ fun createAppContainer(context: Context): AppContainer {
     )
     val database = AppDatabase.create(context)
     val preferencesRepository = PreferencesRepositoryImpl(dataStore)
-    val taskRepository = TaskRepositoryImpl(database.taskDao(), database.columnDao())
+    val taskRepository = createTaskRepository(
+        taskDao = database.taskDao(),
+        columnDao = database.columnDao(),
+        subtaskDao = database.subtaskDao(),
+        reminderDao = database.reminderDao(),
+        timeZone = SystemTimeZoneProvider,
+    )
     val reminderRepository = ReminderRepositoryImpl(database.reminderDao(), database.taskDao())
     val notificationHistoryRepository = NotificationHistoryRepositoryImpl(database.appNotificationDao())
     return AppContainer(
@@ -72,3 +83,11 @@ fun createAppContainer(context: Context): AppContainer {
 // Función aparte y no una línea en createAppContainer para poder probarla en un test JVM.
 fun taskCountByColumn(taskDao: TaskDao): suspend (String) -> Int =
     { columnId -> taskDao.countByColumn(columnId) }
+
+fun createTaskRepository(
+    taskDao: TaskDao,
+    columnDao: ColumnDao,
+    subtaskDao: SubtaskDao,
+    reminderDao: ReminderDao,
+    timeZone: TimeZoneProvider,
+): TaskRepository = TaskRepositoryImpl(taskDao, columnDao, subtaskDao, reminderDao, timeZone = timeZone)

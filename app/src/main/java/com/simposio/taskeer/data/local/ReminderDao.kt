@@ -17,6 +17,12 @@ abstract class ReminderDao {
     @Query("SELECT * FROM reminders WHERE taskId = :taskId AND status = 'PENDING' LIMIT 1")
     abstract suspend fun findPendingByTask(taskId: String): ReminderEntity?
 
+    @Query(
+        "SELECT * FROM reminders WHERE taskId = :taskId AND deletedAt IS NULL " +
+            "ORDER BY createdAt DESC LIMIT 1",
+    )
+    abstract suspend fun findLatestByTask(taskId: String): ReminderEntity?
+
     @Query("SELECT * FROM reminders WHERE id = :id")
     abstract suspend fun findById(id: String): ReminderEntity?
 

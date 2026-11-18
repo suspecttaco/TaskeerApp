@@ -22,4 +22,11 @@ data class TaskEntity(
     override val updatedAt: Long,
     override val pending: Boolean,
     override val deletedAt: Long?,
+    val repeatUnit: String? = null,
+    val repeatInterval: Int? = null,
+    // Máscara de 7 bits, bit 0 = lunes; NULL o 0 significa sin días elegidos.
+    val repeatWeekdays: Int? = null,
+    val repeatAnchorDay: Int? = null,
+    // Sin clave foránea: la sucesora puede borrarse sin afectar a la original.
+    val repeatSuccessorId: String? = null,
 ) : SyncableEntity

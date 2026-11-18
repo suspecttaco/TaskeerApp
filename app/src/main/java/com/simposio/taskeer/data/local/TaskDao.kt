@@ -105,4 +105,18 @@ abstract class TaskDao {
         reminder?.let { insertReminder(it) }
         myDayEntry?.let { insertMyDayEntry(it) }
     }
+
+    // Original completada, renumeradas y sucesora comparten transacción: o se escriben todas o ninguna.
+    @Transaction
+    open suspend fun upsertAllWithSuccessor(
+        tasks: List<TaskEntity>,
+        successor: TaskEntity,
+        subtasks: List<SubtaskEntity>,
+        reminder: ReminderEntity?,
+    ) {
+        upsertAll(tasks)
+        upsert(successor)
+        if (subtasks.isNotEmpty()) insertSubtasks(subtasks)
+        reminder?.let { insertReminder(it) }
+    }
 }

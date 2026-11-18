@@ -3,6 +3,9 @@ package com.simposio.taskeer.ui.tasks
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.LocalUser
 import com.simposio.taskeer.domain.model.TaskPriority
+import com.simposio.taskeer.domain.model.TaskRepeat
+import com.simposio.taskeer.domain.task.RepeatPreset
+import com.simposio.taskeer.domain.task.presetOf
 import java.time.Instant
 import java.time.LocalDateTime
 
@@ -26,4 +29,13 @@ data class TaskEditorUiState(
     val reminderDraft: Instant? = null,
     val reminderDraftLocal: LocalDateTime? = null,
     val reminderError: String? = null,
-)
+    val repeat: TaskRepeat? = null,
+    val repeatCustom: Boolean = false,
+    val repeatIntervalText: String = "1",
+    // Fecha y regla con las que se abrió la tarea: mientras la fecha no cambie se conserva su ancla.
+    val initialDueAtLocal: LocalDateTime? = null,
+    val initialRepeat: TaskRepeat? = null,
+) {
+    val repeatPreset: RepeatPreset get() = if (repeatCustom) RepeatPreset.CUSTOM else presetOf(repeat)
+    val repeatEnabled: Boolean get() = dueAtLocal != null
+}

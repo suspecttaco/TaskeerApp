@@ -27,17 +27,19 @@ internal fun <T> SelectField(
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
     leadingIcon: ImageVector? = null,
+    enabled: Boolean = true,
 ) {
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(
         expanded = expanded,
-        onExpandedChange = { expanded = it },
+        onExpandedChange = { expanded = it && enabled },
         modifier = modifier.fillMaxWidth(),
     ) {
         OutlinedTextField(
             value = optionLabel(selected),
             onValueChange = {},
             readOnly = true,
+            enabled = enabled,
             singleLine = true,
             label = { Text(label) },
             leadingIcon = leadingIcon?.let { icon -> { DecorativeIcon(icon) } },

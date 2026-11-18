@@ -13,6 +13,8 @@ import com.simposio.taskeer.data.local.ReminderTaskStateRow
 import com.simposio.taskeer.data.local.SubtaskEntity
 import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.TaskEntity
+import com.simposio.taskeer.testing.UnusedReminderDao
+import com.simposio.taskeer.testing.UnusedSubtaskDao
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.LocalUser
@@ -370,7 +372,7 @@ class MyDayRepositoryImplTest {
             override suspend fun upsertAll(columns: List<ColumnEntity>) = Unit
             override suspend fun insertBoard(board: BoardEntity) = Unit
         }
-        val taskRepository = TaskRepositoryImpl(WritingTaskDao(fixture.dao), columns, now = { now })
+        val taskRepository = TaskRepositoryImpl(WritingTaskDao(fixture.dao), columns, UnusedSubtaskDao(), UnusedReminderDao(), now = { now })
 
         taskRepository.createTask("c1", TaskDraft(title = "Vencida", dueAt = now.minusSeconds(60)))
 

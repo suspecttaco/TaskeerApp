@@ -40,6 +40,7 @@ fun newTask(
     val title = draft.title.trim()
     val description = draft.description.normalized()
     textFailure(title, description)?.let { return it }
+    repeatFailure(draft.repeat, draft.dueAt)?.let { return DomainResult.Failure(it) }
     return DomainResult.Success(
         Task(
             columnId = columnId,
@@ -51,6 +52,7 @@ fun newTask(
             position = position,
             createdAt = now,
             completedAt = null,
+            repeat = draft.repeat,
             sync = newSyncMetadata(now, clientId),
         ),
     )
@@ -60,6 +62,7 @@ fun Task.updated(draft: TaskDraft, now: Instant): DomainResult<Task> {
     val title = draft.title.trim()
     val description = draft.description.normalized()
     textFailure(title, description)?.let { return it }
+    repeatFailure(draft.repeat, draft.dueAt)?.let { return DomainResult.Failure(it) }
     return DomainResult.Success(
         copy(
             title = title,
@@ -67,6 +70,7 @@ fun Task.updated(draft: TaskDraft, now: Instant): DomainResult<Task> {
             priority = draft.priority,
             dueAt = draft.dueAt,
             assigneeId = assigneeOrMe(draft.assigneeId),
+            repeat = draft.repeat,
             sync = sync.afterLocalChange(now),
         ),
     )

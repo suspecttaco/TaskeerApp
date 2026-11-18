@@ -1,6 +1,9 @@
 package com.simposio.taskeer.data.local
 
+import com.simposio.taskeer.domain.model.RepeatUnit
 import com.simposio.taskeer.domain.model.Task
+import com.simposio.taskeer.domain.model.TaskRepeat
+import java.time.DayOfWeek
 import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.domain.model.SyncMetadata
 import java.time.Instant
@@ -220,4 +223,69 @@ class TaskMappingTest {
         assertFalse(entity.toTask().isCompleted)
         assertNull(entity.toTask().toEntity().completedAt)
     }
+
+    @Test
+    fun repeat_idaYVuelta() {
+        val rules = RepeatUnit.entries.flatMap { unit ->
+            listOf(
+                TaskRepeat(unit, 3, emptySet(), 31),
+                TaskRepeat(unit, 1, if (unit == RepeatUnit.WEEK) setOf(DayOfWeek.MONDAY, DayOfWeek.SUNDAY) else emptySet(), 5),
+            )
+        }
+
+        rules.forEach { rule ->
+            val task = repeatingTask(rule).copy(repeatSuccessorId = "sucesora")
+
+            val entity = task.toEntity()
+
+            assertEquals(rule.unit.name, entity.repeatUnit)
+            assertEquals(rule.interval, entity.repeatInterval)
+            assertEquals(rule.anchorDay, entity.repeatAnchorDay)
+            assertEquals("sucesora", entity.repeatSuccessorId)
+            assertEquals(task, entity.toTask())
+        }
+    }
+
+    @Test
+    fun repeat_mascaraDeDias_usaElBit0ParaElLunes() {
+        val rule = TaskRepeat(RepeatUnit.WEEK, 1, setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.SUNDAY), 1)
+
+        assertEquals(0b1000101, repeatingTask(rule).toEntity().repeatWeekdays)
+        assertEquals(0, repeatingTask(rule.copy(weekdays = emptySet())).toEntity().repeatWeekdays)
+    }
+
+    @Test
+    fun sinRepeticion_idaYVuelta() {
+        val task = repeatingTask(null)
+
+        val entity = task.toEntity()
+
+        assertNull(entity.repeatUnit)
+        assertNull(entity.repeatInterval)
+        assertNull(entity.repeatWeekdays)
+        assertNull(entity.repeatAnchorDay)
+        assertNull(entity.repeatSuccessorId)
+        assertEquals(task, entity.toTask())
+    }
+
+    @Test
+    fun repeat_unidadDesconocida_seTrataComoSinRepeticion() {
+        val entity = repeatingTask(TaskRepeat(RepeatUnit.DAY, 1, emptySet(), 1)).toEntity().copy(repeatUnit = "FORTNIGHT")
+
+        assertNull(entity.toTask().repeat)
+    }
+
+    private fun repeatingTask(repeat: TaskRepeat?) = Task(
+        columnId = "columna-1",
+        title = "Tarea",
+        description = null,
+        priority = TaskPriority.MEDIUM,
+        dueAt = dueAt,
+        assigneeId = null,
+        position = 0,
+        createdAt = Instant.EPOCH,
+        completedAt = null,
+        repeat = repeat,
+        sync = SyncMetadata("tarea-1", dueAt, pending = true, deletedAt = null),
+    )
 }

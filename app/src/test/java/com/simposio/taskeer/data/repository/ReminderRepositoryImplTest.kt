@@ -348,6 +348,9 @@ class ReminderRepositoryImplTest {
         override suspend fun findPendingByTask(taskId: String): ReminderEntity? =
             rows.value.values.firstOrNull { it.taskId == taskId && it.status == "PENDING" }
 
+        override suspend fun findLatestByTask(taskId: String): ReminderEntity? =
+            rows.value.values.filter { it.taskId == taskId && it.deletedAt == null }.maxByOrNull { it.createdAt }
+
         override suspend fun findById(id: String): ReminderEntity? = rows.value[id]
 
         override suspend fun findPendingUpTo(limit: Long): List<ReminderEntity> =

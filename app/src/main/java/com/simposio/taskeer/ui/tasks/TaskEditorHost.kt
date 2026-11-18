@@ -43,6 +43,12 @@ fun rememberTaskEditorHost(viewModelFactory: ViewModelProvider.Factory): TaskEdi
         onPriorityChange = editorViewModel::onPriorityChange,
         onDueAtChange = editorViewModel::onDueAtChange,
         onAssigneeChange = editorViewModel::onAssigneeChange,
+        repeatActions = RepeatActions(
+            onPresetChange = editorViewModel::onRepeatPresetChange,
+            onIntervalChange = editorViewModel::onRepeatIntervalChange,
+            onUnitChange = editorViewModel::onRepeatUnitChange,
+            onWeekdayToggle = editorViewModel::onRepeatWeekdayToggle,
+        ),
         subtasks = subtasksState,
         subtaskActions = SubtaskActions(
             onNewTitleChange = subtasksViewModel::onNewTitleChange,

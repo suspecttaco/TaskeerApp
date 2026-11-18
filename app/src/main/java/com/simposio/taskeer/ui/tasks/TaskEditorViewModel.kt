@@ -8,16 +8,22 @@ import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.date.TimeZoneProvider
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.LocalUser
+import com.simposio.taskeer.domain.model.RepeatUnit
 import com.simposio.taskeer.domain.model.SubtaskDraft
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskCreation
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.model.TaskPriority
+import com.simposio.taskeer.domain.model.TaskRepeat
 import com.simposio.taskeer.domain.model.newClientId
 import com.simposio.taskeer.domain.reminder.laterToday
 import com.simposio.taskeer.domain.reminder.nextWeekAt
 import com.simposio.taskeer.domain.reminder.tomorrowAt
 import com.simposio.taskeer.domain.reminder.validateRemindAt
+import com.simposio.taskeer.domain.task.RepeatPreset
+import com.simposio.taskeer.domain.task.RepeatPresets
+import com.simposio.taskeer.domain.task.presetOf
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -66,7 +72,87 @@ class TaskEditorViewModel(
     }
 
     fun onDueAtChange(local: LocalDateTime?) {
-        _uiState.update { it.copy(dueAtLocal = local, error = null) }
+        _uiState.update { state ->
+            when {
+                local == null -> state.copy(
+                    dueAtLocal = null,
+                    repeat = null,
+                    repeatCustom = false,
+                    repeatIntervalText = "1",
+                    error = null,
+                )
+                state.repeat == null -> state.copy(dueAtLocal = local, error = null)
+                else -> state.copy(
+                    dueAtLocal = local,
+                    repeat = state.repeat.copy(anchorDay = anchorDayFor(state, local)),
+                    error = null,
+                )
+            }
+        }
+    }
+
+    fun onRepeatPresetChange(preset: RepeatPreset) {
+        _uiState.update { state ->
+            val due = state.dueAtLocal ?: return@update state
+            val anchor = anchorDayFor(state, due)
+            when (preset) {
+                RepeatPreset.NONE -> state.copy(
+                    repeat = null,
+                    repeatCustom = false,
+                    repeatIntervalText = "1",
+                    error = null,
+                )
+                RepeatPreset.CUSTOM -> {
+                    val rule = state.repeat?.copy(anchorDay = anchor) ?: TaskRepeat(RepeatUnit.DAY, 1, emptySet(), anchor)
+                    state.copy(
+                        repeat = rule,
+                        repeatCustom = true,
+                        repeatIntervalText = rule.interval.toString(),
+                        error = null,
+                    )
+                }
+                else -> state.copy(
+                    repeat = RepeatPresets.of(preset, anchor),
+                    repeatCustom = false,
+                    repeatIntervalText = "1",
+                    error = null,
+                )
+            }
+        }
+    }
+
+    // Un texto que no es un entero queda como intervalo 0 para que el dominio lo rechace al guardar.
+    fun onRepeatIntervalChange(text: String) {
+        _uiState.update { state ->
+            val rule = state.repeat ?: return@update state
+            state.copy(
+                repeat = rule.copy(interval = text.toIntOrNull() ?: 0),
+                repeatIntervalText = text,
+                error = null,
+            )
+        }
+    }
+
+    fun onRepeatUnitChange(unit: RepeatUnit) {
+        _uiState.update { state ->
+            val rule = state.repeat ?: return@update state
+            val weekdays = if (unit == RepeatUnit.WEEK) rule.weekdays else emptySet()
+            state.copy(repeat = rule.copy(unit = unit, weekdays = weekdays), error = null)
+        }
+    }
+
+    fun onRepeatWeekdayToggle(day: DayOfWeek) {
+        _uiState.update { state ->
+            val rule = state.repeat?.takeIf { it.unit == RepeatUnit.WEEK } ?: return@update state
+            val weekdays = if (day in rule.weekdays) rule.weekdays - day else rule.weekdays + day
+            state.copy(repeat = rule.copy(weekdays = weekdays), error = null)
+        }
+    }
+
+    private fun anchorDayFor(state: TaskEditorUiState, due: LocalDateTime): Int {
+        val initial = state.initialRepeat
+        val sameDate = due.toLocalDate() == state.initialDueAtLocal?.toLocalDate()
+        return if (initial != null && sameDate) initial.anchorDay else due.dayOfMonth
     }
 
     fun onAssigneeChange(assigneeId: String?) {
@@ -204,6 +290,7 @@ class TaskEditorViewModel(
             // La conversión a UTC ocurre aquí: el repositorio solo conoce instantes.
             dueAt = state.dueAtLocal?.let(dateTimeConverter::toInstant),
             assigneeId = state.assigneeId,
+            repeat = state.repeat,
         )
         viewModelScope.launch {
             _uiState.value = state.copy(isSaving = true, error = null)
@@ -261,5 +348,10 @@ class TaskEditorViewModel(
         priority = priority,
         dueAtLocal = dueAt?.let(dateTimeConverter::toLocalDateTime),
         assigneeId = assigneeId ?: LocalUser.ID,
+        repeat = repeat,
+        repeatCustom = presetOf(repeat) == RepeatPreset.CUSTOM,
+        repeatIntervalText = repeat?.interval?.toString() ?: "1",
+        initialDueAtLocal = dueAt?.let(dateTimeConverter::toLocalDateTime),
+        initialRepeat = repeat,
     )
 }
