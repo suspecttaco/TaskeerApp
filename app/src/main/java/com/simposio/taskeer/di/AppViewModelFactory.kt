@@ -13,6 +13,7 @@ import com.simposio.taskeer.ui.alltasks.AllTasksViewModel
 import com.simposio.taskeer.ui.lists.ListViewModel
 import com.simposio.taskeer.ui.lists.TaskListsViewModel
 import com.simposio.taskeer.ui.myday.MyDayViewModel
+import com.simposio.taskeer.ui.myday.MySuggestionsViewModel
 import com.simposio.taskeer.ui.notifications.NotificationsViewModel
 import com.simposio.taskeer.ui.notifications.UnreadCounterViewModel
 import com.simposio.taskeer.ui.permission.NotificationPermissionViewModel
@@ -28,6 +29,7 @@ import com.simposio.taskeer.ui.tasks.TaskEditorViewModel
 import com.simposio.taskeer.ui.tasks.TaskRescheduler
 import com.simposio.taskeer.ui.tasks.TasksViewModel
 import com.simposio.taskeer.ui.upcoming.UpcomingViewModel
+import java.time.Instant
 
 class AppViewModelFactory(private val container: AppContainer) : ViewModelProvider.Factory {
 
@@ -80,6 +82,14 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 container.dateTimeConverter,
                 rescheduler(),
                 settleMillis = ::currentSettleMillis,
+            ) as T
+        modelClass.isAssignableFrom(MySuggestionsViewModel::class.java) ->
+            MySuggestionsViewModel(
+                container.myDayRepository,
+                container.preferencesRepository,
+                Instant::now,
+                container.timeZoneProvider,
+                container.dateTimeConverter,
             ) as T
         modelClass.isAssignableFrom(UpcomingViewModel::class.java) ->
             UpcomingViewModel(

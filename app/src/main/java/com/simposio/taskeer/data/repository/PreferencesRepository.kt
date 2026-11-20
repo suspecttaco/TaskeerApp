@@ -5,6 +5,7 @@ import com.simposio.taskeer.domain.model.DigestSettings
 import com.simposio.taskeer.domain.model.ReminderLead
 import com.simposio.taskeer.domain.model.ThemeMode
 import java.time.DayOfWeek
+import java.time.LocalDate
 import java.time.LocalTime
 import kotlinx.coroutines.flow.Flow
 
@@ -18,6 +19,8 @@ interface PreferencesRepository {
     val digest: Flow<DigestSettings>
 
     val defaultReminderTime: Flow<LocalTime>
+
+    val suggestionsLastShownDay: Flow<LocalDate?>
 
     suspend fun setThemeMode(mode: ThemeMode)
 
@@ -34,4 +37,6 @@ interface PreferencesRepository {
     suspend fun setDigestTime(time: LocalTime)
 
     suspend fun setDefaultReminderTime(time: LocalTime)
+
+    suspend fun setSuggestionsLastShownDay(day: LocalDate)
 }

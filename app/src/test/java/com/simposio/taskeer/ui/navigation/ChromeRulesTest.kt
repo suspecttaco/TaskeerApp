@@ -19,6 +19,27 @@ class ChromeRulesTest {
     @Test
     fun secciones_muestranHomeYPildora() {
         sections.forEach {
+            val chrome = chromeFor(it)
+            assertEquals(TopBarKind.SECTION, chrome.topBar)
+            assertTrue(chrome.showHomeButton && chrome.showPill)
+        }
+    }
+
+    @Test
+    fun sugerencias_soloEnMiDia() {
+        assertEquals(
+            listOf(AppDestination.MY_DAY),
+            AppDestination.entries.filter { chromeFor(it).showSuggestions },
+        )
+    }
+
+    @Test
+    fun sugerencias_noCambiaElResto() {
+        assertEquals(
+            Chrome(TopBarKind.SECTION, showHomeButton = true, showPill = true, showSuggestions = true),
+            chromeFor(AppDestination.MY_DAY),
+        )
+        (sections - AppDestination.MY_DAY).forEach {
             assertEquals(Chrome(TopBarKind.SECTION, showHomeButton = true, showPill = true), chromeFor(it))
         }
     }

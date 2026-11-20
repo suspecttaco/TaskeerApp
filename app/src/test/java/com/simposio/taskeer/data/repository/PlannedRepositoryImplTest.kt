@@ -148,9 +148,9 @@ class PlannedRepositoryImplTest {
         override suspend fun findEntry(taskId: String): MyDayEntryEntity? = error("no se usa")
         override suspend fun upsert(entry: MyDayEntryEntity) = error("no se usa")
         override fun observePinned(dayStart: Long): Flow<List<MyDayRow>> = error("no se usa")
-        override fun observeAssigned(assigneeId: String, dayStart: Long, dayEnd: Long): Flow<List<MyDayRow>> =
+        override fun observeSuggestions(assigneeId: String, dayStart: Long, dayEnd: Long): Flow<List<MyDayRow>> =
             error("no se usa")
-        override fun observeSuggestions(dayStart: Long): Flow<List<MyDayRow>> = error("no se usa")
+        override fun observeSuggestionCount(assigneeId: String, dayStart: Long): Flow<Int> = error("no se usa")
         override fun observeOverdueCount(assigneeId: String, now: Long): Flow<Int> = error("no se usa")
     }
 }

@@ -15,7 +15,7 @@ class MyDayDaoConventionsTest {
     @Test
     fun consultasReactivas_devuelvenFlow() {
         listOf(
-            "observeMarkedIds", "observePinned", "observeAssigned", "observeSuggestions",
+            "observeMarkedIds", "observePinned", "observeSuggestions", "observeSuggestionCount",
             "observeOpen", "observeOverdueCount",
         ).forEach {
             assertEquals(it, Flow::class.java, method(it).returnType)
@@ -34,10 +34,13 @@ class MyDayDaoConventionsTest {
 
     @Test
     fun consultas_usanVisibleAnyYLaRamaDeBandeja() {
-        listOf("observePinned", "observeAssigned", "observeSuggestions", "observeOpen", "observeOverdueCount")
-            .forEach { name ->
-                assertTrue("$name: condición de visibilidad compartida", querySource(name).contains("VISIBLE_ANY"))
-            }
+        listOf("observePinned", "observeOpen", "observeOverdueCount").forEach { name ->
+            assertTrue("$name: condición de visibilidad compartida", querySource(name).contains("VISIBLE_ANY"))
+        }
+        listOf("observeSuggestions", "observeSuggestionCount").forEach { name ->
+            assertTrue("$name comparte el predicado", querySource(name).contains("SUGGESTION_FROM_WHERE"))
+        }
+        assertTrue(constantSource("SUGGESTION_FROM_WHERE").contains("VISIBLE_ANY"))
         val visible = constantSource("VISIBLE_ANY")
         assertTrue("tarea borrada", visible.contains("t.deletedAt IS NULL"))
         assertTrue("columna borrada", visible.contains("c.deletedAt IS NULL"))
@@ -61,10 +64,9 @@ class MyDayDaoConventionsTest {
     @Test
     fun consultas_unenTaskLists() {
         assertTrue(constantValue("FROM_TASKS").contains("LEFT JOIN task_lists l ON t.listId = l.id"))
-        listOf("observePinned", "observeSuggestions").forEach { name ->
-            assertTrue("$name une task_lists", querySource(name).contains("LEFT JOIN task_lists l ON t.listId = l.id"))
-        }
-        listOf("observePinned", "observeAssigned", "observeSuggestions", "observeOpen").forEach { name ->
+        assertTrue(querySource("observePinned").contains("LEFT JOIN task_lists l ON t.listId = l.id"))
+        assertTrue(constantValue("SUGGESTION_FROM_WHERE").contains("FROM_TASKS"))
+        listOf("observePinned", "observeSuggestions", "observeOpen").forEach { name ->
             assertTrue("$name expone listName", querySource(name).contains("l.name AS listName"))
         }
     }
@@ -79,22 +81,57 @@ class MyDayDaoConventionsTest {
     }
 
     @Test
-    fun assigned_limitaDueAtAFinDeHoy() {
-        val assigned = querySource("observeAssigned")
+    fun suggestions_predicadoYOrden() {
+        val where = constantSource("SUGGESTION_FROM_WHERE")
+        val rank = constantSource("SUGGESTION_RANK")
+        val query = querySource("observeSuggestions")
 
-        assertTrue(assigned.contains("t.dueAt < :dayEnd"))
-        assertTrue(assigned.contains("t.dueAt IS NOT NULL"))
-        assertTrue(assigned.contains("OPEN_OR_DONE_TODAY"))
+        assertTrue(where.contains("LEFT JOIN my_day_tasks m ON m.id = t.id"))
+        assertTrue(where.contains("+ OPEN +"))
+        assertTrue("no marcada hoy", where.contains("(m.id IS NULL OR m.deletedAt IS NOT NULL OR m.addedAt < :dayStart)"))
+        assertTrue(
+            "no descartada hoy",
+            where.contains(
+                "(m.id IS NULL OR m.deletedAt IS NULL OR m.addedAt <> \$DISMISSED_ADDED_AT OR m.deletedAt < :dayStart)",
+            ),
+        )
+        assertTrue("asignada o marca anterior", where.contains("t.assigneeId = :assigneeId OR (m.id IS NOT NULL AND m.deletedAt IS NULL)"))
+        assertFalse("la silenciada no depende de dueAt", where.contains("dueAt"))
+        assertTrue(rank.contains("t.dueAt < :dayStart THEN 0"))
+        assertTrue(rank.contains("t.dueAt < :dayEnd THEN 1"))
+        assertTrue(rank.contains("THEN 2 ELSE 3"))
+        assertTrue(query.contains("SUGGESTION_RANK"))
+        assertTrue(query.contains("-m.addedAt"))
+        assertTrue("sin fecha por updatedAt descendente", query.contains("= 3 AND t.dueAt IS NULL THEN -t.updatedAt END ASC, t.id ASC"))
+        assertTrue(query.contains("CASE WHEN m.deletedAt IS NULL THEN m.addedAt END AS addedAt"))
     }
 
     @Test
-    fun suggestions_exigeMarcaAnteriorYPendiente() {
-        val suggestions = querySource("observeSuggestions")
+    fun suggestions_silenciaSoloConCentinelaYDeHoy() {
+        val where = constantSource("SUGGESTION_FROM_WHERE")
 
-        assertTrue(suggestions.contains("m.addedAt < :dayStart"))
-        assertTrue(suggestions.contains("m.deletedAt IS NULL"))
-        assertTrue(suggestions.contains("+ OPEN +"))
-        assertTrue(suggestions.contains("ORDER BY m.addedAt DESC, t.id ASC"))
+        assertTrue(where.contains("m.addedAt <> \$DISMISSED_ADDED_AT OR m.deletedAt < :dayStart"))
+        assertTrue(
+            "quitada hoy es candidata",
+            where.contains("(m.id IS NOT NULL AND m.addedAt <> \$DISMISSED_ADDED_AT AND m.deletedAt >= :dayStart)"),
+        )
+        assertEquals(0L, DISMISSED_ADDED_AT)
+    }
+
+    @Test
+    fun suggestionCount_compartePredicadoYEsCountSinLimite() {
+        val count = querySource("observeSuggestionCount")
+
+        assertTrue(count.contains("SELECT COUNT(*)"))
+        assertTrue(count.contains("SUGGESTION_FROM_WHERE"))
+        assertFalse(count.contains("dayEnd"))
+        assertFalse(count.uppercase().contains("LIMIT"))
+        assertFalse(source.uppercase().contains("LIMIT"))
+    }
+
+    @Test
+    fun observeAssigned_yaNoExiste() {
+        assertFalse(source.contains("observeAssigned"))
     }
 
     @Test
@@ -127,7 +164,6 @@ class MyDayDaoConventionsTest {
         assertTrue(from.contains("LEFT JOIN columns c ON t.columnId = c.id"))
         assertTrue(from.contains("LEFT JOIN boards b ON c.boardId = b.id"))
                 assertTrue(querySource("observePinned").contains("LEFT JOIN columns c ON t.columnId = c.id"))
-        assertTrue(querySource("observeAssigned").contains("FROM_TASKS"))
         assertTrue(querySource("observeOverdueCount").contains("FROM_TASKS"))
         assertTrue(querySource("observeOpen").contains("FROM_TASKS"))
     }
@@ -140,8 +176,7 @@ class MyDayDaoConventionsTest {
     @Test
     fun ordenes_sonEstablesConDesempatePorId() {
         assertTrue(querySource("observePinned").contains("ORDER BY m.addedAt DESC, t.id ASC"))
-        assertTrue(querySource("observeAssigned").contains("ORDER BY t.dueAt ASC, t.id ASC"))
-        assertTrue(querySource("observeSuggestions").contains("ORDER BY m.addedAt DESC, t.id ASC"))
+        assertTrue(querySource("observeSuggestions").contains("-t.updatedAt END ASC, t.id ASC"))
     }
 
     @Test

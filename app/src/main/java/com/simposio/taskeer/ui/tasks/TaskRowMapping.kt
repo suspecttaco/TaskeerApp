@@ -2,7 +2,6 @@ package com.simposio.taskeer.ui.tasks
 
 import com.simposio.taskeer.ui.components.TaskRowUi
 import com.simposio.taskeer.ui.lists.ListTaskUi
-import com.simposio.taskeer.ui.myday.MyDaySuggestionUi
 import com.simposio.taskeer.ui.myday.MyDayTaskUi
 import com.simposio.taskeer.ui.upcoming.PlannedTaskUi
 
@@ -17,7 +16,6 @@ fun MyDayTaskUi.toRow(): TaskRowUi = TaskRowUi(
     showBoard = true,
     isOverdue = isOverdue,
     isMarked = isMarked,
-    isAssigned = isAssigned,
     isInbox = isInbox,
     isRepeating = isRepeating,
     showMyDayStar = false,
@@ -34,7 +32,6 @@ fun ListTaskUi.toRow(): TaskRowUi = TaskRowUi(
     showBoard = false,
     isOverdue = isOverdue,
     isMarked = isMarked,
-    isAssigned = false,
     isInbox = true,
     isRepeating = isRepeating,
     showMyDayStar = isMarked,
@@ -52,25 +49,7 @@ fun PlannedTaskUi.toRow(): TaskRowUi = TaskRowUi(
     showBoard = true,
     isOverdue = isOverdue,
     isMarked = false,
-    isAssigned = false,
     isInbox = isInbox,
-    isRepeating = isRepeating,
-    showMyDayStar = false,
-)
-
-fun MyDaySuggestionUi.toRow(): TaskRowUi = TaskRowUi(
-    id = id,
-    title = title,
-    isCompleted = false,
-    priority = priority,
-    due = due,
-    boardName = boardName,
-    listName = listName,
-    showBoard = true,
-    isOverdue = isOverdue,
-    isMarked = false,
-    isAssigned = false,
-    isInbox = boardName == null,
     isRepeating = isRepeating,
     showMyDayStar = false,
 )

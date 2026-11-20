@@ -147,11 +147,6 @@
     <string name="task_mark_pending">Marcar como pendiente</string>
     <string name="task_in_my_day_add">Marcar en Mi día</string>
     <string name="task_in_my_day_remove">Quitar de Mi día</string>
-    <string name="my_day_filter_label">Filtrar</string>
-    <string name="my_day_filter_all">Todas</string>
-    <string name="my_day_filter_marked">Marcadas</string>
-    <string name="my_day_filter_assigned">Asignadas</string>
-    <string name="my_day_filter_overdue">Vencidas (asignadas a mí)</string>
     <string name="my_day_sort_due_date">Fecha límite</string>
     <string name="my_day_sort_priority">Prioridad</string>
     <string name="my_day_sort_marked_at">Marcado reciente</string>
@@ -165,8 +160,6 @@
     <string name="row_action_reopen">Reabrir</string>
     <string name="row_action_add_my_day">Añadir a Mi día</string>
     <string name="row_action_remove_my_day">Quitar de Mi día</string>
-    <string name="row_action_keep_today">Mantener hoy</string>
-    <string name="row_action_dismiss">Descartar</string>
     <string name="row_action_tomorrow">Mañana</string>
     <string name="row_action_next_week">Próxima semana</string>
     <string name="row_action_someday">Sin fecha</string>
@@ -180,7 +173,6 @@
     <string name="swipe_tomorrow">Mañana</string>
     <string name="my_day_sort_menu">Ordenar</string>
     <string name="empty_action_add_task">Añadir tarea</string>
-    <string name="empty_action_show_all">Ver todas</string>
     <string name="destination_lists_title">Listas</string>
     <string name="destination_no_columns">Sin columnas disponibles</string>
     <string name="destination_no_boards">Crea un tablero en Workspaces</string>
@@ -204,14 +196,18 @@
     <string name="destination_wip">%1$s · %2$d/%3$d</string>
     <string name="destination_count">%1$s · %2$d</string>
     <string name="my_day_empty">Mi día está vacío</string>
-    <string name="my_day_filter_empty">No hay tareas con este filtro</string>
+    <string name="my_day_empty_with_suggestions">Tu día está vacío</string>
+    <string name="empty_action_show_suggestions">Ver sugerencias (%1$d)</string>
+    <string name="my_day_suggestions_action_none">Sugerencias</string>
+    <string name="my_day_suggestions_action">Sugerencias, %1$s</string>
+    <string name="my_day_suggestions_sheet_title">Sugerencias (%1$d)</string>
+    <string name="my_day_suggestions_sheet_empty">No hay sugerencias</string>
+    <string name="my_day_suggestion_add_description">Añadir a Mi día: %1$s</string>
+    <string name="my_day_suggestion_dismiss_description">Descartar: %1$s</string>
     <plurals name="my_day_overdue_count">
         <item quantity="one">%d vencida</item>
         <item quantity="other">%d vencidas</item>
     </plurals>
-    <string name="my_day_suggestions_title">Sugerencias de ayer (%1$d)</string>
-    <string name="my_day_suggestions_collapse">Ocultar sugerencias</string>
-    <string name="my_day_suggestions_expand">Mostrar sugerencias</string>
     <string name="nav_notifications">Avisos</string>
     <string name="notifications_title">Avisos</string>
     <string name="notifications_empty">No hay avisos todavía</string>

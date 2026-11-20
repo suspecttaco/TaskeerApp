@@ -5,6 +5,7 @@ import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.model.Board
 import com.simposio.taskeer.domain.model.Column
 import com.simposio.taskeer.domain.model.MyDay
+import com.simposio.taskeer.domain.model.MyDayTask
 import com.simposio.taskeer.domain.task.TASK_DESCRIPTION_TOO_LONG
 import com.simposio.taskeer.ui.tasks.EditorPanel
 import com.simposio.taskeer.ui.tasks.PickedDateTime
@@ -1159,6 +1160,12 @@ class TaskEditorViewModelTest {
         override fun observeMarkedTaskIds(): Flow<Set<String>> = marked
 
         override fun observeOverdueCount(): Flow<Int> = emptyFlow()
+
+        override fun observeSuggestions(): Flow<List<MyDayTask>> = emptyFlow()
+
+        override fun observeSuggestionCount(): Flow<Int> = emptyFlow()
+
+        override suspend fun dismissSuggestion(taskId: String): DomainResult<Unit> = DomainResult.Success(Unit)
 
         override suspend fun setMarked(taskId: String, marked: Boolean): DomainResult<Unit> {
             setMarkedCalls += taskId to marked

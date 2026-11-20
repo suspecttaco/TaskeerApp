@@ -2,7 +2,6 @@ package com.simposio.taskeer.ui
 
 import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.ui.lists.ListTaskUi
-import com.simposio.taskeer.ui.myday.MyDaySuggestionUi
 import com.simposio.taskeer.ui.myday.MyDayTaskUi
 import com.simposio.taskeer.ui.upcoming.PlannedTaskUi
 import com.simposio.taskeer.ui.tasks.toRow
@@ -16,7 +15,7 @@ class TaskRowMappingTest {
 
     private fun myDay(isOverdue: Boolean = false, isCompleted: Boolean = false) = MyDayTaskUi(
         "t1", "Informe", TaskPriority.HIGH, "Proyecto", "1 oct 2026, 9:00",
-        isOverdue = isOverdue, isMarked = true, isAssigned = false, isCompleted = isCompleted, isRepeating = true,
+        isOverdue = isOverdue, isMarked = true, isCompleted = isCompleted, isRepeating = true,
     )
 
     @Test
@@ -51,12 +50,11 @@ class TaskRowMappingTest {
     @Test
     fun contexto_listaOTablero() {
         val inList = MyDayTaskUi(
-            "t1", "Leche", TaskPriority.LOW, null, "x", isOverdue = false, isMarked = false, isAssigned = false,
+            "t1", "Leche", TaskPriority.LOW, null, "x", isOverdue = false, isMarked = false,
             listName = "Compras",
         ).toRow()
         val inBoard = myDay().toRow()
         val planned = PlannedTaskUi("t3", "Leche", TaskPriority.LOW, null, "10:30", isOverdue = false, listName = "Compras").toRow()
-        val suggestion = MyDaySuggestionUi("s1", "Leche", null, listName = "Compras").toRow()
 
         assertEquals("Compras", inList.listName)
         assertNull(inList.boardName)
@@ -64,7 +62,6 @@ class TaskRowMappingTest {
         assertEquals("Proyecto", inBoard.boardName)
         assertNull(inBoard.listName)
         assertEquals("Compras", planned.listName)
-        assertEquals("Compras", suggestion.listName)
     }
 
     @Test
@@ -93,15 +90,5 @@ class TaskRowMappingTest {
     fun completada_conservaSuEstado() {
         assertTrue(myDay(isCompleted = true).toRow().isCompleted)
         assertTrue(ListTaskUi("t2", "Pan", TaskPriority.LOW, null, false, false, isCompleted = true).toRow().isCompleted)
-    }
-
-    @Test
-    fun sugerencia_noEstaMarcadaYConservaRepeticionYPrioridad() {
-        val row = MyDaySuggestionUi("s1", "Revisar", null, TaskPriority.URGENT, "hoy", isOverdue = true, isRepeating = true).toRow()
-
-        assertFalse(row.isMarked)
-        assertTrue(row.isInbox)
-        assertTrue(row.isRepeating)
-        assertEquals(TaskPriority.URGENT, row.priority)
     }
 }

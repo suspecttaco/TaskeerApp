@@ -4,10 +4,16 @@ import com.simposio.taskeer.ui.quickadd.QuickAddContext
 
 enum class TopBarKind { SECTION, HUB, DETAIL, DETAIL_WITH_MENU }
 
-data class Chrome(val topBar: TopBarKind, val showHomeButton: Boolean, val showPill: Boolean)
+data class Chrome(
+    val topBar: TopBarKind,
+    val showHomeButton: Boolean,
+    val showPill: Boolean,
+    val showSuggestions: Boolean = false,
+)
 
 fun chromeFor(destination: AppDestination): Chrome = when (destination) {
-    AppDestination.MY_DAY,
+    AppDestination.MY_DAY ->
+        Chrome(TopBarKind.SECTION, showHomeButton = true, showPill = true, showSuggestions = true)
     AppDestination.UPCOMING_7_DAYS,
     AppDestination.ALL_TASKS,
     AppDestination.CALENDAR,

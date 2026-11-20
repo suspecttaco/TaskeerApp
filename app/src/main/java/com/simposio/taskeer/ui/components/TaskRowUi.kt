@@ -12,7 +12,6 @@ data class TaskRowUi(
     val showBoard: Boolean,
     val isOverdue: Boolean,
     val isMarked: Boolean,
-    val isAssigned: Boolean,
     val isInbox: Boolean,
     val isRepeating: Boolean,
     val showMyDayStar: Boolean,

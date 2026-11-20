@@ -10,8 +10,8 @@ import org.junit.Test
 class EmptyStateRulesTest {
 
     @Test
-    fun miDia_vacioSinTareas_ofreceAñadir() {
-        val spec = emptyStateFor(EmptyScreen.MY_DAY, hasTasks = false, filterActive = false)
+    fun miDia_vacioSinSugerencias_invitaAAnadir() {
+        val spec = emptyStateFor(EmptyScreen.MY_DAY, suggestionCount = 0)
 
         assertEquals(EmptyAction.ADD_TASK, spec.action)
         assertEquals(R.string.empty_action_add_task, spec.actionRes)
@@ -19,16 +19,18 @@ class EmptyStateRulesTest {
     }
 
     @Test
-    fun miDia_vacioPorFiltro_ofreceVerTodas() {
-        val spec = emptyStateFor(EmptyScreen.MY_DAY, hasTasks = true, filterActive = true)
+    fun miDia_vacioConSugerencias_invitaAAbrirLaHoja() {
+        val spec = emptyStateFor(EmptyScreen.MY_DAY, suggestionCount = 7)
 
-        assertEquals(EmptyAction.SHOW_ALL, spec.action)
-        assertEquals(R.string.my_day_filter_empty, spec.textRes)
+        assertEquals(EmptyAction.SHOW_SUGGESTIONS, spec.action)
+        assertEquals(R.string.empty_action_show_suggestions, spec.actionRes)
+        assertEquals(R.string.my_day_empty_with_suggestions, spec.textRes)
+        assertEquals(7, spec.actionCount)
     }
 
     @Test
     fun lista_vacia_ofreceAñadir() {
-        val spec = emptyStateFor(EmptyScreen.LIST, hasTasks = false, filterActive = false)
+        val spec = emptyStateFor(EmptyScreen.LIST)
 
         assertEquals(EmptyAction.ADD_TASK, spec.action)
         assertEquals(R.string.list_empty, spec.textRes)
@@ -36,7 +38,7 @@ class EmptyStateRulesTest {
 
     @Test
     fun proximos7Dias_vacio_ofreceAñadir() {
-        val spec = emptyStateFor(EmptyScreen.UPCOMING, hasTasks = false, filterActive = false)
+        val spec = emptyStateFor(EmptyScreen.UPCOMING)
 
         assertEquals(EmptyAction.ADD_TASK, spec.action)
         assertEquals(R.string.upcoming_empty, spec.textRes)
@@ -44,19 +46,19 @@ class EmptyStateRulesTest {
 
     @Test
     fun todasLasTareas_vacio_ofreceAñadir() {
-        val spec = emptyStateFor(EmptyScreen.ALL_TASKS, hasTasks = false, filterActive = false)
+        val spec = emptyStateFor(EmptyScreen.ALL_TASKS)
 
         assertEquals(EmptyAction.ADD_TASK, spec.action)
         assertEquals(R.string.all_tasks_empty, spec.textRes)
     }
 
     @Test
-    fun soloMiDiaOfreceVerTodas() {
+    fun soloMiDiaOfreceVerSugerencias() {
         val others = EmptyScreen.entries.filter { it != EmptyScreen.MY_DAY }
 
         assertEquals(
             others.map { EmptyAction.ADD_TASK },
-            others.map { emptyStateFor(it, hasTasks = true, filterActive = true).action },
+            others.map { emptyStateFor(it, suggestionCount = 9).action },
         )
     }
 }

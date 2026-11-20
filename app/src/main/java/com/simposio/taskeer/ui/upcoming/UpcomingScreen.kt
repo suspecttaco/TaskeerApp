@@ -147,7 +147,7 @@ fun UpcomingContent(
             }
             if (state.isEmpty) {
                 item(key = "empty") {
-                    val spec = emptyStateFor(EmptyScreen.UPCOMING, hasTasks = false, filterActive = false)
+                    val spec = emptyStateFor(EmptyScreen.UPCOMING)
                     EmptyState(
                         icon = Icons.Filled.DateRange,
                         text = stringResource(spec.textRes),

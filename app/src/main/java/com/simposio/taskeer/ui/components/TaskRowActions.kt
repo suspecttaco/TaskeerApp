@@ -1,14 +1,12 @@
 package com.simposio.taskeer.ui.components
 
-enum class RowContext { MY_DAY, LIST, PLANNED, SUGGESTION }
+enum class RowContext { MY_DAY, LIST, PLANNED }
 
 enum class RowAction {
     COMPLETE,
     REOPEN,
     ADD_TO_MY_DAY,
     REMOVE_FROM_MY_DAY,
-    KEEP_TODAY,
-    DISMISS,
     RESCHEDULE_TOMORROW,
     RESCHEDULE_NEXT_WEEK,
     RESCHEDULE_SOMEDAY,
@@ -60,17 +58,6 @@ fun rowActions(
             swipeEnd = RowAction.DELETE,
             swipeStart = RowAction.RESCHEDULE_TOMORROW.takeIf { !isRepeating },
             sheet = listOf(RowAction.COMPLETE) + reschedule + RowAction.DELETE,
-        )
-        RowContext.SUGGESTION -> RowActions(
-            swipeEnd = RowAction.DELETE,
-            swipeStart = RowAction.DISMISS,
-            sheet = listOfNotNull(
-                RowAction.KEEP_TODAY,
-                RowAction.RESCHEDULE_TOMORROW.takeIf { !isRepeating },
-                RowAction.COMPLETE,
-                RowAction.DISMISS,
-                RowAction.DELETE,
-            ),
         )
     }
 }

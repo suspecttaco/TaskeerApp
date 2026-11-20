@@ -135,7 +135,7 @@ fun ListContent(
             )
         }
         if (state.items.isEmpty()) {
-            val spec = emptyStateFor(EmptyScreen.LIST, hasTasks = false, filterActive = false)
+            val spec = emptyStateFor(EmptyScreen.LIST)
             EmptyState(
                 icon = Icons.Filled.Inbox,
                 text = stringResource(spec.textRes),

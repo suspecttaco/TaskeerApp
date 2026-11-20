@@ -13,11 +13,13 @@ import com.simposio.taskeer.domain.model.ReminderLead
 import com.simposio.taskeer.domain.model.ThemeMode
 import java.io.File
 import java.time.DayOfWeek
+import java.time.LocalDate
 import java.time.LocalTime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -183,6 +185,31 @@ class PreferencesRepositoryImplTest {
         val keys = store.data.first().asMap().keys.map { it.name }
 
         assertEquals(listOf("reminder_default_time_minutes"), keys)
+    }
+
+    @Test
+    fun suggestionsLastShownDay_sinValor_esNulo() = runTest {
+        assertNull(PreferencesRepositoryImpl(newDataStore(backgroundScope)).suggestionsLastShownDay.first())
+    }
+
+    @Test
+    fun suggestionsLastShownDay_seLeeDeNuevoYGuardaTextoIso() = runTest {
+        val store = newDataStore(backgroundScope)
+        PreferencesRepositoryImpl(store).setSuggestionsLastShownDay(LocalDate.of(2026, 11, 19))
+
+        assertEquals(LocalDate.of(2026, 11, 19), PreferencesRepositoryImpl(store).suggestionsLastShownDay.first())
+        assertEquals(
+            "2026-11-19",
+            store.data.first()[stringPreferencesKey("suggestions_last_shown_day")],
+        )
+    }
+
+    @Test
+    fun suggestionsLastShownDay_valorInvalido_esNulo() = runTest {
+        val store = newDataStore(backgroundScope)
+        store.edit { it[stringPreferencesKey("suggestions_last_shown_day")] = "ayer" }
+
+        assertNull(PreferencesRepositoryImpl(store).suggestionsLastShownDay.first())
     }
 
     private fun newDataStore(scope: CoroutineScope): DataStore<Preferences> =

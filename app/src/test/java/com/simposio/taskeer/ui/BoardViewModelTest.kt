@@ -14,6 +14,7 @@ import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.LocalUser
 import com.simposio.taskeer.domain.model.MyDay
+import com.simposio.taskeer.domain.model.MyDayTask
 import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.domain.model.ReminderCandidate
 import com.simposio.taskeer.domain.model.Task
@@ -739,6 +740,12 @@ class BoardViewModelTest {
         override fun observeMarkedTaskIds(): Flow<Set<String>> = marked
 
         override fun observeOverdueCount(): Flow<Int> = error("no se usa")
+
+        override fun observeSuggestions(): Flow<List<MyDayTask>> = emptyFlow()
+
+        override fun observeSuggestionCount(): Flow<Int> = emptyFlow()
+
+        override suspend fun dismissSuggestion(taskId: String): DomainResult<Unit> = DomainResult.Success(Unit)
 
         override suspend fun setMarked(taskId: String, marked: Boolean): DomainResult<Unit> {
             calls += taskId to marked

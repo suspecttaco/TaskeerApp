@@ -30,6 +30,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.simposio.taskeer.R
 import com.simposio.taskeer.ui.components.ActionIcon
+import com.simposio.taskeer.ui.shell.TrackOpenSheet
 import com.simposio.taskeer.ui.theme.Spacing
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,6 +51,7 @@ fun rememberAssignToBoardHost(viewModelFactory: ViewModelProvider.Factory): (Str
                 )
             },
         ) {
+            TrackOpenSheet()
             Column(
                 modifier = Modifier
                     .fillMaxWidth()

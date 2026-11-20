@@ -1,8 +1,10 @@
 package com.simposio.taskeer.ui.components
 
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
@@ -28,6 +30,25 @@ internal fun ActionIcon(
             imageVector = icon,
             contentDescription = contentDescription,
             tint = if (enabled) tint else tint.copy(alpha = DISABLED_ALPHA),
+            modifier = Modifier.size(Spacing.ActionIconSize),
+        )
+    }
+}
+
+@Composable
+internal fun TonalActionIcon(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    FilledTonalIconButton(
+        onClick = onClick,
+        modifier = modifier.sizeIn(minWidth = Spacing.MinTouchTarget, minHeight = Spacing.MinTouchTarget),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
             modifier = Modifier.size(Spacing.ActionIconSize),
         )
     }

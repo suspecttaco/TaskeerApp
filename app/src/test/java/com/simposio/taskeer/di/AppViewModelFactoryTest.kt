@@ -17,6 +17,7 @@ import com.simposio.taskeer.testing.RecordingNotifier
 import com.simposio.taskeer.testing.RecordingReminderScheduler
 import com.simposio.taskeer.ui.alltasks.AllTasksViewModel
 import com.simposio.taskeer.ui.lists.TaskListsViewModel
+import com.simposio.taskeer.ui.myday.MySuggestionsViewModel
 import com.simposio.taskeer.ui.quickadd.QuickAddViewModel
 import com.simposio.taskeer.ui.shell.ClearCompletedViewModel
 import com.simposio.taskeer.ui.tasks.TaskDeletionViewModel
@@ -55,6 +56,13 @@ class AppViewModelFactoryTest {
         assertEquals(UpcomingViewModel::class.java, factory.create(UpcomingViewModel::class.java).javaClass)
         assertEquals(AllTasksViewModel::class.java, factory.create(AllTasksViewModel::class.java).javaClass)
         assertEquals(ClearCompletedViewModel::class.java, factory.create(ClearCompletedViewModel::class.java).javaClass)
+    }
+
+    @Test
+    fun crea_sugerenciasDeMiDia() {
+        val factory = AppViewModelFactory(container())
+
+        assertEquals(MySuggestionsViewModel::class.java, factory.create(MySuggestionsViewModel::class.java).javaClass)
     }
 
     @Test

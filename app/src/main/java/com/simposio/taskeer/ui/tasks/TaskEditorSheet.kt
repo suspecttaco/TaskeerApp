@@ -67,6 +67,7 @@ import com.simposio.taskeer.ui.components.rememberAnimationsEnabled
 import com.simposio.taskeer.ui.navigation.editorPanelTransition
 import com.simposio.taskeer.ui.navigation.panelEnter
 import com.simposio.taskeer.ui.navigation.panelExit
+import com.simposio.taskeer.ui.shell.TrackOpenSheet
 import com.simposio.taskeer.ui.theme.Spacing
 import java.time.LocalTime
 import kotlinx.coroutines.flow.first
@@ -163,6 +164,7 @@ fun TaskEditorSheet(
         // Atrás lo resuelve el BackHandler de abajo, paso a paso; el de la hoja la cerraría de golpe.
         properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
     ) {
+        TrackOpenSheet()
         BackHandler(enabled = true) { actions.onBack() }
         Column(
             modifier = Modifier

@@ -20,7 +20,6 @@ class FirstPeekableIdTest {
         showBoard = false,
         isOverdue = false,
         isMarked = marked,
-        isAssigned = false,
         isInbox = false,
         isRepeating = repeating,
         showMyDayStar = false,
