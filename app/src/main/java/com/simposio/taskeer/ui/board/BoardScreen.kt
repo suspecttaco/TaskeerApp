@@ -58,6 +58,7 @@ fun BoardScreen(
     viewModelFactory: ViewModelProvider.Factory,
     onManageColumns: (String) -> Unit,
     onBoardDeleted: () -> Unit,
+    onDelete: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: BoardViewModel = viewModel(factory = viewModelFactory)
@@ -66,7 +67,7 @@ fun BoardScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val boardsState by boardsViewModel.uiState.collectAsStateWithLifecycle()
 
-    val editorHost = rememberTaskEditorHost(viewModelFactory)
+    val editorHost = rememberTaskEditorHost(viewModelFactory, onDelete)
     LaunchedEffect(boardsState.deletedBoardId) {
         if (boardsState.deletedBoardId == viewModel.boardId) onBoardDeleted()
     }

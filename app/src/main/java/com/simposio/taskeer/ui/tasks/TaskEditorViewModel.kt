@@ -2,7 +2,11 @@ package com.simposio.taskeer.ui.tasks
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.simposio.taskeer.data.repository.BoardRepository
+import com.simposio.taskeer.data.repository.ColumnRepository
+import com.simposio.taskeer.data.repository.MyDayRepository
 import com.simposio.taskeer.data.repository.PreferencesRepository
+import com.simposio.taskeer.data.repository.TaskListRepository
 import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.date.TimeZoneProvider
@@ -27,10 +31,15 @@ import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.LocalDate
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -39,6 +48,10 @@ class TaskEditorViewModel(
     private val dateTimeConverter: DateTimeConverter,
     private val preferences: PreferencesRepository,
     private val timeZone: TimeZoneProvider,
+    private val listRepository: TaskListRepository,
+    private val myDayRepository: MyDayRepository,
+    private val boardRepository: BoardRepository,
+    private val columnRepository: ColumnRepository,
     private val clock: () -> Instant = Instant::now,
 ) : ViewModel() {
 
@@ -46,17 +59,172 @@ class TaskEditorViewModel(
 
     val uiState: StateFlow<TaskEditorUiState> = _uiState.asStateFlow()
 
-    fun openForCreate(columnId: String?) {
-        _uiState.value = TaskEditorUiState(isOpen = true, columnId = columnId)
+    private var contextJob: Job? = null
+
+    fun openForCreate(columnId: String?, listId: String? = null) {
+        val state = TaskEditorUiState(isOpen = true, columnId = columnId, listId = listId)
+        _uiState.value = state.copy(initialFields = state.fields())
+        observeContext()
     }
 
     fun openForEdit(taskId: String) {
         viewModelScope.launch {
             val result = repository.getTask(taskId)
             if (result is DomainResult.Success) {
-                _uiState.value = result.value.toEditorState()
+                val state = result.value.toEditorState()
+                _uiState.value = state.copy(initialFields = state.fields())
+                observeContext()
             }
         }
+    }
+
+    // Un solo Job: los flujos de contexto viven mientras la hoja está abierta y no se mezclan con el borrador.
+    private fun observeContext() {
+        contextJob?.cancel()
+        contextJob = viewModelScope.launch {
+            launch {
+                listRepository.observeLists().collect { lists -> _uiState.update { it.copy(lists = lists) } }
+            }
+            launch {
+                combine(
+                    boardRepository.observeBoards(),
+                    columnRepository.observeAllColumns(),
+                    _uiState.map { it.columnId }.distinctUntilChanged(),
+                ) { boards, columns, columnId ->
+                    val column = columns.firstOrNull { it.id == columnId }
+                    boards.firstOrNull { it.id == column?.boardId }?.name to column?.name
+                }.collect { (boardName, columnName) ->
+                    _uiState.update { it.copy(boardName = boardName, columnName = columnName) }
+                }
+            }
+            val taskId = _uiState.value.taskId
+            if (taskId != null) {
+                launch {
+                    myDayRepository.observeMarkedTaskIds().collect { ids ->
+                        _uiState.update { it.copy(inMyDay = taskId in ids) }
+                    }
+                }
+            }
+        }
+    }
+
+    fun onToggleCompleted() {
+        val state = _uiState.value
+        val taskId = state.taskId ?: return
+        if (state.isSaving || state.isClosing) {
+            return
+        }
+        viewModelScope.launch {
+            when (val result = repository.setCompleted(taskId, !state.completed)) {
+                is DomainResult.Success -> _uiState.update {
+                    it.copy(completed = result.value.isCompleted, columnId = result.value.columnId, error = null)
+                }
+                is DomainResult.Failure -> _uiState.update { it.copy(error = result.error) }
+            }
+        }
+    }
+
+    fun onToggleMyDay() {
+        val state = _uiState.value
+        val taskId = state.taskId
+        if (taskId == null) {
+            _uiState.update { it.copy(inMyDay = !it.inMyDay, error = null) }
+            return
+        }
+        if (state.isSaving || state.isClosing) {
+            return
+        }
+        viewModelScope.launch {
+            val result = myDayRepository.setMarked(taskId, !state.inMyDay)
+            if (result is DomainResult.Failure) {
+                _uiState.update { it.copy(error = result.error) }
+            }
+        }
+    }
+
+    fun onListChosen(listId: String) {
+        val state = _uiState.value
+        val taskId = state.taskId
+        when {
+            state.isBoardTask || listId == state.listId -> closePanel()
+            taskId == null -> _uiState.update { it.copy(listId = listId, panel = EditorPanel.None, error = null) }
+            else -> viewModelScope.launch {
+                when (val result = repository.moveToList(taskId, listId)) {
+                    is DomainResult.Success -> _uiState.update {
+                        it.copy(listId = result.value.listId, panel = EditorPanel.None, error = null)
+                    }
+                    is DomainResult.Failure -> _uiState.update { it.copy(error = result.error) }
+                }
+            }
+        }
+    }
+
+    fun openPanel(panel: EditorPanel) {
+        val target = if (panel is EditorPanel.DateTime) EditorPanel.DateTime(panel.target) else panel
+        _uiState.update { it.copy(panel = target, error = null) }
+    }
+
+    fun closePanel() {
+        _uiState.update { it.copy(panel = EditorPanel.None) }
+    }
+
+    fun onPickerDate(epochDay: Long) {
+        _uiState.update { state ->
+            val panel = state.panel as? EditorPanel.DateTime ?: return@update state
+            state.copy(panel = panel.copy(pickedEpochDay = epochDay))
+        }
+    }
+
+    // Aplica el valor a lo que el editor posee (fecha, borradores); en una tarea guardada el recordatorio
+    // y la subtarea viven en sus propios ViewModels, así que se devuelve el valor para que el host lo encamine.
+    fun onPickerTime(time: LocalTime): PickedDateTime? {
+        val state = _uiState.value
+        val panel = state.panel as? EditorPanel.DateTime ?: return null
+        val epochDay = panel.pickedEpochDay ?: return null
+        val local = LocalDateTime.of(LocalDate.ofEpochDay(epochDay), time)
+        closePanel()
+        val saved = state.taskId != null
+        return when (panel.target) {
+            PickerTarget.TASK_DUE -> null.also { onDueAtChange(local) }
+            PickerTarget.REMINDER ->
+                if (saved) PickedDateTime(panel.target, local) else null.also { reminderCustom(local) }
+            PickerTarget.SUBTASK_DUE ->
+                if (saved) PickedDateTime(panel.target, local) else null.also { onEditSubtaskDueAtChange(local) }
+        }
+    }
+
+    fun onClearDue() {
+        onDueAtChange(null)
+        closePanel()
+    }
+
+    fun onBack() {
+        val panel = _uiState.value.panel
+        if (panel == EditorPanel.None) {
+            requestClose()
+        } else {
+            _uiState.update { it.copy(panel = panel.parent()) }
+        }
+    }
+
+    fun requestClose() {
+        val state = _uiState.value
+        if (state.isClosing) {
+            return
+        }
+        if (state.isDirty) {
+            _uiState.update { it.copy(panel = EditorPanel.DiscardConfirm) }
+        } else {
+            close()
+        }
+    }
+
+    fun confirmDiscard() = close()
+
+    fun keepEditing() = closePanel()
+
+    fun close() {
+        _uiState.update { it.copy(isClosing = true) }
     }
 
     fun onTitleChange(value: String) {
@@ -293,30 +461,18 @@ class TaskEditorViewModel(
             repeat = state.repeat,
         )
         viewModelScope.launch {
-            _uiState.value = state.copy(isSaving = true, error = null)
+            _uiState.update { it.copy(isSaving = true, error = null) }
             val result = if (state.taskId == null) {
-                repository.createTaskWithExtras(state.columnId, state.toCreation(draft))
+                repository.createTaskWithExtras(
+                    state.columnId,
+                    state.toCreation(draft),
+                    state.listId.takeIf { state.columnId == null },
+                )
             } else {
                 repository.updateTask(state.taskId, draft)
             }
             when (result) {
-                is DomainResult.Success -> dismiss()
-                is DomainResult.Failure ->
-                    _uiState.update { it.copy(isSaving = false, error = result.error) }
-            }
-        }
-    }
-
-    fun delete() {
-        val state = _uiState.value
-        val taskId = state.taskId ?: return
-        if (state.isSaving) {
-            return
-        }
-        _uiState.update { it.copy(isSaving = true, error = null) }
-        viewModelScope.launch {
-            when (val result = repository.deleteTask(taskId)) {
-                is DomainResult.Success -> dismiss()
+                is DomainResult.Success -> _uiState.update { it.copy(isClosing = true) }
                 is DomainResult.Failure ->
                     _uiState.update { it.copy(isSaving = false, error = result.error) }
             }
@@ -324,6 +480,8 @@ class TaskEditorViewModel(
     }
 
     fun dismiss() {
+        contextJob?.cancel()
+        contextJob = null
         _uiState.value = TaskEditorUiState()
     }
 
@@ -337,12 +495,15 @@ class TaskEditorViewModel(
             )
         },
         remindAt = reminderDraft,
+        addToMyDay = inMyDay,
     )
 
     private fun Task.toEditorState(): TaskEditorUiState = TaskEditorUiState(
         isOpen = true,
         taskId = id,
         columnId = columnId,
+        listId = listId,
+        completed = isCompleted,
         title = title,
         description = description.orEmpty(),
         priority = priority,
@@ -355,3 +516,5 @@ class TaskEditorViewModel(
         initialRepeat = repeat,
     )
 }
+
+data class PickedDateTime(val target: PickerTarget, val local: LocalDateTime)

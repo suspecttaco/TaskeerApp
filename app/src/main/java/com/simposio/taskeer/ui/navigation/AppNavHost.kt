@@ -79,7 +79,7 @@ fun AppNavHost(
             )
         }
         composable(AppDestination.SETTINGS.route) { SettingsScreen(viewModelFactory) }
-        composable(AppDestination.NOTIFICATIONS.route) { NotificationsScreen(viewModelFactory) }
+        composable(AppDestination.NOTIFICATIONS.route) { NotificationsScreen(viewModelFactory, onDelete) }
         composable(
             route = AppDestination.BOARD.route,
             arguments = listOf(
@@ -92,6 +92,7 @@ fun AppNavHost(
                     navController.navigate(AppDestination.boardColumnsRoute(boardId))
                 },
                 onBoardDeleted = navController::navigateHome,
+                onDelete = onDelete,
             )
         }
         composable(
@@ -100,7 +101,7 @@ fun AppNavHost(
                 navArgument(ColumnsViewModel.BOARD_ID_ARG) { type = NavType.StringType },
             ),
         ) {
-            ColumnsScreen(viewModelFactory)
+            ColumnsScreen(viewModelFactory, onDelete)
         }
     }
 }

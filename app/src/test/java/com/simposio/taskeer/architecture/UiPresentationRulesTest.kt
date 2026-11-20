@@ -345,7 +345,10 @@ class UiPresentationRulesTest {
         val sheetFiles = uiFiles().filter { it.readText().contains("ModalBottomSheet(") }
         val names = sheetFiles.map { it.name }.toSet()
 
-        assertEquals(setOf("TaskActionsSheet.kt", "AssignToBoardHost.kt", "MoveToListHost.kt"), names)
+        assertEquals(
+            setOf("TaskActionsSheet.kt", "AssignToBoardHost.kt", "MoveToListHost.kt", "TaskEditorSheet.kt"),
+            names,
+        )
         sheetFiles.forEach { file ->
             val text = file.readText()
             assertTrue("${file.name}: asa", text.contains("dragHandle ="))
@@ -403,15 +406,16 @@ class UiPresentationRulesTest {
 
     @Test
     fun editorUsaDesplegableParaPrioridad() {
-        val source = File(sourcesRoot, "ui/tasks/TaskEditorDialog.kt").readText()
+        val source = source("ui/tasks/TaskEditorPills.kt")
 
-        assertTrue(source.contains("options = TaskPriority.entries"))
+        assertTrue(source.contains("TaskPriority.entries"))
         assertTrue(!Regex("RadioOption\\([^)]*priority", RegexOption.DOT_MATCHES_ALL).containsMatchIn(source))
     }
 
     @Test
     fun selectorDeRepeticion_tomaLosTextosDeRecursosYNoLlevaLaRegla() {
         val section = File(sourcesRoot, "ui/tasks/RepeatSection.kt").readText()
+        val pills = source("ui/tasks/TaskEditorPills.kt")
         val strings = File(sourcesRoot, "../../../../res/values/strings.xml").readText()
 
         listOf("Repetir", "No se repite", "Cada día", "Entre semana", "Cada semana", "Cada mes", "Cada año", "Personalizada…")
@@ -419,7 +423,7 @@ class UiPresentationRulesTest {
                 assertTrue("$label debe vivir en strings.xml", strings.contains(">$label<"))
                 assertTrue("$label no debe estar escrito en el composable", !section.contains("\"$label\""))
             }
-        assertTrue(section.contains("R.string.task_repeat_hint_needs_due"))
+        assertTrue(pills.contains("R.string.task_repeat_hint_needs_due"))
         assertTrue("el composable no construye reglas", !section.contains("TaskRepeat("))
         assertTrue("el composable no calcula fechas", !section.contains("nextDueAt"))
     }
@@ -500,8 +504,10 @@ class UiPresentationRulesTest {
 
     @Test
     fun lasPantallasDeTareasReciben_onDelete() {
-        LIST_SCREENS.forEach { path ->
-            assertTrue("$path debe recibir onDelete", source(path).contains("onDelete: (String) -> Unit"))
+        EDITOR_HOST_SCREENS.forEach { path ->
+            val text = source(path)
+            assertTrue("$path debe recibir onDelete", text.contains("onDelete: (String) -> Unit"))
+            assertTrue("$path debe pasar onDelete al editor", text.contains("rememberTaskEditorHost(viewModelFactory, onDelete)"))
         }
         assertTrue(source("ui/shell/AppShell.kt").contains("onDelete = deletion::delete"))
     }
@@ -821,6 +827,286 @@ class UiPresentationRulesTest {
         assertTrue(!source("ui/quickadd/QuickAddViewModel.kt").contains("LocalTime"))
     }
 
+    @Test
+    fun editorEsUnaHojaYNoUnDialogo() {
+        val sheet = source("ui/tasks/TaskEditorSheet.kt")
+
+        assertTrue(sheet.contains("ModalBottomSheet("))
+        assertTrue(sheet.contains("skipPartiallyExpanded = true"))
+        EDITOR_FILES.forEach { assertTrue("$it usa Dialog(", !source(it).contains("Dialog(")) }
+    }
+
+    @Test
+    fun editorTieneCabeceraConCerrarMenuYGuardar() {
+        val sheet = source("ui/tasks/TaskEditorSheet.kt")
+
+        listOf("R.string.quick_add_close", "R.string.task_save", "R.string.task_editor_menu", "DropdownMenu(")
+            .forEach { assertTrue("falta $it", sheet.contains(it)) }
+        assertTrue(sheet.contains("R.string.row_action_delete"))
+        assertTrue(sheet.contains("enabled = state.isDirty"))
+    }
+
+    @Test
+    fun editorLlamaNotasALaDescripcion() {
+        val strings = File(sourcesRoot, "../../../../res/values/strings.xml").readText()
+
+        assertTrue(strings.contains("<string name=\"task_notes_label\">Notas</string>"))
+        assertTrue(!strings.contains("task_description_label"))
+    }
+
+    @Test
+    fun editorTieneLasSietePildorasEnOrden() {
+        val pills = source("ui/tasks/TaskEditorPills.kt")
+        val order = listOf(
+            "R.string.task_pill_complete",
+            "R.string.task_pill_my_day",
+            "R.string.task_pill_due",
+            "R.string.reminder_title",
+            "R.string.task_repeat_label",
+            "R.string.task_priority_label",
+            "R.string.task_assignee_label",
+        )
+
+        val positions = order.map { pills.indexOf(it) }
+        assertTrue("faltan píldoras: $positions", positions.all { it >= 0 })
+        assertEquals(positions.sorted(), positions)
+    }
+
+    @Test
+    fun pildorasDelEditorUsanChipsNativos() {
+        val pills = source("ui/tasks/TaskEditorPills.kt")
+
+        assertTrue(pills.contains("FilterChip("))
+        assertTrue(pills.contains("AssistChip("))
+        assertTrue(!pills.contains("Surface("))
+        assertTrue(!pills.contains("clickable"))
+    }
+
+    @Test
+    fun subtareasDelEditorNoUsanDialogos() {
+        listOf("ui/tasks/SubtaskEditFields.kt", "ui/tasks/SubtasksSection.kt", "ui/tasks/SubtaskDraftsSection.kt")
+            .forEach { path ->
+                val text = source(path)
+                assertTrue("$path abre diálogos de fecha", !text.contains("DueDatePickerDialog") && !text.contains("DueTimePickerDialog"))
+                assertTrue("$path debe dar clave estable a las filas", path.endsWith("SubtaskEditFields.kt") || text.contains("key("))
+            }
+    }
+
+    @Test
+    fun editorNoUsaDialogosApilados() {
+        val forbidden = listOf("AlertDialog", "Dialog(", "DatePickerDialog", "DueDatePickerDialog", "DueTimePickerDialog")
+        EDITOR_FILES.forEach { path ->
+            val text = source(path)
+            forbidden.forEach { assertTrue("$path contiene $it", !text.contains(it)) }
+        }
+    }
+
+    @Test
+    fun editorGestionaAtrasDentroDeLaHoja() {
+        assertTrue(source("ui/tasks/TaskEditorSheet.kt").contains("BackHandler("))
+        assertEquals(1, Regex("BackHandler\\(").findAll(source("ui/shell/AppShell.kt")).count())
+    }
+
+    @Test
+    fun editorAplicaInsetsEnElContenidoDeLaHoja() {
+        val sheet = source("ui/tasks/TaskEditorSheet.kt")
+
+        assertEquals(1, Regex("imePadding\\(\\)").findAll(sheet).count())
+        val navigation = sheet.indexOf("navigationBarsPadding()")
+        val ime = sheet.indexOf("imePadding()")
+        val height = sheet.indexOf(".height(")
+        assertTrue("el orden debe ser navigationBarsPadding, imePadding, height", navigation in 0 until ime && ime < height)
+        assertTrue(!sheet.contains("WindowInsets") && !sheet.contains("windowInsetsPadding"))
+        EDITOR_FILES.filter { it != "ui/tasks/TaskEditorSheet.kt" }
+            .forEach { assertTrue("$it añade imePadding", !source(it).contains("imePadding")) }
+    }
+
+    @Test
+    fun editorDevuelveElFocoALaPildora() {
+        val pills = source("ui/tasks/TaskEditorPills.kt")
+
+        listOf("val due = FocusRequester()", "val reminder = FocusRequester()", "val list = FocusRequester()")
+            .forEach { assertTrue("falta $it", pills.contains(it)) }
+        assertTrue(source("ui/tasks/TaskEditorSheet.kt").contains("pillFocus.forPanel(lastPanel)"))
+    }
+
+    @Test
+    fun editorNoDefineDuracionesPropias() {
+        val forbidden = listOf("tween(", "spring(", "snap(", "Millis")
+        EDITOR_FILES.forEach { path ->
+            val text = source(path)
+            forbidden.forEach { assertTrue("$path define una duración con $it", !text.contains(it)) }
+            assertTrue("$path anima un valor propio", !Regex("animate\\w*AsState").containsMatchIn(text))
+        }
+    }
+
+    @Test
+    fun editorCierraConHideAntesDeVaciar() {
+        val sheet = source("ui/tasks/TaskEditorSheet.kt")
+        val closing = sheet.substringAfter("LaunchedEffect(state.isClosing)")
+
+        assertTrue(closing.indexOf("sheetState.hide()") in 0 until closing.indexOf("onClosed.value()"))
+    }
+
+    @Test
+    fun editorAnunciaPaneTitle() {
+        assertTrue(source("ui/tasks/TaskEditorSheet.kt").contains("paneTitle = title"))
+        assertTrue(source("ui/tasks/TaskEditorPanels.kt").contains("paneTitle = title"))
+    }
+
+    @Test
+    fun editorBorraPorOnDeleteYNoPorElRepositorio() {
+        assertTrue(!source("ui/tasks/TaskEditorViewModel.kt").contains("deleteTask("))
+        assertTrue(!source("ui/tasks/TaskEditorViewModel.kt").contains("fun delete("))
+        val host = source("ui/tasks/TaskEditorHost.kt")
+        assertTrue(host.contains("onDelete: (String) -> Unit"))
+        assertTrue(host.contains("editorState.taskId?.let(onDelete)"))
+    }
+
+    @Test
+    fun editorNoAnadeRutas() {
+        val destinations = source("ui/navigation/AppDestination.kt")
+
+        assertTrue(!destinations.contains("EDITOR", ignoreCase = true))
+    }
+
+    @Test
+    fun taskEditorDialogYaNoExiste() {
+        assertTrue(!File(sourcesRoot, "ui/tasks/TaskEditorDialog.kt").exists())
+        assertTrue(!File(sourcesRoot, "ui/tasks/RemindersSection.kt").exists())
+        assertTrue(!File(sourcesRoot, "ui/tasks/ReminderPanel.kt").exists())
+    }
+
+    @Test
+    fun editorNoGuardaEstadoDeNegocioEnRememberSaveable() {
+        listOf(
+            "ui/tasks/TaskEditorSheet.kt",
+            "ui/tasks/TaskEditorPills.kt",
+            "ui/tasks/TaskEditorPanels.kt",
+            "ui/tasks/AnimatedSubtaskRow.kt",
+            "ui/tasks/SubtaskEditFields.kt",
+            "ui/tasks/SubtasksSection.kt",
+            "ui/tasks/SubtaskDraftsSection.kt",
+        ).forEach { path -> assertTrue("$path usa rememberSaveable", !source(path).contains("rememberSaveable")) }
+    }
+
+    @Test
+    fun editorFijaLaAlturaDeLaHojaAl65PorCiento() {
+        val spacing = source("ui/theme/Spacing.kt")
+        val sheet = source("ui/tasks/TaskEditorSheet.kt")
+
+        assertTrue(spacing.contains("const val EditorSheetHeightFraction = 0.65f"))
+        assertTrue(spacing.contains("val EditorSheetMinHeight = 400.dp"))
+        assertTrue(spacing.contains("val EditorDragHandleHeight"))
+        listOf("Spacing.EditorSheetHeightFraction", "Spacing.EditorDragHandleHeight", "Spacing.EditorSheetMinHeight", "LocalWindowInfo", "LocalDensity", ".height(")
+            .forEach { assertTrue("falta $it", sheet.contains(it)) }
+        assertTrue("sin LocalConfiguration", !sheet.contains("LocalConfiguration"))
+        assertTrue("sin literal de la fracción", !sheet.contains("0.65"))
+        assertTrue("el contenido no llena la ventana", !sheet.contains("fillMaxSize()"))
+    }
+
+    @Test
+    fun datePickerCompactoSoloEnElEditor() {
+        assertTrue(source("ui/tasks/TaskEditorPanels.kt").contains("compact = true"))
+        assertTrue(!source("ui/tasks/TaskActionsSheet.kt").contains("compact"))
+        val pickers = source("ui/tasks/TaskDuePickers.kt")
+        assertTrue(pickers.contains("compact: Boolean = false"))
+        assertTrue(pickers.contains("title = null, headline = null, showModeToggle = false"))
+    }
+
+    @Test
+    fun editorRecordatorioEsUnMenu() {
+        val pills = source("ui/tasks/TaskEditorPills.kt")
+        val reminder = pills.substringAfter("private fun ReminderPill(").substringBefore("private fun RepeatPill(")
+
+        assertTrue(reminder.contains("PillMenu("))
+        listOf("reminder_later_today", "reminder_tomorrow", "reminder_next_week", "reminder_custom", "reminder_remove")
+            .forEach { assertTrue("falta R.string.$it", reminder.contains("R.string.$it")) }
+        assertTrue(pills.substringAfter("private fun PillMenu(").substringBefore("private fun ReminderPill(").contains("DropdownMenu("))
+        assertTrue(!File(sourcesRoot, "ui/tasks/ReminderPanel.kt").exists())
+        assertTrue(!source("ui/tasks/TaskEditorUiState.kt").contains("object Reminder"))
+    }
+
+    @Test
+    fun editorRepetirEsUnMenu() {
+        val pills = source("ui/tasks/TaskEditorPills.kt")
+        val repeat = pills.substringAfter("private fun RepeatPill(").substringBefore("private fun PriorityPill(")
+
+        assertTrue(repeat.contains("PillMenu("))
+        assertTrue(repeat.contains("RepeatPreset.entries"))
+        assertTrue(repeat.contains("R.string.task_repeat_hint_needs_due"))
+        assertTrue(pills.contains("RepeatCustomFields("))
+        assertTrue(!source("ui/tasks/TaskEditorPanels.kt").contains("RepeatPanel"))
+        assertTrue(!source("ui/tasks/TaskEditorUiState.kt").contains("object Repeat"))
+    }
+
+    @Test
+    fun editorAnimaElCambioDePanel() {
+        val sheet = source("ui/tasks/TaskEditorSheet.kt")
+
+        assertTrue(sheet.contains("AnimatedContent("))
+        assertTrue(sheet.contains("transitionSpec = { editorPanelTransition(animated) }"))
+        assertTrue(sheet.contains("import com.simposio.taskeer.ui.navigation.editorPanelTransition"))
+    }
+
+    @Test
+    fun editorAnimaSeccionesYFilas() {
+        val animated = ANIMATED_EDITOR_FILES.map { source(it) }
+        assertTrue(animated.all { it.contains("AnimatedVisibility(") || it.contains("animateContentSize(") || it.contains("AnimatedContent(") })
+        listOf("ui/tasks/SubtasksSection.kt", "ui/tasks/SubtaskDraftsSection.kt").forEach { path ->
+            val text = source(path)
+            assertTrue("$path debe animar el tamaño", text.contains("animateContentSize(editorSizeSpec(animated))"))
+            assertTrue("$path debe usar la fila animada", text.contains("AnimatedSubtaskRow("))
+            assertTrue("$path debe dar clave a las filas", text.contains("key("))
+        }
+        val row = source("ui/tasks/AnimatedSubtaskRow.kt")
+        assertTrue(row.contains("MutableTransitionState"))
+        assertTrue("el borrado diferido también corre al salir de composición", row.contains("onDispose"))
+        assertTrue(source("ui/tasks/TaskEditorPanels.kt").contains("editorRowEnter(animated)"))
+    }
+
+    @Test
+    fun editorAnimaElValorDeLasPildoras() {
+        val pills = source("ui/tasks/TaskEditorPills.kt")
+
+        assertTrue(pills.contains("AnimatedContent("))
+        assertTrue(pills.contains("transitionSpec = { editorValueTransition(animated) }"))
+        assertTrue(pills.contains("R.string.task_pill_description"))
+        assertTrue("la descripción lleva el valor vigente", pills.contains("contentDescription = description"))
+    }
+
+    @Test
+    fun editorAnimaSoloConHelpersDeNavMotion() {
+        ANIMATED_EDITOR_FILES.forEach { path ->
+            val text = source(path)
+            assertTrue("$path no usa rememberAnimationsEnabled", text.contains("import com.simposio.taskeer.ui.components.rememberAnimationsEnabled"))
+            assertTrue("$path no usa helpers de NavMotion", text.contains("import com.simposio.taskeer.ui.navigation.editor"))
+        }
+        val motion = source("ui/navigation/NavMotion.kt")
+        listOf("object EditorMotion", "fun editorPanelTransition(", "fun editorValueTransition(", "fun editorSizeSpec(", "fun editorRowEnter(", "fun editorRowExit(")
+            .forEach { assertTrue("NavMotion.kt sin $it", motion.contains(it)) }
+    }
+
+    @Test
+    fun editorMenusExponenSeleccion() {
+        val pills = source("ui/tasks/TaskEditorPills.kt")
+        val repeat = pills.substringAfter("private fun RepeatPill(").substringBefore("private fun PriorityPill(")
+        val priority = pills.substringAfter("private fun PriorityPill(").substringBefore("private fun AssigneePill(")
+
+        assertTrue(repeat.contains("semantics { selected = current }"))
+        assertTrue(priority.contains("semantics { selected = current }"))
+        assertTrue(pills.contains("import androidx.compose.ui.semantics.selected"))
+    }
+
+    @Test
+    fun editorUsaUnSoloBackHandlerYFocoTrasComponerElFormulario() {
+        val sheet = source("ui/tasks/TaskEditorSheet.kt")
+
+        assertEquals(1, Regex("BackHandler\\(").findAll(sheet).count())
+        assertTrue(sheet.contains("snapshotFlow { composedForms.intValue }"))
+        assertTrue("el foco se pide tras esperar al formulario", sheet.indexOf("awaitForm()") in 0 until sheet.indexOf("pillFocus.forPanel(lastPanel)"))
+    }
+
     private fun source(path: String): String = File(sourcesRoot, path).readText()
 
     private fun quickAddFiles(): List<File> = File(sourcesRoot, "ui/quickadd").walkTopDown()
@@ -879,6 +1165,36 @@ class UiPresentationRulesTest {
             "ui/upcoming/UpcomingScreen.kt",
             "ui/alltasks/AllTasksScreen.kt",
         )
+        val EDITOR_HOST_SCREENS = LIST_SCREENS + listOf(
+            "ui/board/BoardScreen.kt",
+            "ui/columns/ColumnsScreen.kt",
+            "ui/notifications/NotificationsScreen.kt",
+        )
+        val EDITOR_FILES = listOf(
+            "ui/tasks/TaskEditorSheet.kt",
+            "ui/tasks/TaskEditorPills.kt",
+            "ui/tasks/TaskEditorPanels.kt",
+            "ui/tasks/TaskEditorHost.kt",
+            "ui/tasks/RepeatSection.kt",
+            "ui/tasks/AnimatedSubtaskRow.kt",
+            "ui/tasks/SubtaskEditFields.kt",
+            "ui/tasks/SubtasksSection.kt",
+            "ui/tasks/SubtaskDraftsSection.kt",
+        )
+        val EDITOR_NEW_FILES = listOf(
+            "ui/tasks/TaskEditorSheet.kt",
+            "ui/tasks/TaskEditorPills.kt",
+            "ui/tasks/TaskEditorPanels.kt",
+            "ui/tasks/AnimatedSubtaskRow.kt",
+        )
+        val ANIMATED_EDITOR_FILES = listOf(
+            "ui/tasks/TaskEditorSheet.kt",
+            "ui/tasks/TaskEditorPills.kt",
+            "ui/tasks/TaskEditorPanels.kt",
+            "ui/tasks/AnimatedSubtaskRow.kt",
+            "ui/tasks/SubtasksSection.kt",
+            "ui/tasks/SubtaskDraftsSection.kt",
+        )
         val PILL_FILES = listOf(
             "ui/shell/FloatingChrome.kt",
             "ui/shell/QuickAddScrim.kt",
@@ -900,7 +1216,7 @@ class UiPresentationRulesTest {
             "ui/alltasks/AllTasksScreen.kt",
             "ui/calendar/CalendarPlaceholderScreen.kt",
             "ui/boards/BoardNameDialog.kt",
-        )
+        ) + EDITOR_NEW_FILES
         val NEW_UI_FILES = listOf(
             "ui/shell/QuickAddScrim.kt",
             "ui/navigation/NavMotion.kt",
@@ -928,6 +1244,6 @@ class UiPresentationRulesTest {
             "ui/lists/ListScreen.kt",
             "ui/upcoming/UpcomingScreen.kt",
             "ui/alltasks/AllTasksScreen.kt",
-        )
+        ) + EDITOR_NEW_FILES
     }
 }

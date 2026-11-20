@@ -47,6 +47,10 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 container.dateTimeConverter,
                 container.preferencesRepository,
                 container.timeZoneProvider,
+                container.taskListRepository,
+                container.myDayRepository,
+                container.boardRepository,
+                container.columnRepository,
             ) as T
         modelClass.isAssignableFrom(SubtasksViewModel::class.java) ->
             SubtasksViewModel(container.subtaskRepository, container.dateTimeConverter) as T

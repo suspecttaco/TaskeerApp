@@ -6,10 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,72 +19,53 @@ import androidx.compose.ui.text.input.KeyboardType
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.RepeatUnit
 import com.simposio.taskeer.domain.task.RepeatPreset
-import com.simposio.taskeer.ui.components.SectionHeader
 import com.simposio.taskeer.ui.theme.Spacing
 import java.time.DayOfWeek
 
 @Composable
-internal fun RepeatSection(
+internal fun RepeatCustomFields(
     state: TaskEditorUiState,
     actions: RepeatActions,
     modifier: Modifier = Modifier,
 ) {
+    val rule = state.repeat ?: return
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap)) {
-        SectionHeader(text = stringResource(R.string.task_repeat_label), icon = Icons.Filled.Repeat)
-        if (!state.repeatEnabled) {
-            Text(
-                text = stringResource(R.string.task_repeat_hint_needs_due),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(Spacing.InlineGap),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = state.repeatIntervalText,
+                onValueChange = actions.onIntervalChange,
+                label = { Text(stringResource(R.string.task_repeat_interval_label)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.weight(1f),
+            )
+            SelectField(
+                label = stringResource(R.string.task_repeat_unit_label),
+                options = RepeatUnit.entries,
+                selected = rule.unit,
+                optionLabel = { stringResource(it.labelRes()) },
+                onSelect = actions.onUnitChange,
+                modifier = Modifier.weight(1f),
             )
         }
-        SelectField(
-            label = stringResource(R.string.task_repeat_label),
-            options = RepeatPreset.entries,
-            selected = state.repeatPreset,
-            optionLabel = { stringResource(it.labelRes()) },
-            onSelect = actions.onPresetChange,
-            enabled = state.repeatEnabled,
-        )
-        val rule = state.repeat
-        if (state.repeatPreset == RepeatPreset.CUSTOM && rule != null) {
+        if (rule.unit == RepeatUnit.WEEK) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(Spacing.InlineGap),
-                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.ItemGap),
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                OutlinedTextField(
-                    value = state.repeatIntervalText,
-                    onValueChange = actions.onIntervalChange,
-                    label = { Text(stringResource(R.string.task_repeat_interval_label)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.weight(1f),
-                )
-                SelectField(
-                    label = stringResource(R.string.task_repeat_unit_label),
-                    options = RepeatUnit.entries,
-                    selected = rule.unit,
-                    optionLabel = { stringResource(it.labelRes()) },
-                    onSelect = actions.onUnitChange,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            if (rule.unit == RepeatUnit.WEEK) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.ItemGap),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    DayOfWeek.entries.forEach { day ->
-                        val description = stringResource(day.descriptionRes())
-                        FilterChip(
-                            selected = day in rule.weekdays,
-                            onClick = { actions.onWeekdayToggle(day) },
-                            label = { Text(stringResource(day.labelRes())) },
-                            modifier = Modifier
-                                .weight(1f)
-                                .semantics { contentDescription = description },
-                        )
-                    }
+                DayOfWeek.entries.forEach { day ->
+                    val description = stringResource(day.descriptionRes())
+                    FilterChip(
+                        selected = day in rule.weekdays,
+                        onClick = { actions.onWeekdayToggle(day) },
+                        label = { Text(stringResource(day.labelRes())) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .semantics { contentDescription = description },
+                    )
                 }
             }
         }
@@ -95,7 +73,7 @@ internal fun RepeatSection(
 }
 
 @StringRes
-private fun RepeatPreset.labelRes(): Int = when (this) {
+internal fun RepeatPreset.labelRes(): Int = when (this) {
     RepeatPreset.NONE -> R.string.task_repeat_none
     RepeatPreset.DAILY -> R.string.task_repeat_daily
     RepeatPreset.WEEKDAYS -> R.string.task_repeat_weekdays
