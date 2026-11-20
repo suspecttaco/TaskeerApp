@@ -14,6 +14,7 @@ import com.simposio.taskeer.ui.board.BoardViewModel
 import com.simposio.taskeer.ui.calendar.CalendarPlaceholderScreen
 import com.simposio.taskeer.ui.columns.ColumnsScreen
 import com.simposio.taskeer.ui.columns.ColumnsViewModel
+import com.simposio.taskeer.ui.components.rememberAnimationsEnabled
 import com.simposio.taskeer.ui.home.HomeScreen
 import com.simposio.taskeer.ui.lists.ListScreen
 import com.simposio.taskeer.ui.lists.ListViewModel
@@ -33,10 +34,15 @@ fun AppNavHost(
     onDelete: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val animated = rememberAnimationsEnabled()
     NavHost(
         navController = navController,
         startDestination = AppDestination.START.route,
         modifier = modifier,
+        enterTransition = { zoomOutEnter(animated) },
+        exitTransition = { zoomOutExit(animated) },
+        popEnterTransition = { zoomOutEnter(animated) },
+        popExitTransition = { zoomOutExit(animated) },
     ) {
         composable(AppDestination.MY_DAY.route) {
             MyDayScreen(viewModelFactory, swipeHint, onAddTask = { onAddForDate(null) }, onDelete = onDelete)

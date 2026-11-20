@@ -23,4 +23,5 @@ internal object Spacing {
     val ChromeClearance = FloatingControlSize + ScreenPadding * 2
     val HubBarClearance = ChromeClearance + FloatingControlSize
     val FloatingElevation = 6.dp
+    val PillListPanelMaxHeight = 240.dp
 }

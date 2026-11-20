@@ -1,5 +1,6 @@
 package com.simposio.taskeer.ui.shell
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -15,7 +16,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.outlined.FormatListBulleted
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.MaterialTheme
@@ -32,30 +35,49 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import com.simposio.taskeer.R
 import com.simposio.taskeer.ui.components.ActionIcon
 import com.simposio.taskeer.ui.components.DecorativeIcon
 import com.simposio.taskeer.ui.components.HomeButton
+import com.simposio.taskeer.ui.components.rememberAnimationsEnabled
 import com.simposio.taskeer.ui.navigation.Chrome
 import com.simposio.taskeer.ui.navigation.TopBarKind
+import com.simposio.taskeer.ui.navigation.panelEnter
+import com.simposio.taskeer.ui.navigation.panelExit
 import com.simposio.taskeer.ui.quickadd.QuickAddUiState
+import com.simposio.taskeer.domain.task.QuickDateChoice
+import com.simposio.taskeer.domain.task.QuickDateShortcut
+import com.simposio.taskeer.ui.tasks.DueDatePickerDialog
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 import com.simposio.taskeer.ui.upcoming.text
+import java.time.LocalDate
 
 class PillActions(
     val onOpen: () -> Unit,
     val onTitleChange: (String) -> Unit,
     val onSend: () -> Unit,
     val onClearDate: () -> Unit,
+    val onShortcut: (QuickDateShortcut) -> Unit,
+    val onPickDate: () -> Unit,
+    val onDatePicked: (LocalDate) -> Unit,
+    val onDismissDatePicker: () -> Unit,
+    val onToggleListPanel: () -> Unit,
+    val onSelectList: (String) -> Unit,
 )
 
-// Insets propios: el cromo flota sobre el NavHost, que ya aplica los suyos, y debe quedar sobre la barra del sistema y el IME.
+// Un solo inset de teclado, por fuera: el contenedor abierto queda pegado al teclado y, por dentro, su navigationBarsPadding()
+// deja que el fondo llegue al borde físico. El efecto de foco vive aquí (no en la píldora) porque el cierre puede
+// coincidir con un destino sin cromo, que saldría antes de la composición.
 @Composable
 fun BoxScope.FloatingChrome(
     chrome: Chrome,
@@ -64,74 +86,87 @@ fun BoxScope.FloatingChrome(
     onHome: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val inputFocus = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+    var wasOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(pill.isOpen) {
+        if (pill.isOpen) {
+            inputFocus.requestFocus()
+            wasOpen = true
+        } else if (wasOpen) {
+            keyboardController?.hide()
+            focusManager.clearFocus()
+            wasOpen = false
+        }
+    }
+    LaunchedEffect(pill.isListPanelOpen, pill.isDatePickerOpen) {
+        if (pill.isOpen && !pill.isListPanelOpen && !pill.isDatePickerOpen) inputFocus.requestFocus()
+    }
     if (!chrome.showHomeButton && !chrome.showPill) return
-    Row(
-        modifier = modifier
-            .align(Alignment.BottomCenter)
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .imePadding()
-            .padding(Spacing.ScreenPadding),
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        if (chrome.showHomeButton && !pill.isOpen) HomeButton(onClick = onHome)
-        if (!pill.isOpen) Spacer(Modifier.weight(1f))
-        if (chrome.showPill) {
-            QuickAddPill(
-                state = pill,
-                actions = pillActions,
-                modifier = if (pill.isOpen) Modifier.weight(1f) else Modifier,
-            )
+    Box(modifier = modifier.align(Alignment.BottomCenter).fillMaxWidth().imePadding()) {
+        if (chrome.showPill && pill.isOpen) {
+            ExpandedPill(state = pill, actions = pillActions, inputFocus = inputFocus)
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(Spacing.ScreenPadding),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                if (chrome.showHomeButton) HomeButton(onClick = onHome)
+                Spacer(Modifier.weight(1f))
+                if (chrome.showPill) CollapsedPill(onOpen = pillActions.onOpen)
+            }
         }
     }
 }
 
 @Composable
-private fun QuickAddPill(state: QuickAddUiState, actions: PillActions, modifier: Modifier = Modifier) {
-    val inputFocus = remember { FocusRequester() }
-    val pillFocus = remember { FocusRequester() }
-    var wasOpen by remember { mutableStateOf(false) }
-    LaunchedEffect(state.isOpen) {
-        if (state.isOpen) {
-            inputFocus.requestFocus()
-            wasOpen = true
-        } else if (wasOpen) {
-            pillFocus.requestFocus()
-            wasOpen = false
-        }
-    }
-    if (!state.isOpen) {
-        val description = stringResource(R.string.pill_description)
-        Surface(
-            onClick = actions.onOpen,
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            shadowElevation = Spacing.FloatingElevation,
-            modifier = modifier
-                .heightIn(min = Spacing.FloatingControlSize)
-                .widthIn(min = Spacing.PillCollapsedMinWidth)
-                .focusRequester(pillFocus)
-                .semantics { contentDescription = description },
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = Spacing.ScreenPadding),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.InlineGap, Alignment.CenterHorizontally),
-            ) {
-                DecorativeIcon(Icons.Filled.Add)
-                Text(text = stringResource(R.string.pill_hint), style = MaterialTheme.typography.titleSmall)
-            }
-        }
-        return
-    }
+private fun CollapsedPill(onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    val description = stringResource(R.string.pill_description)
     Surface(
+        onClick = onOpen,
         shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        shadowElevation = Spacing.FloatingElevation,
+        modifier = modifier
+            .heightIn(min = Spacing.FloatingControlSize)
+            .widthIn(min = Spacing.PillCollapsedMinWidth)
+            .semantics { contentDescription = description },
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = Spacing.ScreenPadding),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.InlineGap, Alignment.CenterHorizontally),
+        ) {
+            DecorativeIcon(Icons.Filled.Add)
+            Text(text = stringResource(R.string.pill_hint), style = MaterialTheme.typography.titleSmall)
+        }
+    }
+}
+
+@Composable
+private fun ExpandedPill(
+    state: QuickAddUiState,
+    actions: PillActions,
+    inputFocus: FocusRequester,
+    modifier: Modifier = Modifier,
+) {
+    val animated = rememberAnimationsEnabled()
+    Surface(
+        shape = RectangleShape,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         shadowElevation = Spacing.FloatingElevation,
-        modifier = modifier,
+        modifier = modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(horizontal = Spacing.InlineGap, vertical = Spacing.ItemGap)) {
+        Column(
+            modifier = Modifier
+                .navigationBarsPadding()
+                .padding(horizontal = Spacing.ScreenPadding, vertical = Spacing.ItemGap),
+        ) {
             state.error?.let { error ->
                 Text(
                     text = error.message,
@@ -140,10 +175,27 @@ private fun QuickAddPill(state: QuickAddUiState, actions: PillActions, modifier:
                     modifier = Modifier.padding(horizontal = Spacing.InlineGap),
                 )
             }
-            state.dueLabel?.let { label ->
+            AnimatedVisibility(
+                visible = state.isListPanelOpen,
+                enter = panelEnter(animated),
+                exit = panelExit(animated),
+            ) {
+                QuickAddListPanel(
+                    options = state.listOptions,
+                    onSelect = actions.onSelectList,
+                    modifier = Modifier.padding(bottom = Spacing.ItemGap),
+                )
+            }
+            QuickDateShortcutRow(
+                choice = state.dateChoice,
+                onShortcut = actions.onShortcut,
+                onPickDate = actions.onPickDate,
+            )
+            if (state.dateChoice != QuickDateChoice.None) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = stringResource(R.string.pill_date_chip, label.text()),
+                        text = state.dueLabel?.let { stringResource(R.string.pill_date_chip, it.text()) }
+                            ?: stringResource(R.string.pill_date_chip_someday),
                         style = MaterialTheme.typography.labelLarge,
                         modifier = Modifier.padding(horizontal = Spacing.InlineGap),
                     )
@@ -160,6 +212,14 @@ private fun QuickAddPill(state: QuickAddUiState, actions: PillActions, modifier:
                     onValueChange = actions.onTitleChange,
                     label = { Text(stringResource(R.string.pill_input_label)) },
                     singleLine = true,
+                    shape = RectangleShape,
+                    trailingIcon = {
+                        PillListButton(
+                            listName = state.selectedListName.orEmpty(),
+                            panelOpen = state.isListPanelOpen,
+                            onClick = actions.onToggleListPanel,
+                        )
+                    },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                     keyboardActions = KeyboardActions(onSend = { actions.onSend() }),
                     modifier = Modifier
@@ -175,6 +235,24 @@ private fun QuickAddPill(state: QuickAddUiState, actions: PillActions, modifier:
             }
         }
     }
+    if (state.isDatePickerOpen) {
+        DueDatePickerDialog(
+            initialDate = state.dueDate,
+            onDatePicked = actions.onDatePicked,
+            onDismiss = actions.onDismissDatePicker,
+        )
+    }
+}
+
+@Composable
+private fun PillListButton(listName: String, panelOpen: Boolean, onClick: () -> Unit) {
+    val stateText = stringResource(if (panelOpen) R.string.pill_list_panel_open else R.string.pill_list_panel_closed)
+    ActionIcon(
+        icon = if (panelOpen) Icons.AutoMirrored.Filled.FormatListBulleted else Icons.AutoMirrored.Outlined.FormatListBulleted,
+        contentDescription = stringResource(R.string.pill_list_button, listName),
+        onClick = onClick,
+        modifier = Modifier.semantics { stateDescription = stateText },
+    )
 }
 
 @Preview(showBackground = true)
@@ -189,7 +267,7 @@ private fun QuickAddPillCollapsedPreview() {
                     showPill = true,
                 ),
                 pill = QuickAddUiState(),
-                pillActions = PillActions({}, {}, {}, {}),
+                pillActions = PillActions({}, {}, {}, {}, {}, {}, {}, {}, {}, {}),
                 onHome = {},
             )
         }
