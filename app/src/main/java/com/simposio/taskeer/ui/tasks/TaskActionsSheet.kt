@@ -43,6 +43,7 @@ import com.simposio.taskeer.ui.components.TaskRowUi
 import com.simposio.taskeer.ui.components.actionsIn
 import com.simposio.taskeer.ui.components.icon
 import com.simposio.taskeer.ui.components.labelRes
+import com.simposio.taskeer.ui.shell.TrackOpenSheet
 import com.simposio.taskeer.ui.theme.Spacing
 import java.time.LocalDate
 
@@ -99,6 +100,7 @@ private fun TaskActionsSheet(
             )
         },
     ) {
+        TrackOpenSheet()
         Column(
             modifier = Modifier
                 .fillMaxWidth()

@@ -32,6 +32,8 @@ fun AppNavHost(
     swipeHint: SwipeHintState,
     onAddForDate: (LocalDate?) -> Unit,
     onDelete: (String) -> Unit,
+    suggestionCount: Int,
+    onOpenSuggestions: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val animated = rememberAnimationsEnabled()
@@ -45,7 +47,14 @@ fun AppNavHost(
         popExitTransition = { zoomOutExit(animated) },
     ) {
         composable(AppDestination.MY_DAY.route) {
-            MyDayScreen(viewModelFactory, swipeHint, onAddTask = { onAddForDate(null) }, onDelete = onDelete)
+            MyDayScreen(
+                viewModelFactory = viewModelFactory,
+                swipeHint = swipeHint,
+                onAddTask = { onAddForDate(null) },
+                onDelete = onDelete,
+                suggestionCount = suggestionCount,
+                onOpenSuggestions = onOpenSuggestions,
+            )
         }
         composable(AppDestination.HOME.route) {
             HomeScreen(

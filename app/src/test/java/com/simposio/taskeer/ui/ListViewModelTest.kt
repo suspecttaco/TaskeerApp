@@ -8,6 +8,7 @@ import com.simposio.taskeer.domain.list.SEEDED_TASK_LIST_ID
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.MyDay
+import com.simposio.taskeer.domain.model.MyDayTask
 import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.RepeatUnit
@@ -344,6 +345,12 @@ class ListViewModelTest {
         override fun observeMarkedTaskIds(): Flow<Set<String>> = marked
 
         override fun observeOverdueCount(): Flow<Int> = emptyFlow()
+
+        override fun observeSuggestions(): Flow<List<MyDayTask>> = emptyFlow()
+
+        override fun observeSuggestionCount(): Flow<Int> = emptyFlow()
+
+        override suspend fun dismissSuggestion(taskId: String): DomainResult<Unit> = DomainResult.Success(Unit)
 
         override suspend fun setMarked(taskId: String, marked: Boolean): DomainResult<Unit> {
             calls += taskId to marked

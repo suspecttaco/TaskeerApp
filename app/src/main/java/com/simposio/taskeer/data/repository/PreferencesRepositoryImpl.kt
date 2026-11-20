@@ -14,6 +14,7 @@ import com.simposio.taskeer.domain.model.ReminderLead
 import com.simposio.taskeer.domain.model.ThemeMode
 import java.io.IOException
 import java.time.DayOfWeek
+import java.time.LocalDate
 import java.time.LocalTime
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -49,6 +50,9 @@ class PreferencesRepositoryImpl(
     override val defaultReminderTime: Flow<LocalTime> = readPreferences()
         .map { parseTime(it[KEY_DEFAULT_REMINDER_TIME_MINUTES], DEFAULT_REMINDER_TIME) }
 
+    override val suggestionsLastShownDay: Flow<LocalDate?> = readPreferences()
+        .map { prefs -> prefs[KEY_SUGGESTIONS_LAST_SHOWN_DAY]?.let { runCatching { LocalDate.parse(it) }.getOrNull() } }
+
     override suspend fun setThemeMode(mode: ThemeMode) {
         dataStore.edit { it[KEY_THEME_MODE] = mode.name }
     }
@@ -79,6 +83,10 @@ class PreferencesRepositoryImpl(
 
     override suspend fun setDefaultReminderTime(time: LocalTime) {
         dataStore.edit { it[KEY_DEFAULT_REMINDER_TIME_MINUTES] = time.toMinutes() }
+    }
+
+    override suspend fun setSuggestionsLastShownDay(day: LocalDate) {
+        dataStore.edit { it[KEY_SUGGESTIONS_LAST_SHOWN_DAY] = day.toString() }
     }
 
     private fun readPreferences(): Flow<Preferences> = dataStore.data
@@ -124,5 +132,6 @@ class PreferencesRepositoryImpl(
             intPreferencesKey("reminder_default_time_minutes")
         private val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
         private val KEY_DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
+        private val KEY_SUGGESTIONS_LAST_SHOWN_DAY = stringPreferencesKey("suggestions_last_shown_day")
     }
 }

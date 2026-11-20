@@ -38,13 +38,13 @@ class TaskRowActionsTest {
 
     @Test
     fun moverALista_soloEnLaPantallaDeLista() {
-        listOf(RowContext.MY_DAY, RowContext.PLANNED, RowContext.SUGGESTION).forEach { context ->
+        listOf(RowContext.MY_DAY, RowContext.PLANNED).forEach { context ->
             assertFalse(context.name, RowAction.MOVE_TO_LIST in actions(context, marked = true, inbox = true).sheet)
         }
     }
 
     @Test
-    fun derecha_borraEnLosCuatroContextos() {
+    fun derecha_borraEnLosTresContextos() {
         RowContext.entries.forEach { context ->
             assertEquals(context.name, RowAction.DELETE, actions(context, marked = true, inbox = true).swipeEnd)
         }
@@ -57,13 +57,12 @@ class TaskRowActionsTest {
                 val result = actions(context, completed = completed, marked = true, inbox = true)
                 val gestures = listOfNotNull(result.swipeEnd, result.swipeStart)
                 assertTrue(context.name, gestures.none { it == RowAction.COMPLETE || it == RowAction.REOPEN })
-                assertTrue(context.name, gestures.none { it == RowAction.KEEP_TODAY })
             }
         }
     }
 
     @Test
-    fun hoja_terminaEnBorrarEnLosCuatroContextos() {
+    fun hoja_terminaEnBorrarEnLosTresContextos() {
         RowContext.entries.forEach { context ->
             val sheet = actions(context, marked = true, inbox = true).sheet
             assertEquals(context.name, RowAction.DELETE, sheet.last())
@@ -76,7 +75,6 @@ class TaskRowActionsTest {
         assertEquals(RowAction.REMOVE_FROM_MY_DAY, actions(RowContext.MY_DAY, marked = true).swipeStart)
         assertEquals(RowAction.ADD_TO_MY_DAY, actions(RowContext.LIST, marked = false).swipeStart)
         assertEquals(RowAction.RESCHEDULE_TOMORROW, actions(RowContext.PLANNED).swipeStart)
-        assertEquals(RowAction.DISMISS, actions(RowContext.SUGGESTION).swipeStart)
     }
 
     @Test
@@ -143,25 +141,13 @@ class TaskRowActionsTest {
     }
 
     @Test
-    fun sugerencia_derechaBorra_izquierdaDescarta() {
-        val result = actions(RowContext.SUGGESTION)
-
-        assertEquals(RowAction.DELETE, result.swipeEnd)
-        assertEquals(RowAction.DISMISS, result.swipeStart)
+    fun contextos_soloTieneMiDiaListaYPlanificado() {
+        assertEquals(listOf("MY_DAY", "LIST", "PLANNED"), RowContext.entries.map { it.name })
     }
 
     @Test
-    fun sugerencia_mantenerHoyEnHojaYBoton() {
-        assertEquals(
-            listOf(
-                RowAction.KEEP_TODAY,
-                RowAction.RESCHEDULE_TOMORROW,
-                RowAction.COMPLETE,
-                RowAction.DISMISS,
-                RowAction.DELETE,
-            ),
-            actions(RowContext.SUGGESTION).sheet,
-        )
+    fun acciones_yaNoIncluyenLasDeSugerencia() {
+        assertTrue(RowAction.entries.none { it.name == "KEEP_TODAY" || it.name == "DISMISS" })
     }
 
     @Test

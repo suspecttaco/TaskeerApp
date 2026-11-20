@@ -10,8 +10,4 @@ data class MyDayTask(
     val listName: String? = null,
 )
 
-data class MyDay(
-    val pinned: List<MyDayTask>,
-    val assigned: List<MyDayTask>,
-    val suggestions: List<MyDayTask> = emptyList(),
-)
+data class MyDay(val pinned: List<MyDayTask>)

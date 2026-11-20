@@ -5,6 +5,7 @@ import com.simposio.taskeer.data.local.ColumnCountRow
 import com.simposio.taskeer.data.local.ListCountRow
 import com.simposio.taskeer.data.local.ColumnDao
 import com.simposio.taskeer.data.local.ColumnEntity
+import com.simposio.taskeer.data.local.DISMISSED_ADDED_AT
 import com.simposio.taskeer.data.local.MyDayDao
 import com.simposio.taskeer.data.local.MyDayEntryEntity
 import com.simposio.taskeer.data.local.MyDayRow
@@ -232,120 +233,32 @@ class MyDayRepositoryImplTest {
     }
 
     @Test
-    fun assigned_soloAsignadasAlUsuarioLocalConFecha() = runTest {
-        val fixture = fixture()
-        val due = now.plusSeconds(3600).toEpochMilli()
-        fixture.addTask("sin-asignado", dueAt = due)
-        fixture.addTask("otro", dueAt = due, assigneeId = "otro-usuario")
-        fixture.addTask("sin-fecha", assigneeId = LocalUser.ID)
-        fixture.addTask("ok", dueAt = due, assigneeId = LocalUser.ID)
-
-        val ids = fixture.repository.observeMyDay().first().assigned.map { it.task.id }
-
-        assertEquals(listOf("ok"), ids)
-    }
-
-    @Test
-    fun assigned_incluyeVencidasYDeHoy_yExcluyeFechasFuturas() = runTest {
-        val fixture = fixture()
-        fixture.addTask("vencida", dueAt = fixture.dayStart - 86_400_000, assigneeId = LocalUser.ID)
-        fixture.addTask("hoy", dueAt = now.plusSeconds(3600).toEpochMilli(), assigneeId = LocalUser.ID)
-        fixture.addTask("manana", dueAt = fixture.dayEnd + 1000, assigneeId = LocalUser.ID)
-
-        val items = fixture.repository.observeMyDay().first().assigned
-
-        assertEquals(listOf("vencida", "hoy"), items.map { it.task.id })
-        assertNull(items.first().addedAt)
-    }
-
-    @Test
-    fun assigned_dueAtEnElInstanteFinDeHoy_noApareceHoy() = runTest {
-        val fixture = fixture()
-        fixture.addTask("fin", dueAt = fixture.dayEnd, assigneeId = LocalUser.ID)
-        fixture.addTask("justo-antes", dueAt = fixture.dayEnd - 1, assigneeId = LocalUser.ID)
-
-        assertEquals(listOf("justo-antes"), fixture.repository.observeMyDay().first().assigned.map { it.task.id })
-    }
-
-    @Test
-    fun assigned_tareaDeBandejaConFechaDeHoy_aparece() = runTest {
-        val fixture = fixture()
-        fixture.addTask("pan", columnId = null, dueAt = now.plusSeconds(60).toEpochMilli(), assigneeId = LocalUser.ID)
-
-        val item = fixture.repository.observeMyDay().first().assigned.single()
-
-        assertEquals("pan", item.task.id)
-        assertNull(item.boardName)
-    }
-
-    @Test
-    fun assigned_completadaHoyConFechaHastaHoy_aparece() = runTest {
-        val fixture = fixture()
-        fixture.addTask(
-            "hecha",
-            columnId = "done",
-            dueAt = now.minusSeconds(60).toEpochMilli(),
-            assigneeId = LocalUser.ID,
-            completedAt = now.toEpochMilli(),
-        )
-
-        val item = fixture.repository.observeMyDay().first().assigned.single()
-
-        assertEquals("hecha", item.task.id)
-        assertTrue(item.task.isCompleted)
-    }
-
-    @Test
-    fun assigned_completadaConFechaFutura_noAparece() = runTest {
-        val fixture = fixture()
-        fixture.addTask(
-            "hecha-futura",
-            dueAt = fixture.dayEnd + 1000,
-            assigneeId = LocalUser.ID,
-            completedAt = now.toEpochMilli(),
-        )
-
-        assertTrue(fixture.repository.observeMyDay().first().assigned.isEmpty())
-    }
-
-    @Test
-    fun assigned_completadaAyer_noAparece() = runTest {
-        val fixture = fixture()
-        fixture.addTask(
-            "hecha-ayer",
-            dueAt = fixture.dayStart - 1000,
-            assigneeId = LocalUser.ID,
-            completedAt = fixture.dayStart - 1000,
-        )
-
-        assertTrue(fixture.repository.observeMyDay().first().assigned.isEmpty())
-    }
-
-    @Test
-    fun assigned_ordenaPorDueAtAscendenteConDesempatePorId() = runTest {
-        val fixture = fixture()
-        val base = now.toEpochMilli()
-        fixture.addTask("b", dueAt = base + 2000, assigneeId = LocalUser.ID)
-        fixture.addTask("z", dueAt = base + 1000, assigneeId = LocalUser.ID)
-        fixture.addTask("a", dueAt = base + 2000, assigneeId = LocalUser.ID)
-
-        val ids = fixture.repository.observeMyDay().first().assigned.map { it.task.id }
-
-        assertEquals(listOf("z", "a", "b"), ids)
-    }
-
-    @Test
-    fun tareaMarcadaYAsignada_apareceEnAmbosBloques() = runTest {
+    fun tareaMarcadaYAsignada_estaEnLaListaYNoEnLaHoja() = runTest {
         val fixture = fixture()
         fixture.addTask("t1", dueAt = now.toEpochMilli() + 1000, assigneeId = LocalUser.ID)
         fixture.repository.setMarked("t1", true)
 
-        val myDay = fixture.repository.observeMyDay().first()
-
-        assertEquals(listOf("t1"), myDay.pinned.map { it.task.id })
-        assertEquals(listOf("t1"), myDay.assigned.map { it.task.id })
+        assertEquals(listOf("t1"), fixture.repository.observeMyDay().first().pinned.map { it.task.id })
+        assertTrue(fixture.repository.observeSuggestions().first().isEmpty())
     }
 
+    @Test
+    fun observeMyDay_tareaNoMarcada_noEstaEnLaLista() = runTest {
+        val fixture = fixture()
+        fixture.addTask("vencida", dueAt = fixture.dayStart - 1000, assigneeId = LocalUser.ID)
+        fixture.addTask("hoy", dueAt = now.plusSeconds(60).toEpochMilli(), assigneeId = LocalUser.ID)
+        fixture.addTask("sin-fecha", assigneeId = LocalUser.ID)
+
+        assertTrue(fixture.repository.observeMyDay().first().pinned.isEmpty())
+    }
+
+    @Test
+    fun observeMyDay_completadaHoyNoMarcada_noEstaEnLaLista() = runTest {
+        val fixture = fixture()
+        fixture.addTask("hecha", columnId = "done", assigneeId = LocalUser.ID, completedAt = now.toEpochMilli())
+
+        assertTrue(fixture.repository.observeMyDay().first().pinned.isEmpty())
+    }
     @Test
     fun moverAHechoHoy_laMantieneEnMiDia() = runTest {
         val fixture = fixture()
@@ -355,7 +268,6 @@ class MyDayRepositoryImplTest {
         fixture.moveTask("t1", "done", completedAt = now.toEpochMilli())
         val inDone = fixture.repository.observeMyDay().first()
         assertTrue(inDone.pinned.single().task.isCompleted)
-        assertTrue(inDone.assigned.single().task.isCompleted)
         assertNull(fixture.dao.entries.getValue("t1").deletedAt)
 
         fixture.moveTask("t1", "c1", completedAt = null)
@@ -387,7 +299,7 @@ class MyDayRepositoryImplTest {
     }
 
     @Test
-    fun overdueCount_noCuentaCompletadasDeHoyAunqueSigaVisible() = runTest {
+    fun overdueCount_noCuentaCompletadasDeHoy() = runTest {
         val fixture = fixture()
         fixture.addTask(
             "hecha",
@@ -396,7 +308,6 @@ class MyDayRepositoryImplTest {
             completedAt = now.toEpochMilli(),
         )
 
-        assertEquals(listOf("hecha"), fixture.repository.observeMyDay().first().assigned.map { it.task.id })
         assertEquals(0, fixture.repository.observeOverdueCount().first())
     }
 
@@ -453,7 +364,7 @@ class MyDayRepositoryImplTest {
     }
 
     @Test
-    fun tareaCreadaSinAsignado_aparecenEnAsignadasYVencidas() = runTest {
+    fun tareaCreadaSinAsignado_aparecenEnSugerenciasYVencidas() = runTest {
         val fixture = fixture()
         val columns = object : ColumnDao() {
         override fun observeAllActive(): Flow<List<ColumnEntity>> = emptyFlow()
@@ -472,7 +383,7 @@ class MyDayRepositoryImplTest {
 
         taskRepository.createTask("c1", TaskDraft(title = "Vencida", dueAt = now.minusSeconds(60)))
 
-        assertEquals(1, fixture.repository.observeMyDay().first().assigned.size)
+        assertEquals(1, fixture.repository.observeSuggestions().first().size)
         assertEquals(1, fixture.repository.observeOverdueCount().first())
     }
 
@@ -489,11 +400,11 @@ class MyDayRepositoryImplTest {
     }
 
     @Test
-    fun observeMyDay_incluyeTareaDeBandejaAsignadaConFechaYLaCuentaComoVencida() = runTest {
+    fun observeSuggestions_incluyeTareaDeBandejaAsignadaYLaCuentaComoVencida() = runTest {
         val fixture = fixture()
         fixture.addTask("pan", columnId = null, dueAt = now.minusSeconds(60).toEpochMilli(), assigneeId = LocalUser.ID)
 
-        assertEquals(listOf("pan"), fixture.repository.observeMyDay().first().assigned.map { it.task.id })
+        assertEquals(listOf("pan"), fixture.repository.observeSuggestions().first().map { it.task.id })
         assertEquals(1, fixture.repository.observeOverdueCount().first())
     }
 
@@ -542,10 +453,8 @@ class MyDayRepositoryImplTest {
         fixture.addTask("t1")
         fixture.putEntry("t1", Instant.ofEpochMilli(fixture.dayStart).minusSeconds(60))
 
-        val myDay = fixture.repository.observeMyDay().first()
-
-        assertTrue(myDay.pinned.isEmpty())
-        assertEquals(listOf("t1"), myDay.suggestions.map { it.task.id })
+        assertTrue(fixture.repository.observeMyDay().first().pinned.isEmpty())
+        assertEquals(listOf("t1"), fixture.repository.observeSuggestions().first().map { it.task.id })
     }
 
     @Test
@@ -581,7 +490,7 @@ class MyDayRepositoryImplTest {
         collector.cancel()
 
         assertTrue(seen.last().pinned.isEmpty())
-        assertEquals(listOf("t1"), seen.last().suggestions.map { it.task.id })
+        assertEquals(listOf("t1"), fixture.repository.observeSuggestions().first().map { it.task.id })
         assertNull(fixture.dao.entries.getValue("t1").deletedAt)
     }
 
@@ -614,67 +523,7 @@ class MyDayRepositoryImplTest {
     }
 
     @Test
-    fun suggestions_incluyeMarcasAnterioresPendientes() = runTest {
-        val fixture = fixture()
-        fixture.addTask("ayer")
-        fixture.putEntry("ayer", now.minusSeconds(86_400))
-
-        assertEquals(listOf("ayer"), fixture.repository.observeMyDay().first().suggestions.map { it.task.id })
-    }
-
-    @Test
-    fun suggestions_excluyeCompletadasBorradasYMarcasDeHoy() = runTest {
-        val fixture = fixture()
-        val yesterday = now.minusSeconds(86_400)
-        fixture.addTask("ok")
-        fixture.addTask("completada", completedAt = now.minusSeconds(3600).toEpochMilli())
-        fixture.addTask("tarea-borrada", deletedAt = 1L)
-        fixture.addTask("columna-borrada", columnId = "c-borrada")
-        fixture.addTask("marca-borrada")
-        fixture.addTask("hoy")
-        listOf("ok", "completada", "tarea-borrada", "columna-borrada").forEach { fixture.putEntry(it, yesterday) }
-        fixture.putEntry("marca-borrada", yesterday, deletedAt = yesterday.toEpochMilli())
-        fixture.putEntry("hoy", now)
-
-        assertEquals(listOf("ok"), fixture.repository.observeMyDay().first().suggestions.map { it.task.id })
-    }
-
-    @Test
-    fun suggestions_excluyeLasQueYaEstanEnAsignadasDeHoy() = runTest {
-        val fixture = fixture()
-        fixture.addTask("vencida", dueAt = now.minusSeconds(60).toEpochMilli(), assigneeId = LocalUser.ID)
-        fixture.addTask("solo-marca")
-        fixture.putEntry("vencida", now.minusSeconds(86_400))
-        fixture.putEntry("solo-marca", now.minusSeconds(86_400))
-
-        val myDay = fixture.repository.observeMyDay().first()
-
-        assertEquals(listOf("vencida"), myDay.assigned.map { it.task.id })
-        assertEquals(listOf("solo-marca"), myDay.suggestions.map { it.task.id })
-    }
-
-    @Test
-    fun suggestions_marcaDeHaceTresDias_sigueSugerida() = runTest {
-        val fixture = fixture()
-        fixture.addTask("vieja")
-        fixture.putEntry("vieja", now.minusSeconds(3 * 86_400))
-
-        assertEquals(listOf("vieja"), fixture.repository.observeMyDay().first().suggestions.map { it.task.id })
-    }
-
-    @Test
-    fun suggestions_ordenadasPorAddedAtDesc() = runTest {
-        val fixture = fixture()
-        listOf("a", "b", "c").forEach { fixture.addTask(it) }
-        fixture.putEntry("a", now.minusSeconds(3 * 86_400))
-        fixture.putEntry("b", now.minusSeconds(86_400))
-        fixture.putEntry("c", now.minusSeconds(86_400))
-
-        assertEquals(listOf("b", "c", "a"), fixture.repository.observeMyDay().first().suggestions.map { it.task.id })
-    }
-
-    @Test
-    fun setMarked_conMarcaAnterior_renuevaAddedAt() = runTest {
+    fun addToMyDay_conMarcaAnterior_renuevaAddedAt() = runTest {
         val fixture = fixture()
         fixture.addTask("t1")
         fixture.putEntry("t1", now.minusSeconds(86_400))
@@ -687,9 +536,8 @@ class MyDayRepositoryImplTest {
             fixture.dao.entries.getValue("t1"),
         )
         assertEquals(1, fixture.dao.entries.size)
-        val myDay = fixture.repository.observeMyDay().first()
-        assertEquals(listOf("t1"), myDay.pinned.map { it.task.id })
-        assertTrue(myDay.suggestions.isEmpty())
+        assertEquals(listOf("t1"), fixture.repository.observeMyDay().first().pinned.map { it.task.id })
+        assertTrue(fixture.repository.observeSuggestions().first().isEmpty())
     }
 
     @Test
@@ -718,7 +566,7 @@ class MyDayRepositoryImplTest {
         val entry = fixture.dao.entries.getValue("t1")
         assertEquals(now.toEpochMilli(), entry.deletedAt)
         assertTrue(entry.pending)
-        assertTrue(fixture.repository.observeMyDay().first().suggestions.isEmpty())
+        assertEquals(listOf("t1"), fixture.repository.observeSuggestions().first().map { it.task.id })
     }
 
     @Test
@@ -750,33 +598,6 @@ class MyDayRepositoryImplTest {
     }
 
     @Test
-    fun repetida_originalCompletadaHoyAparece_yLaSucesoraDeHoyTambien() = runTest {
-        val fixture = fixture()
-        val due = now.plusSeconds(3600).toEpochMilli()
-        fixture.addTask("original", dueAt = due, assigneeId = LocalUser.ID, completedAt = now.toEpochMilli())
-        fixture.addTask("sucesora", dueAt = due + 600_000, assigneeId = LocalUser.ID)
-        fixture.repository.setMarked("original", true)
-
-        val myDay = fixture.repository.observeMyDay().first()
-
-        assertEquals(listOf("original"), myDay.pinned.map { it.task.id })
-        assertEquals(listOf("original", "sucesora"), myDay.assigned.map { it.task.id })
-        assertTrue(myDay.assigned.first().task.isCompleted)
-    }
-
-    @Test
-    fun repetida_sucesoraFutura_noApareceEnMiDia() = runTest {
-        val fixture = fixture()
-        fixture.addTask("original", dueAt = now.toEpochMilli(), assigneeId = LocalUser.ID, completedAt = now.toEpochMilli())
-        fixture.addTask("sucesora", dueAt = fixture.dayEnd + 3_600_000, assigneeId = LocalUser.ID)
-
-        val myDay = fixture.repository.observeMyDay().first()
-
-        assertEquals(listOf("original"), myDay.assigned.map { it.task.id })
-        assertTrue(myDay.pinned.isEmpty())
-    }
-
-    @Test
     fun alCambiarLaZona_reclasificaLasMarcasSinEscribir() = runTest {
         val fixture = fixture()
         fixture.addTask("t1")
@@ -785,12 +606,475 @@ class MyDayRepositoryImplTest {
         val entry = fixture.dao.entries.getValue("t1")
 
         fixture.changeZone(ZoneId.of("Pacific/Kiritimati"))
-        val myDay = fixture.repository.observeMyDay().first()
-
-        assertTrue(myDay.pinned.isEmpty())
-        assertEquals(listOf("t1"), myDay.suggestions.map { it.task.id })
+        assertTrue(fixture.repository.observeMyDay().first().pinned.isEmpty())
+        assertEquals(listOf("t1"), fixture.repository.observeSuggestions().first().map { it.task.id })
         assertEquals(0, fixture.dao.writeCalls)
         assertEquals(entry, fixture.dao.entries.getValue("t1"))
+    }
+
+    @Test
+    fun suggestions_incluyeVencidasDeHoyFuturasYSinFecha() = runTest {
+        val fixture = fixture()
+        fixture.addTask("vencida", dueAt = fixture.dayStart - 1000, assigneeId = LocalUser.ID)
+        fixture.addTask("hoy", dueAt = now.plusSeconds(3600).toEpochMilli(), assigneeId = LocalUser.ID)
+        fixture.addTask("futura", dueAt = fixture.dayEnd + 1000, assigneeId = LocalUser.ID)
+        fixture.addTask("sin-fecha", assigneeId = LocalUser.ID)
+
+        val ids = fixture.repository.observeSuggestions().first().map { it.task.id }
+
+        assertEquals(setOf("vencida", "hoy", "futura", "sin-fecha"), ids.toSet())
+        assertEquals(4, ids.size)
+    }
+
+    @Test
+    fun suggestions_incluyeMarcaAnteriorSinFechaOFutura() = runTest {
+        val fixture = fixture()
+        fixture.addTask("sin-fecha")
+        fixture.addTask("futura", dueAt = fixture.dayEnd + 1000)
+        fixture.putEntry("sin-fecha", now.minusSeconds(86_400))
+        fixture.putEntry("futura", now.minusSeconds(86_400))
+
+        val items = fixture.repository.observeSuggestions().first()
+
+        assertEquals(setOf("sin-fecha", "futura"), items.map { it.task.id }.toSet())
+        assertEquals(now.minusSeconds(86_400), items.first().addedAt)
+    }
+
+    @Test
+    fun suggestions_marcaAnteriorYVencida_apareceUnaVez() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", dueAt = fixture.dayStart - 1000, assigneeId = LocalUser.ID)
+        fixture.putEntry("t1", now.minusSeconds(86_400))
+
+        assertEquals(listOf("t1"), fixture.repository.observeSuggestions().first().map { it.task.id })
+    }
+
+    @Test
+    fun suggestions_excluyeCompletadasBorradasMarcadasHoyYOtroAsignado() = runTest {
+        val fixture = fixture()
+        fixture.addTask("ok", assigneeId = LocalUser.ID)
+        fixture.addTask("completada", assigneeId = LocalUser.ID, completedAt = now.toEpochMilli())
+        fixture.addTask("tarea-borrada", assigneeId = LocalUser.ID, deletedAt = 1L)
+        fixture.addTask("marcada-hoy", assigneeId = LocalUser.ID)
+        fixture.addTask("otro", assigneeId = "otro-usuario")
+        fixture.addTask("sin-asignado")
+        fixture.putEntry("marcada-hoy", now)
+
+        assertEquals(listOf("ok"), fixture.repository.observeSuggestions().first().map { it.task.id })
+    }
+
+    @Test
+    fun suggestions_incluyeBandejaListaYColumna() = runTest {
+        val fixture = fixture()
+        fixture.addTask("bandeja", columnId = null, assigneeId = LocalUser.ID)
+        fixture.addTask("lista", columnId = null, listId = "l1", assigneeId = LocalUser.ID)
+        fixture.addTask("columna", assigneeId = LocalUser.ID)
+
+        val items = fixture.repository.observeSuggestions().first()
+
+        assertEquals(setOf("bandeja", "lista", "columna"), items.map { it.task.id }.toSet())
+        assertNull(items.first { it.task.id == "bandeja" }.boardName)
+        assertEquals("Tablero b1", items.first { it.task.id == "columna" }.boardName)
+    }
+
+    @Test
+    fun suggestions_columnaOTableroBorrados_noAparece() = runTest {
+        val fixture = fixture()
+        fixture.addTask("columna-borrada", columnId = "c-borrada", assigneeId = LocalUser.ID)
+        fixture.addTask("tablero-borrado", columnId = "c-tablero-borrado", assigneeId = LocalUser.ID)
+        fixture.addTask("huerfana", columnId = "c-x", assigneeId = LocalUser.ID)
+
+        assertTrue(fixture.repository.observeSuggestions().first().isEmpty())
+    }
+
+    @Test
+    fun suggestions_ordenVencidasHoyMarcasYResto() = runTest {
+        val fixture = fixture()
+        val day = fixture.dayStart
+        fixture.addTask("v2", dueAt = day - 1000, assigneeId = LocalUser.ID)
+        fixture.addTask("v1", dueAt = day - 5000, assigneeId = LocalUser.ID)
+        fixture.addTask("h2", dueAt = day + 7_200_000, assigneeId = LocalUser.ID)
+        fixture.addTask("h1", dueAt = day + 3_600_000, assigneeId = LocalUser.ID)
+        fixture.addTask("m-vieja")
+        fixture.addTask("m-nueva")
+        fixture.addTask("m-vencida", dueAt = day - 2000)
+        fixture.addTask("f2", dueAt = fixture.dayEnd + 2000, assigneeId = LocalUser.ID)
+        fixture.addTask("f1", dueAt = fixture.dayEnd + 1000, assigneeId = LocalUser.ID)
+        fixture.addTask("s-a", assigneeId = LocalUser.ID, updatedAt = 10L)
+        fixture.addTask("s-b", assigneeId = LocalUser.ID, updatedAt = 20L)
+        fixture.putEntry("m-vieja", now.minusSeconds(3 * 86_400))
+        fixture.putEntry("m-nueva", now.minusSeconds(86_400))
+        fixture.putEntry("m-vencida", now.minusSeconds(86_400))
+
+        val ids = fixture.repository.observeSuggestions().first().map { it.task.id }
+
+        assertEquals(
+            listOf("v1", "m-vencida", "v2", "h1", "h2", "m-nueva", "m-vieja", "f1", "f2", "s-b", "s-a"),
+            ids,
+        )
+    }
+
+    @Test
+    fun suggestionCount_coincideConLaLista() = runTest {
+        val fixture = fixture()
+        repeat(7) { fixture.addTask("t$it", assigneeId = LocalUser.ID) }
+        fixture.addTask("completada", assigneeId = LocalUser.ID, completedAt = now.toEpochMilli())
+        fixture.addTask("otro", assigneeId = "otro-usuario")
+        fixture.putEntry("t0", now)
+
+        assertEquals(6, fixture.repository.observeSuggestionCount().first())
+        assertEquals(6, fixture.repository.observeSuggestions().first().size)
+    }
+
+    @Test
+    fun suggestionCount_seReemiteAlCambiarLasTareas() = runTest {
+        val fixture = fixture()
+        val seen = mutableListOf<Int>()
+        val collector = launch(UnconfinedTestDispatcher(testScheduler)) {
+            fixture.repository.observeSuggestionCount().toList(seen)
+        }
+
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+        fixture.repository.setMarked("t1", true)
+        collector.cancel()
+
+        assertEquals(listOf(0, 1, 0), seen)
+    }
+
+    @Test
+    fun addToMyDay_sinMarca_pasaALaLista() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+
+        fixture.repository.setMarked("t1", true)
+
+        assertEquals(listOf("t1"), fixture.repository.observeMyDay().first().pinned.map { it.task.id })
+        assertTrue(fixture.repository.observeSuggestions().first().isEmpty())
+    }
+
+    @Test
+    fun addToMyDay_tareaSilenciada_reactivaLaFila() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+        fixture.repository.dismissSuggestion("t1")
+        fixture.clock = later
+
+        fixture.repository.setMarked("t1", true)
+
+        val entry = fixture.dao.entries.getValue("t1")
+        assertNull(entry.deletedAt)
+        assertEquals(later.toEpochMilli(), entry.addedAt)
+        assertEquals(listOf("t1"), fixture.repository.observeMyDay().first().pinned.map { it.task.id })
+    }
+
+    @Test
+    fun dismissSuggestion_sinFila_creaFilaBorradaPendiente() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+
+        val result = fixture.repository.dismissSuggestion("t1")
+
+        assertEquals(DomainResult.Success(Unit), result)
+        assertEquals(
+            MyDayEntryEntity("t1", DISMISSED_ADDED_AT, now.toEpochMilli(), pending = true, deletedAt = now.toEpochMilli()),
+            fixture.dao.entries.getValue("t1"),
+        )
+    }
+
+    @Test
+    fun dismissSuggestion_escribeElCentinelaDeDescarte() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+
+        fixture.repository.dismissSuggestion("t1")
+
+        val entry = fixture.dao.entries.getValue("t1")
+        assertEquals(0L, entry.addedAt)
+        assertEquals(now.toEpochMilli(), entry.deletedAt)
+    }
+
+    @Test
+    fun dismissSuggestion_conMarcaActiva_escribeElCentinela() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1")
+        fixture.putEntry("t1", now.minusSeconds(86_400))
+
+        fixture.repository.dismissSuggestion("t1")
+
+        val entry = fixture.dao.entries.getValue("t1")
+        assertEquals(now.toEpochMilli(), entry.deletedAt)
+        assertEquals(now.toEpochMilli(), entry.updatedAt)
+        assertEquals(DISMISSED_ADDED_AT, entry.addedAt)
+        assertTrue(entry.pending)
+    }
+
+    @Test
+    fun dismissSuggestion_marcadaHoy_laSacaDeLaListaYNoVuelveALaHoja() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+        fixture.repository.setMarked("t1", true)
+
+        fixture.repository.dismissSuggestion("t1")
+
+        assertTrue(fixture.repository.observeMyDay().first().pinned.isEmpty())
+        assertTrue(fixture.repository.observeSuggestions().first().isEmpty())
+    }
+
+    @Test
+    fun dismissSuggestion_yaDescartadaHoy_noEscribe() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+        fixture.repository.dismissSuggestion("t1")
+        val writes = fixture.dao.writeCalls
+        fixture.clock = later
+
+        val result = fixture.repository.dismissSuggestion("t1")
+
+        assertEquals(DomainResult.Success(Unit), result)
+        assertEquals(writes, fixture.dao.writeCalls)
+        assertEquals(now.toEpochMilli(), fixture.dao.entries.getValue("t1").deletedAt)
+    }
+
+    @Test
+    fun dismissSuggestion_conFilaBorradaDeAyer_larenueva() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+        fixture.putEntry("t1", now.minusSeconds(2 * 86_400), deletedAt = now.minusSeconds(86_400).toEpochMilli())
+
+        fixture.repository.dismissSuggestion("t1")
+
+        assertEquals(now.toEpochMilli(), fixture.dao.entries.getValue("t1").deletedAt)
+    }
+
+    @Test
+    fun dismissSuggestion_tareaInexistenteOBorrada_devuelveTaskNotFound() = runTest {
+        val fixture = fixture()
+        fixture.addTask("borrada", deletedAt = now.toEpochMilli())
+
+        listOf("no-existe", "borrada").forEach { id ->
+            val error = (fixture.repository.dismissSuggestion(id) as DomainResult.Failure).error
+            assertTrue(error is DomainError.NotFound)
+            assertEquals("TASK_NOT_FOUND", error.code)
+        }
+        assertEquals(0, fixture.dao.writeCalls)
+    }
+
+    @Test
+    fun dismissSuggestion_noTocaLaTarea() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", dueAt = fixture.dayStart - 1000, assigneeId = LocalUser.ID)
+        val before = fixture.dao.tasks.value.getValue("t1")
+
+        fixture.repository.dismissSuggestion("t1")
+
+        assertEquals(before, fixture.dao.tasks.value.getValue("t1"))
+    }
+
+    @Test
+    fun suggestions_descartadaHoy_noAparece() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+        fixture.addTask("t2", assigneeId = LocalUser.ID)
+
+        fixture.repository.dismissSuggestion("t1")
+
+        assertEquals(listOf("t2"), fixture.repository.observeSuggestions().first().map { it.task.id })
+        assertEquals(1, fixture.repository.observeSuggestionCount().first())
+    }
+
+    @Test
+    fun suggestions_descartadaAyer_reapareceHoy() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+        fixture.putEntry(
+            "t1",
+            Instant.ofEpochMilli(DISMISSED_ADDED_AT),
+            deletedAt = now.minusSeconds(86_400).toEpochMilli(),
+        )
+
+        assertEquals(listOf("t1"), fixture.repository.observeSuggestions().first().map { it.task.id })
+    }
+
+    @Test
+    fun suggestions_quitadaHoy_aparece() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+        fixture.repository.setMarked("t1", true)
+
+        fixture.repository.setMarked("t1", false)
+
+        assertEquals(listOf("t1"), fixture.repository.observeSuggestions().first().map { it.task.id })
+        assertEquals(1, fixture.repository.observeSuggestionCount().first())
+    }
+
+    @Test
+    fun suggestions_filaAnteriorSinCentinela_seTrataComoQuitada() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+        fixture.putEntry("t1", now.minusSeconds(3600), deletedAt = now.toEpochMilli() - 1000)
+
+        assertEquals(listOf("t1"), fixture.repository.observeSuggestions().first().map { it.task.id })
+    }
+
+    @Test
+    fun suggestions_descartadaHoyYAhoraQuitada_nuncaMezclaEstados() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+        fixture.repository.dismissSuggestion("t1")
+        fixture.repository.setMarked("t1", true)
+        fixture.repository.setMarked("t1", false)
+
+        assertEquals(listOf("t1"), fixture.repository.observeSuggestions().first().map { it.task.id })
+    }
+
+    @Test
+    fun observeMarkedIds_ignoraQuitadasYDescartadas() = runTest {
+        val fixture = fixture()
+        fixture.addTask("quitada", assigneeId = LocalUser.ID)
+        fixture.addTask("descartada", assigneeId = LocalUser.ID)
+        fixture.addTask("marcada", assigneeId = LocalUser.ID)
+        fixture.repository.setMarked("quitada", true)
+        fixture.repository.setMarked("quitada", false)
+        fixture.repository.dismissSuggestion("descartada")
+        fixture.repository.setMarked("marcada", true)
+
+        assertEquals(setOf("marcada"), fixture.repository.observeMarkedTaskIds().first())
+    }
+
+    @Test
+    fun alCambiarElDia_laDescartadaReaparece() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+        fixture.repository.dismissSuggestion("t1")
+        val seen = mutableListOf<List<String>>()
+        val collector = launch(UnconfinedTestDispatcher(testScheduler)) {
+            fixture.repository.observeSuggestions().map { list -> list.map { it.task.id } }.toList(seen)
+        }
+        assertEquals(emptyList<String>(), seen.last())
+        val writes = fixture.dao.writeCalls
+
+        fixture.advanceTo(now.plusSeconds(86_400))
+        collector.cancel()
+
+        assertEquals(listOf("t1"), seen.last())
+        assertEquals(writes, fixture.dao.writeCalls)
+    }
+
+    @Test
+    fun suggestions_descartadaYMarcada_noEstaEnLaHoja() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+        fixture.repository.dismissSuggestion("t1")
+        fixture.repository.setMarked("t1", true)
+
+        assertTrue(fixture.repository.observeSuggestions().first().isEmpty())
+        assertEquals(listOf("t1"), fixture.repository.observeMyDay().first().pinned.map { it.task.id })
+    }
+
+    @Test
+    fun quitarDeMiDia_marcadaHoy_vuelveAlaHojaAlInstante() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+        fixture.repository.setMarked("t1", true)
+        assertTrue(fixture.repository.observeSuggestions().first().isEmpty())
+
+        fixture.repository.setMarked("t1", false)
+
+        assertEquals(listOf("t1"), fixture.repository.observeSuggestions().first().map { it.task.id })
+        assertEquals(now.toEpochMilli(), fixture.dao.entries.getValue("t1").addedAt)
+    }
+
+    @Test
+    fun quitarDeMiDia_conMarcaAnterior_sigueSiendoSugerencia() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+        fixture.putEntry("t1", now.minusSeconds(86_400))
+
+        fixture.repository.setMarked("t1", false)
+
+        assertEquals(listOf("t1"), fixture.repository.observeSuggestions().first().map { it.task.id })
+    }
+
+    @Test
+    fun quitarDeMiDia_noAsignadaAYo_vuelveSoloEseDia() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = "otro")
+        fixture.repository.setMarked("t1", true)
+
+        fixture.repository.setMarked("t1", false)
+        assertEquals(listOf("t1"), fixture.repository.observeSuggestions().first().map { it.task.id })
+
+        fixture.advanceTo(now.plusSeconds(86_400))
+        assertTrue(fixture.repository.observeSuggestions().first().isEmpty())
+    }
+
+    @Test
+    fun quitarDeMiDia_tareaCompletada_noVuelve() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+        fixture.repository.setMarked("t1", true)
+        fixture.setCompleted("t1", now.toEpochMilli())
+
+        fixture.repository.setMarked("t1", false)
+
+        assertTrue(fixture.repository.observeSuggestions().first().isEmpty())
+    }
+
+    @Test
+    fun quitarDeMiDia_completadaYReabierta_vuelveALaHoja() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+        fixture.repository.setMarked("t1", true)
+        fixture.setCompleted("t1", now.toEpochMilli())
+        fixture.repository.setMarked("t1", false)
+
+        fixture.setCompleted("t1", null)
+
+        assertEquals(listOf("t1"), fixture.repository.observeSuggestions().first().map { it.task.id })
+    }
+
+    @Test
+    fun quitarDeMiDia_tareaBorrada_noVuelve() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+        fixture.repository.setMarked("t1", true)
+        fixture.repository.setMarked("t1", false)
+        fixture.addTask("t1", assigneeId = LocalUser.ID, deletedAt = now.toEpochMilli())
+
+        assertTrue(fixture.repository.observeSuggestions().first().isEmpty())
+    }
+
+    @Test
+    fun quitarDeMiDia_marcadaHoy_reapareceEnLaHojaAlDiaSiguiente() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", assigneeId = LocalUser.ID)
+        fixture.repository.setMarked("t1", true)
+        fixture.repository.setMarked("t1", false)
+
+        fixture.advanceTo(now.plusSeconds(86_400))
+
+        assertEquals(listOf("t1"), fixture.repository.observeSuggestions().first().map { it.task.id })
+    }
+
+    @Test
+    fun quitarDeMiDia_noReaparecenEnLaLista() = runTest {
+        val fixture = fixture()
+        fixture.addTask("t1", dueAt = fixture.dayStart - 1000, assigneeId = LocalUser.ID)
+        fixture.repository.setMarked("t1", true)
+        fixture.repository.setMarked("t1", false)
+        fixture.advanceTo(now.plusSeconds(86_400))
+
+        assertTrue(fixture.repository.observeMyDay().first().pinned.isEmpty())
+    }
+
+    @Test
+    fun overdueCount_incluyeLasSugeridasYDescartadas() = runTest {
+        val fixture = fixture()
+        fixture.addTask("sugerida", dueAt = now.toEpochMilli() - 1, assigneeId = LocalUser.ID)
+        fixture.addTask("descartada", dueAt = now.toEpochMilli() - 1, assigneeId = LocalUser.ID)
+        fixture.repository.dismissSuggestion("descartada")
+
+        assertEquals(2, fixture.repository.observeOverdueCount().first())
     }
 
     private fun fixture(): Fixture = Fixture(now)
@@ -831,6 +1115,8 @@ class MyDayRepositoryImplTest {
             assigneeId: String? = null,
             deletedAt: Long? = null,
             completedAt: Long? = null,
+            listId: String? = null,
+            updatedAt: Long = 0L,
         ) {
             dao.tasks.value = dao.tasks.value + (
                 id to TaskEntity(
@@ -843,10 +1129,11 @@ class MyDayRepositoryImplTest {
                     assigneeId = assigneeId,
                     position = 0,
                     createdAt = 0L,
-                    updatedAt = 0L,
+                    updatedAt = updatedAt,
                     pending = false,
                     completedAt = completedAt,
                     deletedAt = deletedAt,
+                    listId = listId,
                 )
                 )
         }
@@ -904,23 +1191,53 @@ class MyDayRepositoryImplTest {
                 .map { (row, entry) -> row.copy(addedAt = entry.addedAt) }
         }
 
-        override fun observeAssigned(assigneeId: String, dayStart: Long, dayEnd: Long): Flow<List<MyDayRow>> =
-            tasks.map { all ->
-                all.values
-                    .filter { it.assigneeId == assigneeId && it.dueAt != null && it.dueAt < dayEnd }
-                    .mapNotNull(::visible)
-                    .filter { openOrDoneToday(it, dayStart) }
-                    .sortedWith(compareBy({ it.task.dueAt }, { it.task.id }))
+        override fun observeSuggestions(assigneeId: String, dayStart: Long, dayEnd: Long): Flow<List<MyDayRow>> =
+            combine(tasks, entriesState) { allTasks, allEntries ->
+                suggestionPairs(allTasks, allEntries, assigneeId, dayStart)
+                    .sortedWith(
+                        compareBy<Pair<MyDayRow, MyDayEntryEntity?>>(
+                            { rank(it, dayStart, dayEnd) },
+                            { if (rank(it, dayStart, dayEnd) == 2) -requireNotNull(it.second).addedAt else 0L },
+                            { it.first.task.dueAt == null },
+                            { it.first.task.dueAt },
+                            { if (rank(it, dayStart, dayEnd) == 3 && it.first.task.dueAt == null) -it.first.task.updatedAt else 0L },
+                            { it.first.task.id },
+                        ),
+                    )
+                    .map { (row, entry) -> row.copy(addedAt = entry?.takeIf { it.deletedAt == null }?.addedAt) }
             }
 
-        override fun observeSuggestions(dayStart: Long): Flow<List<MyDayRow>> = combine(tasks, entriesState) { allTasks, allEntries ->
-            allEntries.values
-                .filter { it.deletedAt == null && it.addedAt < dayStart }
-                .mapNotNull { entry ->
-                    visible(allTasks[entry.id])?.takeIf { it.task.completedAt == null }?.let { it to entry }
-                }
-                .sortedWith(compareBy<Pair<MyDayRow, MyDayEntryEntity>>({ -it.second.addedAt }, { it.first.task.id }))
-                .map { (row, entry) -> row.copy(addedAt = entry.addedAt) }
+        override fun observeSuggestionCount(assigneeId: String, dayStart: Long): Flow<Int> =
+            combine(tasks, entriesState) { allTasks, allEntries ->
+                suggestionPairs(allTasks, allEntries, assigneeId, dayStart).size
+            }
+
+        private fun suggestionPairs(
+            allTasks: Map<String, TaskEntity>,
+            allEntries: Map<String, MyDayEntryEntity>,
+            assigneeId: String,
+            dayStart: Long,
+        ): List<Pair<MyDayRow, MyDayEntryEntity?>> = allTasks.values.mapNotNull { task ->
+            val row = visible(task)?.takeIf { task.completedAt == null } ?: return@mapNotNull null
+            val entry = allEntries[task.id]
+            val active = entry != null && entry.deletedAt == null
+            val markedToday = active && requireNotNull(entry).addedAt >= dayStart
+            val dismissed = entry != null && entry.addedAt == DISMISSED_ADDED_AT
+            val silenced = dismissed && entry?.deletedAt?.let { it >= dayStart } == true
+            val removedToday = entry != null && !dismissed && entry.deletedAt?.let { it >= dayStart } == true
+            val eligible = task.assigneeId == assigneeId || active || removedToday
+            if (markedToday || silenced || !eligible) null else row to entry
+        }
+
+        private fun rank(pair: Pair<MyDayRow, MyDayEntryEntity?>, dayStart: Long, dayEnd: Long): Int {
+            val due = pair.first.task.dueAt
+            val active = pair.second?.deletedAt == null && pair.second != null
+            return when {
+                due != null && due < dayStart -> 0
+                due != null && due < dayEnd -> 1
+                active -> 2
+                else -> 3
+            }
         }
 
         override fun observeOpen(assigneeId: String): Flow<List<MyDayRow>> = tasks.map { all ->

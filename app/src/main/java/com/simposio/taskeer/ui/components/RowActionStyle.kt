@@ -6,7 +6,6 @@ import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EventBusy
@@ -14,7 +13,6 @@ import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Today
-import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -26,8 +24,6 @@ internal fun RowAction.icon(): ImageVector = when (this) {
     RowAction.REOPEN -> Icons.Filled.Replay
     RowAction.ADD_TO_MY_DAY -> Icons.Filled.Star
     RowAction.REMOVE_FROM_MY_DAY -> Icons.Filled.StarBorder
-    RowAction.KEEP_TODAY -> Icons.Filled.WbSunny
-    RowAction.DISMISS -> Icons.Filled.Close
     RowAction.RESCHEDULE_TOMORROW -> Icons.Filled.Today
     RowAction.RESCHEDULE_NEXT_WEEK -> Icons.Filled.DateRange
     RowAction.RESCHEDULE_SOMEDAY -> Icons.Filled.EventBusy
@@ -43,8 +39,6 @@ internal fun RowAction.labelRes(): Int = when (this) {
     RowAction.REOPEN -> R.string.row_action_reopen
     RowAction.ADD_TO_MY_DAY -> R.string.row_action_add_my_day
     RowAction.REMOVE_FROM_MY_DAY -> R.string.row_action_remove_my_day
-    RowAction.KEEP_TODAY -> R.string.row_action_keep_today
-    RowAction.DISMISS -> R.string.row_action_dismiss
     RowAction.RESCHEDULE_TOMORROW -> R.string.row_action_tomorrow
     RowAction.RESCHEDULE_NEXT_WEEK -> R.string.row_action_next_week
     RowAction.RESCHEDULE_SOMEDAY -> R.string.row_action_someday
@@ -66,7 +60,7 @@ internal fun RowAction.swipeLabelRes(): Int = when (this) {
 @Composable
 internal fun RowAction.swipeContainerColor(): Color = when (this) {
     RowAction.DELETE -> MaterialTheme.colorScheme.errorContainer
-    RowAction.COMPLETE, RowAction.REOPEN, RowAction.KEEP_TODAY -> MaterialTheme.colorScheme.primaryContainer
+    RowAction.COMPLETE, RowAction.REOPEN -> MaterialTheme.colorScheme.primaryContainer
     RowAction.RESCHEDULE_TOMORROW,
     RowAction.RESCHEDULE_NEXT_WEEK,
     RowAction.RESCHEDULE_SOMEDAY,
@@ -74,7 +68,6 @@ internal fun RowAction.swipeContainerColor(): Color = when (this) {
     -> MaterialTheme.colorScheme.tertiaryContainer
     RowAction.ADD_TO_MY_DAY,
     RowAction.REMOVE_FROM_MY_DAY,
-    RowAction.DISMISS,
     RowAction.ASSIGN_TO_BOARD,
     RowAction.MOVE_TO_LIST,
     -> MaterialTheme.colorScheme.secondaryContainer
@@ -83,7 +76,7 @@ internal fun RowAction.swipeContainerColor(): Color = when (this) {
 @Composable
 internal fun RowAction.swipeContentColor(): Color = when (this) {
     RowAction.DELETE -> MaterialTheme.colorScheme.onErrorContainer
-    RowAction.COMPLETE, RowAction.REOPEN, RowAction.KEEP_TODAY -> MaterialTheme.colorScheme.onPrimaryContainer
+    RowAction.COMPLETE, RowAction.REOPEN -> MaterialTheme.colorScheme.onPrimaryContainer
     RowAction.RESCHEDULE_TOMORROW,
     RowAction.RESCHEDULE_NEXT_WEEK,
     RowAction.RESCHEDULE_SOMEDAY,
@@ -91,7 +84,6 @@ internal fun RowAction.swipeContentColor(): Color = when (this) {
     -> MaterialTheme.colorScheme.onTertiaryContainer
     RowAction.ADD_TO_MY_DAY,
     RowAction.REMOVE_FROM_MY_DAY,
-    RowAction.DISMISS,
     RowAction.ASSIGN_TO_BOARD,
     RowAction.MOVE_TO_LIST,
     -> MaterialTheme.colorScheme.onSecondaryContainer

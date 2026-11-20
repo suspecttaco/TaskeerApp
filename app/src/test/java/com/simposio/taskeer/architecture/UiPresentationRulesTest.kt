@@ -297,11 +297,101 @@ class UiPresentationRulesTest {
     }
 
     @Test
-    fun miDiaTieneUnaSolaFilaDeChips() {
+    fun miDiaNoTieneChipsDeFiltro() {
         val screen = source("ui/myday/MyDayScreen.kt")
 
-        assertEquals(1, Regex("FilterChip\\(").findAll(screen).count())
+        assertEquals(0, Regex("FilterChip\\(").findAll(screen).count())
+        assertTrue(!screen.contains("MyDayFilter"))
         assertTrue(!screen.contains("my_day_sort"))
+    }
+
+    @Test
+    fun iconoDeSugerenciasEnBarraSuperiorConInsignia() {
+        val bar = source("ui/shell/SectionTopBar.kt")
+        val action = bar.substringAfter("private fun SuggestionsAction(").substringBefore("@Preview")
+        val actions = bar.substringAfter("actions = {").substringBefore("OverflowMenuButton(")
+
+        assertTrue(action.contains("BadgedBox("))
+        assertTrue(action.contains("Badge {"))
+        assertTrue(action.contains("Icons.Filled.Lightbulb"))
+        assertTrue(action.contains("badgeLabel(count)"))
+        assertTrue(actions.contains("if (showSuggestions)"))
+    }
+
+    @Test
+    fun hojaDeSugerenciasUsaBotonesDeIconoALaDerecha() {
+        val sheet = source("ui/myday/SuggestionsSheet.kt")
+
+        val actions = source("ui/components/ActionIcon.kt")
+
+        assertEquals(1, Regex("TonalActionIcon\\(").findAll(sheet).count())
+        assertEquals(2, Regex("(?<!Tonal)ActionIcon\\(").findAll(sheet).count())
+        assertTrue(actions.contains("FilledTonalIconButton("))
+        assertTrue(actions.contains("IconButton(onClick = onClick"))
+        assertTrue(sheet.contains("trailingContent"))
+        assertTrue(actions.contains("sizeIn(minWidth = Spacing.MinTouchTarget, minHeight = Spacing.MinTouchTarget)"))
+        assertTrue(sheet.contains("minWidth = Spacing.MinTouchTarget"))
+        assertTrue(sheet.contains("Icons.Filled.Add"))
+        assertTrue(sheet.contains("contentDescription = addDescription"))
+        assertTrue(sheet.contains("contentDescription = dismissDescription"))
+        assertTrue(!sheet.contains("stringResource(R.string.my_day_suggestion_add)"))
+        assertTrue(sheet.contains("R.string.my_day_suggestion_add_description, item.title"))
+        assertTrue(sheet.contains("R.string.my_day_suggestion_dismiss_description, item.title"))
+        assertTrue(!sheet.contains("FilledTonalButton("))
+        assertTrue(!sheet.contains("TextButton("))
+        assertTrue(sheet.contains("skipPartiallyExpanded = false"))
+        assertTrue(!sheet.contains("clickable("))
+        assertTrue(!sheet.contains("SnackbarHost"))
+    }
+
+    @Test
+    fun cadenasObsoletasDeLaHojaRetiradas() {
+        val strings = File(sourcesRoot, "../../../../res/values/strings.xml").readText()
+
+        assertTrue(!strings.contains("name=\"my_day_suggestion_add\""))
+        assertTrue(!strings.contains("name=\"my_day_suggestion_dismiss\""))
+        assertTrue(strings.contains(">Añadir a Mi día: %1\$s<"))
+        assertTrue(strings.contains(">Descartar: %1\$s<"))
+    }
+
+    @Test
+    fun miDiaNoDesvaneceLaFilaNuevaNiHaceAsomoAlPasarDeVacio() {
+        val screen = source("ui/myday/MyDayScreen.kt")
+        val motion = source("ui/components/CompletionMotion.kt")
+
+        assertTrue(screen.contains("rowItemModifier(fadeIn = false)"))
+        assertTrue(screen.contains("startedEmpty"))
+        assertTrue("vacío solo tras cargar", screen.contains("state.loaded && state.items.isEmpty()"))
+        assertTrue(screen.contains("peek = !startedEmpty &&"))
+        assertTrue(!screen.contains("Crossfade("))
+        assertTrue(!screen.contains("AnimatedContent("))
+        assertTrue(!screen.contains("AnimatedVisibility("))
+        assertTrue(motion.contains("Modifier.animateItem(fadeInSpec = null)"))
+        assertTrue(motion.contains("rememberAnimationsEnabled()"))
+    }
+
+    @Test
+    fun hojaDeSugerenciasNoUsaTaskRowNiGestos() {
+        val sheet = source("ui/myday/SuggestionsSheet.kt")
+
+        listOf(
+            "TaskRow(", "SwipeToDismissBox", "swipeable", "rememberTaskActionsSheet", "rememberTaskEditorHost",
+            "combinedClickable", "pointerInput",
+        ).forEach { assertTrue("no debe usar $it", !sheet.contains(it)) }
+    }
+
+    @Test
+    fun aperturaAutomaticaSoloEnPrimerPlanoSinReevaluarAlNavegar() {
+        val shell = source("ui/shell/AppShell.kt")
+        val effect = shell.substringAfter("private fun SuggestionsAutoOpen(").substringBefore("@Composable")
+        val claim = effect.indexOf("claimFirstForegroundOfDay()")
+        val wait = effect.indexOf("awaitFirstCount()")
+
+        assertTrue(effect.contains("repeatOnLifecycle(Lifecycle.State.RESUMED)"))
+        assertTrue("reclama antes de esperar el conteo", claim in 0 until wait)
+        assertTrue("sin efecto por destino", !effect.contains("LaunchedEffect(currentDestination") && !effect.contains("LaunchedEffect(destination"))
+        assertTrue(effect.contains("shouldAutoOpenSuggestions("))
+        assertTrue(!effect.contains("setSuggestionsLastShownDay"))
     }
 
     @Test
@@ -346,7 +436,7 @@ class UiPresentationRulesTest {
         val names = sheetFiles.map { it.name }.toSet()
 
         assertEquals(
-            setOf("TaskActionsSheet.kt", "AssignToBoardHost.kt", "MoveToListHost.kt", "TaskEditorSheet.kt"),
+            setOf("TaskActionsSheet.kt", "AssignToBoardHost.kt", "MoveToListHost.kt", "TaskEditorSheet.kt", "SuggestionsSheet.kt"),
             names,
         )
         sheetFiles.forEach { file ->
@@ -356,6 +446,9 @@ class UiPresentationRulesTest {
             assertTrue("${file.name}: sheetState", text.contains("sheetState ="))
             assertTrue("${file.name}: cerrar", text.contains("R.string.quick_add_close"))
             assertTrue("${file.name}: título anunciado", text.contains("paneTitle"))
+            if (file.name != "SuggestionsSheet.kt") {
+                assertTrue("${file.name}: registra la hoja abierta", text.contains("TrackOpenSheet()"))
+            }
         }
     }
 
@@ -486,7 +579,8 @@ class UiPresentationRulesTest {
     @Test
     fun lasListasAnimanElMovimientoDeLasFilas() {
         LIST_SCREENS.forEach { path ->
-            assertTrue("$path debe usar rowItemModifier()", source(path).contains("modifier = rowItemModifier()"))
+            val call = if (path == "ui/myday/MyDayScreen.kt") "rowItemModifier(fadeIn = false)" else "rowItemModifier()"
+            assertTrue("$path debe usar $call", source(path).contains("modifier = $call"))
         }
         val motion = source("ui/components/CompletionMotion.kt")
         assertTrue(motion.contains("Modifier.animateItem()"))

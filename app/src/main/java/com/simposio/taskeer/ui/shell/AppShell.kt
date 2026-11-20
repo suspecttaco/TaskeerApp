@@ -13,20 +13,28 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.simposio.taskeer.R
+import com.simposio.taskeer.domain.myday.shouldAutoOpenSuggestions
 import com.simposio.taskeer.ui.board.BoardViewModel
 import com.simposio.taskeer.ui.boards.BoardsViewModel
 import com.simposio.taskeer.ui.lists.ListViewModel
@@ -42,6 +50,8 @@ import com.simposio.taskeer.ui.navigation.navigateHome
 import com.simposio.taskeer.ui.navigation.overflowMenuFor
 import com.simposio.taskeer.ui.navigation.quickAddContextFor
 import com.simposio.taskeer.ui.navigation.withListCount
+import com.simposio.taskeer.ui.myday.MySuggestionsViewModel
+import com.simposio.taskeer.ui.myday.SuggestionsSheet
 import com.simposio.taskeer.ui.quickadd.QuickAddViewModel
 import com.simposio.taskeer.ui.tasks.SwipeHintState
 import com.simposio.taskeer.ui.tasks.TaskDeletionViewModel
@@ -82,6 +92,10 @@ fun AppShell(
         if (it.whileUndoing) stringResource(R.string.task_undo_failed, it.error.message) else it.error.message
     }
     val clearState by clearCompleted.uiState.collectAsStateWithLifecycle()
+    val suggestions: MySuggestionsViewModel = viewModel(factory = viewModelFactory)
+    val suggestionsBadge by suggestions.badge.collectAsStateWithLifecycle()
+    var suggestionsOpen by rememberSaveable { mutableStateOf(false) }
+    val sheetGate = remember { SheetGate() }
 
     // Los ViewModels de lista y tablero comparten dueño con su pantalla (la entrada de navegación).
     val entry = currentEntry
@@ -105,6 +119,18 @@ fun AppShell(
     val boardName = boardsViewModel?.uiState?.collectAsStateWithLifecycle()?.value
         ?.boards?.firstOrNull { it.id == boardId }?.name
 
+    SuggestionsAutoOpen(
+        suggestions = suggestions,
+        destination = destination,
+        viewerRequested = openViewerRequested,
+        suggestionsOpen = suggestionsOpen,
+        sheetGate = sheetGate,
+        overlayOpen = quickAddState.isOpen || clearState.confirmCount != null,
+        onOpen = { suggestionsOpen = true },
+    )
+    LaunchedEffect(destination) {
+        if (destination != AppDestination.MY_DAY) suggestionsOpen = false
+    }
     LaunchedEffect(openViewerRequested) {
         if (openViewerRequested) {
             navController.navigate(AppDestination.NOTIFICATIONS.route) { launchSingleTop = true }
@@ -139,85 +165,95 @@ fun AppShell(
     val back = backStep(destination, boardId, hasPrevious = navController.previousBackStackEntry != null)
 
     val snackbarClearance = if (destination == AppDestination.HOME) Spacing.HubBarClearance else Spacing.ChromeClearance
-    Box(modifier = modifier.fillMaxSize()) {
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            contentWindowInsets = WindowInsets(0, 0, 0, 0),
-            snackbarHost = {
-                SnackbarHost(
-                    hostState = snackbarHost,
-                    modifier = Modifier
-                        .navigationBarsPadding()
-                        .imePadding()
-                        .padding(bottom = snackbarClearance),
-                )
-            },
-            topBar = {
-                ShellTopBar(
-                    kind = chrome.topBar,
-                    title = title,
-                    unreadCount = unreadCount,
-                    menu = menu,
-                    clearEnabled = clearState.clearEnabled,
-                    actions = TopBarActions(
-                        onNotifications = {
-                            navController.navigate(AppDestination.NOTIFICATIONS.route) { launchSingleTop = true }
-                        },
-                        onBack = {
-                            when (back) {
-                                BackStep.Pop -> navController.popBackStack()
-                                is BackStep.Navigate -> navController.navigate(back.route) { launchSingleTop = true }
-                                BackStep.None -> Unit
-                            }
-                        },
-                        onMenuItem = { item ->
-                            when (item) {
-                                MenuItem.CLEAR_COMPLETED -> clearCompleted.requestClear()
-                                MenuItem.SETTINGS ->
-                                    navController.navigate(AppDestination.SETTINGS.route) { launchSingleTop = true }
-                                MenuItem.RENAME_LIST -> listId?.let { listsViewModel?.openRename(it) }
-                                MenuItem.DELETE_LIST -> listId?.let { listsViewModel?.openDelete(it) }
-                                MenuItem.RENAME_BOARD -> boardId?.let { boardsViewModel?.openRename(it) }
-                                MenuItem.DELETE_BOARD -> boardId?.let { boardsViewModel?.openDelete(it) }
-                                MenuItem.MY_CALENDARS, MenuItem.FILTER, MenuItem.SORT -> Unit
-                            }
-                        },
-                    ),
-                )
-            },
-        ) { innerPadding ->
-            Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-                AppNavHost(
-                    navController = navController,
-                    viewModelFactory = viewModelFactory,
-                    swipeHint = swipeHint,
-                    onAddForDate = quickAdd::openWithDate,
-                    onDelete = deletion::delete,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .navigationBarsPadding()
-                        .imePadding(),
-                )
+    CompositionLocalProvider(LocalSheetGate provides sheetGate) {
+        Box(modifier = modifier.fillMaxSize()) {
+            Scaffold(
+                modifier = Modifier.fillMaxSize(),
+                contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                snackbarHost = {
+                    SnackbarHost(
+                        hostState = snackbarHost,
+                        modifier = Modifier
+                            .navigationBarsPadding()
+                            .imePadding()
+                            .padding(bottom = snackbarClearance),
+                    )
+                },
+                topBar = {
+                    ShellTopBar(
+                        kind = chrome.topBar,
+                        title = title,
+                        unreadCount = unreadCount,
+                        showSuggestions = chrome.showSuggestions,
+                        suggestionCount = suggestionsBadge.count,
+                        menu = menu,
+                        clearEnabled = clearState.clearEnabled,
+                        actions = TopBarActions(
+                            onNotifications = {
+                                navController.navigate(AppDestination.NOTIFICATIONS.route) { launchSingleTop = true }
+                            },
+                            onSuggestions = { suggestionsOpen = true },
+                            onBack = {
+                                when (back) {
+                                    BackStep.Pop -> navController.popBackStack()
+                                    is BackStep.Navigate -> navController.navigate(back.route) { launchSingleTop = true }
+                                    BackStep.None -> Unit
+                                }
+                            },
+                            onMenuItem = { item ->
+                                when (item) {
+                                    MenuItem.CLEAR_COMPLETED -> clearCompleted.requestClear()
+                                    MenuItem.SETTINGS ->
+                                        navController.navigate(AppDestination.SETTINGS.route) { launchSingleTop = true }
+                                    MenuItem.RENAME_LIST -> listId?.let { listsViewModel?.openRename(it) }
+                                    MenuItem.DELETE_LIST -> listId?.let { listsViewModel?.openDelete(it) }
+                                    MenuItem.RENAME_BOARD -> boardId?.let { boardsViewModel?.openRename(it) }
+                                    MenuItem.DELETE_BOARD -> boardId?.let { boardsViewModel?.openDelete(it) }
+                                    MenuItem.MY_CALENDARS, MenuItem.FILTER, MenuItem.SORT -> Unit
+                                }
+                            },
+                        ),
+                    )
+                },
+            ) { innerPadding ->
+                Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+                    AppNavHost(
+                        navController = navController,
+                        viewModelFactory = viewModelFactory,
+                        swipeHint = swipeHint,
+                        onAddForDate = quickAdd::openWithDate,
+                        onDelete = deletion::delete,
+                        suggestionCount = suggestionsBadge.count,
+                        onOpenSuggestions = { suggestionsOpen = true },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .navigationBarsPadding()
+                            .imePadding(),
+                    )
+                }
+            }
+            QuickAddScrim(visible = quickAddState.isOpen, onDismiss = quickAdd::close)
+            FloatingChrome(
+                chrome = chrome,
+                pill = quickAddState,
+                pillActions = PillActions(
+                    onOpen = quickAdd::open,
+                    onTitleChange = quickAdd::onTitleChange,
+                    onSend = quickAdd::add,
+                    onClearDate = quickAdd::clearDate,
+                    onShortcut = quickAdd::selectShortcut,
+                    onPickDate = quickAdd::openDatePicker,
+                    onDatePicked = quickAdd::pickDate,
+                    onDismissDatePicker = quickAdd::dismissDatePicker,
+                    onToggleListPanel = quickAdd::toggleListPanel,
+                    onSelectList = quickAdd::selectList,
+                ),
+                onHome = navController::navigateHome,
+            )
+            if (suggestionsOpen && destination == AppDestination.MY_DAY) {
+                SuggestionsHost(suggestions = suggestions, onClose = { suggestionsOpen = false })
             }
         }
-        QuickAddScrim(visible = quickAddState.isOpen, onDismiss = quickAdd::close)
-        FloatingChrome(
-            chrome = chrome,
-            pill = quickAddState,
-            pillActions = PillActions(
-                onOpen = quickAdd::open,
-                onTitleChange = quickAdd::onTitleChange,
-                onSend = quickAdd::add,
-                onClearDate = quickAdd::clearDate,
-                onShortcut = quickAdd::selectShortcut,
-                onPickDate = quickAdd::openDatePicker,
-                onDatePicked = quickAdd::pickDate,
-                onDismissDatePicker = quickAdd::dismissDatePicker,
-                onToggleListPanel = quickAdd::toggleListPanel,
-                onSelectList = quickAdd::selectList,
-            ),
-            onHome = navController::navigateHome,
-        )
     }
     ClearCompletedDialog(
         state = clearState,
@@ -226,6 +262,51 @@ fun AppShell(
     )
     // Después del NavHost: gana el último registrado, así Atrás cierra la píldora antes de salir de la pantalla.
     BackHandler(enabled = quickAddState.isOpen) { quickAdd.onBack() }
+}
+
+@Composable
+private fun SuggestionsHost(suggestions: MySuggestionsViewModel, onClose: () -> Unit) {
+    val items by suggestions.items.collectAsStateWithLifecycle()
+    val error by suggestions.error.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { suggestions.clearError() }
+    SuggestionsSheet(
+        items = items,
+        errorMessage = error?.message,
+        onAdd = suggestions::addToMyDay,
+        onDismissItem = suggestions::dismiss,
+        onClose = onClose,
+    )
+}
+
+// Estricta: solo el primer RESUMED del día evalúa. El reclamo persiste el día antes de decidir, de modo que
+// un aviso, otra pantalla, otra hoja o cero sugerencias lo consumen sin segunda oportunidad ese día.
+@Composable
+private fun SuggestionsAutoOpen(
+    suggestions: MySuggestionsViewModel,
+    destination: AppDestination,
+    viewerRequested: Boolean,
+    suggestionsOpen: Boolean,
+    sheetGate: SheetGate,
+    overlayOpen: Boolean,
+    onOpen: () -> Unit,
+) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val currentDestination by rememberUpdatedState(destination)
+    val viewerPending by rememberUpdatedState(viewerRequested)
+    val sheetOpen by rememberUpdatedState(suggestionsOpen)
+    val overlay by rememberUpdatedState(overlayOpen)
+    val open by rememberUpdatedState(onOpen)
+    LaunchedEffect(lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            // Se lee antes de suspender: el efecto del visor de avisos baja la petición enseguida.
+            val launchedFromViewer = viewerPending
+            if (!suggestions.claimFirstForegroundOfDay()) return@repeatOnLifecycle
+            fun blocked() = launchedFromViewer || viewerPending || sheetOpen || sheetGate.anyOpen || overlay
+            if (currentDestination != AppDestination.MY_DAY || blocked()) return@repeatOnLifecycle
+            val count = suggestions.awaitFirstCount()
+            if (shouldAutoOpenSuggestions(currentDestination == AppDestination.MY_DAY, count, blocked())) open()
+        }
+    }
 }
 
 @Composable

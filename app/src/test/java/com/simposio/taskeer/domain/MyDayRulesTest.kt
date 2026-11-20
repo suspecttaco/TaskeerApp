@@ -5,17 +5,13 @@ import com.simposio.taskeer.domain.model.MyDayTask
 import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskPriority
-import com.simposio.taskeer.domain.myday.MyDayFilter
 import com.simposio.taskeer.domain.myday.MyDayItem
 import com.simposio.taskeer.domain.myday.MyDaySort
 import com.simposio.taskeer.domain.myday.applyMyDay
-import com.simposio.taskeer.domain.myday.filterMyDay
 import com.simposio.taskeer.domain.myday.mergeMyDay
 import com.simposio.taskeer.domain.myday.sortMyDay
-import com.simposio.taskeer.domain.myday.suggestionsFor
 import java.time.Instant
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -25,36 +21,17 @@ class MyDayRulesTest {
     private val now: Instant = Instant.parse("2026-11-02T10:00:00Z")
 
     @Test
-    fun merge_soloMarcada_unElementoMarcadoNoAsignado() {
-        val items = mergeMyDay(MyDay(listOf(entry("p1", addedAt = now)), emptyList()))
+    fun merge_soloMarcada_unElementoMarcado() {
+        val items = mergeMyDay(MyDay(listOf(entry("p1", addedAt = now))))
 
         assertEquals(listOf("p1"), items.map { it.task.id })
         assertTrue(items.single().isMarked)
-        assertFalse(items.single().isAssigned)
-    }
-
-    @Test
-    fun merge_soloAsignada_unElementoAsignadoNoMarcado() {
-        val items = mergeMyDay(MyDay(emptyList(), listOf(entry("a1", dueAt = now))))
-
-        assertFalse(items.single().isMarked)
-        assertTrue(items.single().isAssigned)
-    }
-
-    @Test
-    fun merge_marcadaYAsignada_unSoloElementoConAmbosOrigenes() {
-        val items = mergeMyDay(
-            MyDay(listOf(entry("t1", addedAt = now)), listOf(entry("t1", dueAt = now.plusSeconds(5)))),
-        )
-
-        assertEquals(1, items.size)
-        assertTrue(items.single().isMarked && items.single().isAssigned)
         assertEquals(now, items.single().markedAt)
     }
 
     @Test
     fun merge_vacio_listaVacia() {
-        assertTrue(mergeMyDay(MyDay(emptyList(), emptyList())).isEmpty())
+        assertTrue(mergeMyDay(MyDay(emptyList())).isEmpty())
     }
 
     @Test
@@ -100,79 +77,10 @@ class MyDayRulesTest {
     }
 
     @Test
-    fun filter_all_devuelveTodo() {
-        val items = listOf(item("m", markedAt = now), item("a", isAssigned = true))
-
-        assertEquals(listOf("m", "a"), filterMyDay(items, MyDayFilter.ALL, now).ids())
-    }
-
-    @Test
-    fun filter_marked_soloMarcadas() {
-        val items = listOf(item("m", markedAt = now), item("a", isAssigned = true), item("ma", markedAt = now, isAssigned = true))
-
-        assertEquals(listOf("m", "ma"), filterMyDay(items, MyDayFilter.MARKED, now).ids())
-    }
-
-    @Test
-    fun filter_assigned_soloAsignadas() {
-        val items = listOf(item("m", markedAt = now), item("a", isAssigned = true), item("ma", markedAt = now, isAssigned = true))
-
-        assertEquals(listOf("a", "ma"), filterMyDay(items, MyDayFilter.ASSIGNED, now).ids())
-    }
-
-    @Test
-    fun filter_marcadaYAsignada_apareceBajoAmbosFiltros() {
-        val both = item("ma", markedAt = now, isAssigned = true, dueAt = now.plusSeconds(1))
-
-        assertEquals(listOf("ma"), filterMyDay(listOf(both), MyDayFilter.MARKED, now).ids())
-        assertEquals(listOf("ma"), filterMyDay(listOf(both), MyDayFilter.ASSIGNED, now).ids())
-    }
-
-    @Test
-    fun filter_overdue_soloAsignadasConFechaPasadaEstricta() {
-        val items = listOf(
-            item("vencida", isAssigned = true, dueAt = now.minusSeconds(1)),
-            item("igual", isAssigned = true, dueAt = now),
-            item("futura", isAssigned = true, dueAt = now.plusSeconds(1)),
-            item("marcada-vencida", markedAt = now, dueAt = now.minusSeconds(1)),
-        )
-
-        assertEquals(listOf("vencida"), filterMyDay(items, MyDayFilter.OVERDUE, now).ids())
-    }
-
-    @Test
-    fun filter_combinadoConOrden() {
-        val items = listOf(
-            item("a", TaskPriority.LOW, markedAt = now),
-            item("b", TaskPriority.URGENT, markedAt = now),
-            item("c", TaskPriority.URGENT, isAssigned = true),
-        )
-
-        assertEquals(listOf("b", "a"), applyMyDay(items, MyDayFilter.MARKED, MyDaySort.PRIORITY, now).ids())
-    }
-
-    @Test
-    fun overdueFilter_coincideConConteo() {
-        val assigned = (1..7).map { entry("v$it", dueAt = now.minusSeconds(it.toLong())) } +
-            entry("f1", dueAt = now.plusSeconds(10))
-        val items = mergeMyDay(MyDay(listOf(entry("p", addedAt = now, dueAt = now.minusSeconds(5))), assigned))
-
-        assertEquals(7, filterMyDay(items, MyDayFilter.OVERDUE, now).size)
-    }
-
-    @Test
-    fun filtro_soloTieneLosOrigenesActuales() {
-        assertEquals(
-            listOf("ALL", "MARKED", "ASSIGNED", "OVERDUE"),
-            MyDayFilter.entries.map { it.name },
-        )
-    }
-
-    @Test
     fun tareaDeBandeja_conservaBoardNameNulo() {
         val inbox = MyDayTask(item("pan").task.copy(columnId = null), boardId = null, boardName = null, addedAt = Instant.EPOCH)
 
-        val merged = mergeMyDay(MyDay(pinned = listOf(inbox), assigned = emptyList()))
+        val merged = mergeMyDay(MyDay(pinned = listOf(inbox)))
 
         assertNull(merged.single().boardName)
         assertNull(merged.single().boardId)
@@ -206,40 +114,10 @@ class MyDayRulesTest {
     }
 
     @Test
-    fun filter_vencidas_excluyeCompletadas() {
-        val items = listOf(
-            item("vencida", isAssigned = true, dueAt = now.minusSeconds(60)),
-            item("hecha-vencida", isAssigned = true, dueAt = now.minusSeconds(60), completedAt = now.minusSeconds(30)),
-        )
+    fun apply_ordenaSinFiltrar() {
+        val items = listOf(item("b", dueAt = now.plusSeconds(60)), item("a", dueAt = now))
 
-        assertEquals(listOf("vencida"), filterMyDay(items, MyDayFilter.OVERDUE, now).ids())
-    }
-
-    @Test
-    fun filter_marcadas_incluyeCompletadas() {
-        val items = listOf(
-            item("pendiente", markedAt = now),
-            item("hecha", markedAt = now, completedAt = now),
-            item("asignada", isAssigned = true),
-        )
-
-        assertEquals(listOf("pendiente", "hecha"), filterMyDay(items, MyDayFilter.MARKED, now).ids())
-        assertEquals(listOf("pendiente", "hecha", "asignada"), filterMyDay(items, MyDayFilter.ALL, now).ids())
-    }
-
-    @Test
-    fun suggestions_sinDuplicarElementosDeHoy() {
-        val myDay = MyDay(
-            pinned = listOf(entry("hoy", addedAt = now)),
-            assigned = listOf(entry("asignada", dueAt = now)),
-            suggestions = listOf(
-                entry("hoy", addedAt = now.minusSeconds(86_400)),
-                entry("asignada", addedAt = now.minusSeconds(86_400)),
-                entry("ayer", addedAt = now.minusSeconds(86_400)),
-            ),
-        )
-
-        assertEquals(listOf("ayer"), suggestionsFor(myDay).map { it.task.id })
+        assertEquals(listOf("a", "b"), applyMyDay(items, MyDaySort.DUE_DATE).ids())
     }
 
     private fun List<MyDayItem>.ids(): List<String> = map { it.task.id }
@@ -255,7 +133,6 @@ class MyDayRulesTest {
         priority: TaskPriority = TaskPriority.MEDIUM,
         dueAt: Instant? = null,
         markedAt: Instant? = null,
-        isAssigned: Boolean = false,
         completedAt: Instant? = null,
     ): MyDayItem = MyDayItem(
         task = Task(
@@ -273,6 +150,5 @@ class MyDayRulesTest {
         boardId = "b1",
         boardName = "Tablero",
         markedAt = markedAt,
-        isAssigned = isAssigned,
     )
 }

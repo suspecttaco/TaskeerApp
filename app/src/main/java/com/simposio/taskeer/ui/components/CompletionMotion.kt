@@ -33,9 +33,10 @@ internal fun rememberAnimationsEnabled(): Boolean {
 }
 
 // Sin animación (escala 0) los specs son null: la fila se mueve, aparece y desaparece al instante.
+// fadeIn = false: la fila recién insertada entra ya opaca (Mi día) y solo se anima la reubicación de las demás.
 @Composable
-internal fun LazyItemScope.rowItemModifier(): Modifier = if (rememberAnimationsEnabled()) {
-    Modifier.animateItem()
-} else {
-    Modifier.animateItem(fadeInSpec = null, placementSpec = null, fadeOutSpec = null)
+internal fun LazyItemScope.rowItemModifier(fadeIn: Boolean = true): Modifier = when {
+    !rememberAnimationsEnabled() -> Modifier.animateItem(fadeInSpec = null, placementSpec = null, fadeOutSpec = null)
+    fadeIn -> Modifier.animateItem()
+    else -> Modifier.animateItem(fadeInSpec = null)
 }

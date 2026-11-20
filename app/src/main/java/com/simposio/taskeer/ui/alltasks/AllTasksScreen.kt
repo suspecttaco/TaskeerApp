@@ -133,7 +133,7 @@ fun AllTasksContent(
             }
             if (state.isEmpty) {
                 item(key = "empty") {
-                    val spec = emptyStateFor(EmptyScreen.ALL_TASKS, hasTasks = false, filterActive = false)
+                    val spec = emptyStateFor(EmptyScreen.ALL_TASKS)
                     EmptyState(
                         icon = Icons.Filled.Checklist,
                         text = stringResource(spec.textRes),

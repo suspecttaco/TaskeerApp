@@ -16,6 +16,7 @@ import com.simposio.taskeer.domain.model.Column
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.MyDay
+import com.simposio.taskeer.domain.model.MyDayTask
 import com.simposio.taskeer.domain.model.Subtask
 import com.simposio.taskeer.domain.model.SubtaskDraft
 import com.simposio.taskeer.domain.model.SubtaskProgress
@@ -273,11 +274,17 @@ class AppContainerTest {
     }
 
     private class FakeMyDayRepository : MyDayRepository {
-        override fun observeMyDay(): Flow<MyDay> = MutableStateFlow(MyDay(emptyList(), emptyList()))
+        override fun observeMyDay(): Flow<MyDay> = MutableStateFlow(MyDay(emptyList()))
 
         override fun observeMarkedTaskIds(): Flow<Set<String>> = MutableStateFlow(emptySet())
 
         override fun observeOverdueCount(): Flow<Int> = MutableStateFlow(0)
+
+        override fun observeSuggestions(): Flow<List<MyDayTask>> = emptyFlow()
+
+        override fun observeSuggestionCount(): Flow<Int> = emptyFlow()
+
+        override suspend fun dismissSuggestion(taskId: String): DomainResult<Unit> = DomainResult.Success(Unit)
 
         override suspend fun setMarked(taskId: String, marked: Boolean): DomainResult<Unit> =
             DomainResult.Success(Unit)
