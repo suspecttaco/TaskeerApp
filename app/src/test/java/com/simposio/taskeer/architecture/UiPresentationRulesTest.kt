@@ -506,6 +506,321 @@ class UiPresentationRulesTest {
         assertTrue(source("ui/shell/AppShell.kt").contains("onDelete = deletion::delete"))
     }
 
+    @Test
+    fun pildoraExponeFilaDeAtajos() {
+        val row = source("ui/shell/QuickDateShortcutRow.kt")
+
+        assertTrue(row.contains("LazyRow("))
+        assertTrue(row.contains("FilterChip("))
+        listOf(
+            "pill_shortcut_tomorrow_morning",
+            "pill_shortcut_next_week",
+            "pill_shortcut_someday",
+            "pill_shortcut_pick",
+        ).forEach { assertTrue("falta R.string.$it", row.contains("R.string.$it")) }
+        assertTrue(row.contains("Icons.Filled.Check"))
+        assertTrue(row.contains("Icons.Filled.CalendarMonth"))
+        assertTrue(source("ui/shell/FloatingChrome.kt").contains("QuickDateShortcutRow("))
+    }
+
+    @Test
+    fun pildoraCerradaNoMuestraAtajos() {
+        val chrome = source("ui/shell/FloatingChrome.kt")
+        val collapsed = chrome.substringAfter("private fun CollapsedPill(").substringBefore("@Composable")
+
+        assertTrue(!collapsed.contains("QuickDateShortcutRow("))
+        assertTrue(!collapsed.contains("QuickAddListPanel("))
+        assertTrue(chrome.substringAfter("private fun ExpandedPill(").contains("QuickDateShortcutRow("))
+    }
+
+    @Test
+    fun pildoraReutilizaDueDatePickerDialog() {
+        val chrome = source("ui/shell/FloatingChrome.kt")
+
+        assertTrue(chrome.contains("DueDatePickerDialog("))
+        assertTrue(chrome.contains("if (state.isDatePickerOpen)"))
+        assertTrue(source("ui/tasks/TaskDuePickers.kt").contains("internal fun DueDatePickerDialog("))
+        assertEquals(1, uiFiles().sumOf { Regex("DatePickerDialog\\(").findAll(it.readText()).count() - Regex("DueDatePickerDialog\\(").findAll(it.readText()).count() })
+    }
+
+    @Test
+    fun pildoraNoAnadeInsetsParalelos() {
+        PILL_FILES.filter { it != "ui/shell/FloatingChrome.kt" }.forEach { path ->
+            val text = source(path)
+            listOf("imePadding", "navigationBarsPadding", "windowInsetsPadding", "WindowInsets").forEach {
+                assertTrue("$path no debe usar $it", !text.contains(it))
+            }
+        }
+        assertEquals(1, Regex("imePadding\\(\\)").findAll(source("ui/shell/FloatingChrome.kt")).count())
+    }
+
+    @Test
+    fun pildoraAtajosYPanelTienenDescripcion() {
+        assertTrue(source("ui/shell/QuickDateShortcutRow.kt").contains("R.string.pill_shortcuts_description"))
+        val panel = source("ui/shell/QuickAddListPanel.kt")
+        assertTrue(panel.contains("R.string.pill_list_panel_description"))
+        assertTrue(panel.contains("R.string.pill_list_row_description"))
+        assertTrue(panel.contains("R.string.pill_list_selected"))
+    }
+
+    @Test
+    fun pildoraTieneBotonDeListaEnElCampo() {
+        val chrome = source("ui/shell/FloatingChrome.kt")
+        val field = chrome.substringAfter("OutlinedTextField(").substringBefore("keyboardOptions")
+
+        assertTrue(field.contains("trailingIcon = {"))
+        assertTrue(!field.contains("leadingIcon"))
+        assertTrue(field.contains("PillListButton("))
+        assertTrue(chrome.contains("R.string.pill_list_button"))
+        assertTrue(chrome.contains("stateDescription = stateText"))
+        assertTrue(chrome.contains("R.string.pill_list_panel_open"))
+        assertTrue(chrome.contains("R.string.pill_list_panel_closed"))
+    }
+
+    @Test
+    fun pildoraBotonDeListaNoEsLeadingIcon() {
+        assertTrue(!source("ui/shell/FloatingChrome.kt").contains("leadingIcon"))
+    }
+
+    @Test
+    fun pildoraAbiertaOcupaElAnchoYNoTieneRedondeo() {
+        val expanded = source("ui/shell/FloatingChrome.kt").substringAfter("private fun ExpandedPill(").substringBefore("@Composable")
+        val container = expanded.substringBefore("Column(")
+
+        assertTrue(container.contains("shape = RectangleShape"))
+        assertTrue(container.contains("fillMaxWidth()"))
+        assertTrue("el contenedor no lleva margen exterior", !container.contains("padding("))
+        assertTrue("la rama abierta no usa formas del tema", !expanded.contains("MaterialTheme.shapes."))
+        assertTrue(expanded.contains("shape = RectangleShape,\n                    trailingIcon"))
+    }
+
+    @Test
+    fun pildoraImePaddingEnvuelveAlContenedorYNavBarVaDentro() {
+        val chrome = source("ui/shell/FloatingChrome.kt")
+        val outer = chrome.substringAfter("fun BoxScope.FloatingChrome(").substringBefore("@Composable\nprivate fun CollapsedPill")
+        val expanded = chrome.substringAfter("private fun ExpandedPill(").substringBefore("@Composable")
+
+        assertEquals(1, Regex("imePadding\\(\\)").findAll(chrome).count())
+        assertTrue(outer.contains("Box(modifier = modifier.align(Alignment.BottomCenter).fillMaxWidth().imePadding())"))
+        assertTrue("navigationBarsPadding dentro del Surface abierto", expanded.substringAfter("Surface(").contains("navigationBarsPadding()"))
+        assertTrue("sin navigationBarsPadding fuera del Surface abierto", !expanded.substringBefore("Surface(").contains("navigationBarsPadding()"))
+    }
+
+    @Test
+    fun panelDeListasEsRectoEnLaPildoraExpandida() {
+        val panel = source("ui/shell/QuickAddListPanel.kt")
+
+        assertTrue(panel.contains("shape = RectangleShape"))
+        assertTrue(!panel.contains("MaterialTheme.shapes."))
+    }
+
+    @Test
+    fun pildoraAlCompactarOcultaElTecladoYQuitaElFoco() {
+        val chrome = source("ui/shell/FloatingChrome.kt")
+        val closing = chrome.substringAfter("} else if (wasOpen) {").substringBefore("wasOpen = false")
+
+        assertTrue(closing.contains("keyboardController?.hide()"))
+        assertTrue(closing.contains("focusManager.clearFocus()"))
+        assertTrue(chrome.contains("LocalSoftwareKeyboardController.current"))
+        assertTrue(chrome.contains("LocalFocusManager.current"))
+        assertTrue("la píldora colapsada no recibe foco programático", !chrome.contains("pillFocus"))
+    }
+
+    @Test
+    fun veloUsaElScrimNativoYCubreLaVentana() {
+        val scrim = source("ui/shell/QuickAddScrim.kt")
+        val shell = source("ui/shell/AppShell.kt")
+
+        assertTrue(scrim.contains("BottomSheetDefaults.ScrimColor"))
+        assertTrue(scrim.contains("fillMaxSize()"))
+        assertTrue(scrim.contains("indication = null"))
+        assertTrue(shell.contains("QuickAddScrim("))
+    }
+
+    @Test
+    fun veloSoloExisteConLaPildoraAbierta() {
+        assertTrue(source("ui/shell/QuickAddScrim.kt").contains("AnimatedVisibility(\n        visible = visible,"))
+        assertTrue(source("ui/shell/AppShell.kt").contains("QuickAddScrim(visible = quickAddState.isOpen"))
+    }
+
+    @Test
+    fun veloTieneDescripcionYNoUsaDialogos() {
+        val scrim = source("ui/shell/QuickAddScrim.kt")
+
+        assertTrue(scrim.contains("R.string.pill_scrim_description"))
+        assertTrue(scrim.contains("onClickLabel = label"))
+        listOf("Dialog(", "ModalBottomSheet(", "Popup(").forEach {
+            assertTrue("el velo no debe usar $it", !scrim.contains(it))
+        }
+    }
+
+    @Test
+    fun appShellSuperponeVeloYPildoraSobreElScaffold() {
+        val shell = source("ui/shell/AppShell.kt")
+        val scaffold = shell.indexOf("Scaffold(")
+        val scrim = shell.indexOf("QuickAddScrim(")
+        val chrome = shell.indexOf("FloatingChrome(")
+
+        assertTrue(scaffold in 0 until scrim)
+        assertTrue(scrim in 0 until chrome)
+        assertTrue("el cromo ya no vive dentro del contenido del Scaffold", !shell.substringAfter("{ innerPadding ->").substringBefore("QuickAddScrim(").contains("FloatingChrome("))
+    }
+
+    @Test
+    fun veloLlamaAClose() {
+        assertTrue(source("ui/shell/AppShell.kt").contains("onDismiss = quickAdd::close"))
+    }
+
+    @Test
+    fun veloNoRegistraBackHandlePropio() {
+        assertTrue(!source("ui/shell/QuickAddScrim.kt").contains("BackHandler"))
+    }
+
+    @Test
+    fun appShellMantieneUnUnicoBackHandleDeLaPildora() {
+        val shell = source("ui/shell/AppShell.kt")
+
+        assertEquals(1, Regex("BackHandler\\(").findAll(shell).count())
+        assertTrue(shell.contains("BackHandler(enabled = quickAddState.isOpen) { quickAdd.onBack() }"))
+    }
+
+    @Test
+    fun veloYTransicionesRespetanLaEscalaDeAnimacion() {
+        val scrim = source("ui/shell/QuickAddScrim.kt")
+        val host = source("ui/navigation/AppNavHost.kt")
+        val motion = source("ui/navigation/NavMotion.kt")
+
+        assertTrue(scrim.contains("rememberAnimationsEnabled()"))
+        assertTrue(scrim.contains("EnterTransition.None") && scrim.contains("ExitTransition.None"))
+        assertTrue(host.contains("rememberAnimationsEnabled()"))
+        assertTrue(motion.contains("animationsEnabled: Boolean"))
+        listOf(scrim, host, motion).forEach { assertTrue(!it.contains("Settings.Global")) }
+    }
+
+    @Test
+    fun navHostDefineLasCuatroTransicionesUnaVez() {
+        val host = source("ui/navigation/AppNavHost.kt")
+        val navHostCall = host.substringAfter("    NavHost(\n").substringBefore("    ) {")
+        val routes = host.substringAfter("    NavHost(\n").substringAfter("    ) {")
+
+        listOf("enterTransition", "exitTransition", "popEnterTransition", "popExitTransition").forEach {
+            assertEquals("$it en NavHost", 1, Regex("\\b$it = ").findAll(navHostCall).count())
+            assertTrue("$it no se sobrescribe por ruta", !routes.contains(it))
+        }
+    }
+
+    @Test
+    fun navMotionUsaZoomYFundidoSinDeslizamientos() {
+        val motion = source("ui/navigation/NavMotion.kt")
+
+        listOf("scaleIn(", "scaleOut(", "fadeIn(", "fadeOut(").forEach { assertTrue("falta $it", motion.contains(it)) }
+        listOf("slideIn", "slideOut").forEach { assertTrue("no debe usar $it", !motion.contains(it)) }
+    }
+
+    @Test
+    fun duracionesDeLaNavegacionSoloEnNavMotion() {
+        val host = source("ui/navigation/AppNavHost.kt")
+
+        assertTrue(!host.contains("tween("))
+        assertTrue(!host.contains(".dp"))
+        assertTrue(source("ui/navigation/NavMotion.kt").contains("const val ExitFadeMillis"))
+    }
+
+    @Test
+    fun panelDeListasSeAnimaConEntradaYSalidaQueRespetanLaEscala() {
+        val chrome = source("ui/shell/FloatingChrome.kt")
+        val expanded = chrome.substringAfter("private fun ExpandedPill(").substringBefore("@Composable")
+        val motion = source("ui/navigation/NavMotion.kt")
+
+        assertTrue(expanded.contains("AnimatedVisibility(\n                visible = state.isListPanelOpen,"))
+        assertTrue(expanded.contains("enter = panelEnter(animated)") && expanded.contains("exit = panelExit(animated)"))
+        assertTrue(expanded.contains("rememberAnimationsEnabled()"))
+        assertTrue(motion.contains("expandVertically(") && motion.contains("shrinkVertically("))
+        assertTrue(!chrome.contains("tween(") && !chrome.contains("animateContentSize"))
+        assertTrue(expanded.contains("QuickAddListPanel("))
+    }
+
+    @Test
+    fun pildoraListasSinDialogoNiHoja() {
+        PILL_FILES.forEach { path ->
+            val text = source(path)
+            assertTrue("$path no debe usar ModalBottomSheet(", !text.contains("ModalBottomSheet("))
+            assertTrue("$path no debe usar DropdownMenu", !text.contains("DropdownMenu("))
+            assertTrue("$path no debe usar AlertDialog(", !text.contains("AlertDialog("))
+        }
+        assertTrue(!source("ui/shell/QuickAddListPanel.kt").contains("Dialog("))
+    }
+
+    @Test
+    fun pildoraListaMuestraConteoConPlural() {
+        val strings = File(sourcesRoot, "../../../../res/values/strings.xml").readText()
+        val plural = strings.substringAfter("<plurals name=\"pill_list_task_count\">").substringBefore("</plurals>")
+
+        assertTrue(plural.contains("<item quantity=\"one\">%d tarea</item>"))
+        assertTrue(plural.contains("<item quantity=\"other\">%d tareas</item>"))
+        assertTrue(source("ui/shell/QuickAddListPanel.kt").contains("pluralStringResource(R.plurals.pill_list_task_count"))
+    }
+
+    @Test
+    fun pildoraListaSeleccionadaNoDependeSoloDelColor() {
+        val panel = source("ui/shell/QuickAddListPanel.kt")
+
+        assertTrue(panel.contains("Icons.Filled.Check"))
+        assertTrue(panel.contains("selectable(selected = option.selected"))
+        assertTrue(panel.contains("stateDescription = selectedText"))
+    }
+
+    @Test
+    fun pildoraListaUsaClavesEstablesPorId() {
+        val panel = source("ui/shell/QuickAddListPanel.kt")
+
+        assertTrue(panel.contains("key = { it.id }"))
+        assertTrue(source("ui/shell/QuickDateShortcutRow.kt").contains("key = { it.first }"))
+    }
+
+    @Test
+    fun pildoraNoGuardaEstadoPropioQueSobrevivaAlViewModel() {
+        PILL_FILES.forEach { path ->
+            assertTrue("$path no debe usar rememberSaveable", !source(path).contains("rememberSaveable"))
+        }
+    }
+
+    @Test
+    fun pildoraDevuelveElFocoAlCampoAlCerrarPanelOSelector() {
+        val chrome = source("ui/shell/FloatingChrome.kt")
+
+        assertTrue(chrome.contains("LaunchedEffect(pill.isListPanelOpen, pill.isDatePickerOpen)"))
+        assertTrue(chrome.contains("inputFocus.requestFocus()"))
+    }
+
+    @Test
+    fun pildoraSinControlesDePrioridadNiAsignado() {
+        PILL_FILES.forEach { path ->
+            val text = source(path)
+            assertTrue("$path no debe referenciar TaskPriority", !text.contains("TaskPriority"))
+            assertTrue("$path no debe referenciar assignee", !text.contains("assignee", ignoreCase = true))
+        }
+        quickAddFiles().forEach { file ->
+            if (file.name == "QuickAddViewModel.kt") return@forEach
+            assertTrue(!file.readText().contains("assignee", ignoreCase = true))
+        }
+    }
+
+    @Test
+    fun dimensionesDeLaPildoraEnSpacing() {
+        assertTrue(source("ui/theme/Spacing.kt").contains("PillListPanelMaxHeight = 240.dp"))
+        assertTrue(source("ui/shell/QuickAddListPanel.kt").contains("Spacing.PillListPanelMaxHeight"))
+    }
+
+    @Test
+    fun horaDelAtajoDeMananaViveSoloEnElDominio() {
+        val literal = Regex("LocalTime\\.of\\(|atTime\\(|MORNING_TIME")
+        PILL_FILES.forEach { path ->
+            assertTrue("$path no debe fijar horas", !literal.containsMatchIn(source(path)))
+        }
+        assertTrue(!source("ui/quickadd/QuickAddViewModel.kt").contains("LocalTime"))
+    }
+
     private fun source(path: String): String = File(sourcesRoot, path).readText()
 
     private fun quickAddFiles(): List<File> = File(sourcesRoot, "ui/quickadd").walkTopDown()
@@ -564,7 +879,16 @@ class UiPresentationRulesTest {
             "ui/upcoming/UpcomingScreen.kt",
             "ui/alltasks/AllTasksScreen.kt",
         )
+        val PILL_FILES = listOf(
+            "ui/shell/FloatingChrome.kt",
+            "ui/shell/QuickAddScrim.kt",
+            "ui/shell/QuickDateShortcutRow.kt",
+            "ui/shell/QuickAddListPanel.kt",
+        )
+        // QuickAddScrim.kt queda fuera a propósito: es un velo de pantalla completa, no un control de 48 dp.
         val NEW_CONTROL_FILES = listOf(
+            "ui/shell/QuickDateShortcutRow.kt",
+            "ui/shell/QuickAddListPanel.kt",
             "ui/components/DateGroupHeader.kt",
             "ui/components/HomeButton.kt",
             "ui/home/HomeScreen.kt",
@@ -578,6 +902,10 @@ class UiPresentationRulesTest {
             "ui/boards/BoardNameDialog.kt",
         )
         val NEW_UI_FILES = listOf(
+            "ui/shell/QuickAddScrim.kt",
+            "ui/navigation/NavMotion.kt",
+            "ui/shell/QuickDateShortcutRow.kt",
+            "ui/shell/QuickAddListPanel.kt",
             "ui/components/TaskRow.kt",
             "ui/components/EmptyState.kt",
             "ui/components/DateGroupHeader.kt",

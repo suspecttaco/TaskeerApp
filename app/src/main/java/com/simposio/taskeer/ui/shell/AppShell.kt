@@ -139,76 +139,85 @@ fun AppShell(
     val back = backStep(destination, boardId, hasPrevious = navController.previousBackStackEntry != null)
 
     val snackbarClearance = if (destination == AppDestination.HOME) Spacing.HubBarClearance else Spacing.ChromeClearance
-    Scaffold(
-        modifier = modifier,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        snackbarHost = {
-            SnackbarHost(
-                hostState = snackbarHost,
-                modifier = Modifier
-                    .navigationBarsPadding()
-                    .imePadding()
-                    .padding(bottom = snackbarClearance),
-            )
-        },
-        topBar = {
-            ShellTopBar(
-                kind = chrome.topBar,
-                title = title,
-                unreadCount = unreadCount,
-                menu = menu,
-                clearEnabled = clearState.clearEnabled,
-                actions = TopBarActions(
-                    onNotifications = {
-                        navController.navigate(AppDestination.NOTIFICATIONS.route) { launchSingleTop = true }
-                    },
-                    onBack = {
-                        when (back) {
-                            BackStep.Pop -> navController.popBackStack()
-                            is BackStep.Navigate -> navController.navigate(back.route) { launchSingleTop = true }
-                            BackStep.None -> Unit
-                        }
-                    },
-                    onMenuItem = { item ->
-                        when (item) {
-                            MenuItem.CLEAR_COMPLETED -> clearCompleted.requestClear()
-                            MenuItem.SETTINGS ->
-                                navController.navigate(AppDestination.SETTINGS.route) { launchSingleTop = true }
-                            MenuItem.RENAME_LIST -> listId?.let { listsViewModel?.openRename(it) }
-                            MenuItem.DELETE_LIST -> listId?.let { listsViewModel?.openDelete(it) }
-                            MenuItem.RENAME_BOARD -> boardId?.let { boardsViewModel?.openRename(it) }
-                            MenuItem.DELETE_BOARD -> boardId?.let { boardsViewModel?.openDelete(it) }
-                            MenuItem.MY_CALENDARS, MenuItem.FILTER, MenuItem.SORT -> Unit
-                        }
-                    },
-                ),
-            )
-        },
-    ) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-            AppNavHost(
-                navController = navController,
-                viewModelFactory = viewModelFactory,
-                swipeHint = swipeHint,
-                onAddForDate = quickAdd::openWithDate,
-                onDelete = deletion::delete,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .navigationBarsPadding()
-                    .imePadding(),
-            )
-            FloatingChrome(
-                chrome = chrome,
-                pill = quickAddState,
-                pillActions = PillActions(
-                    onOpen = quickAdd::open,
-                    onTitleChange = quickAdd::onTitleChange,
-                    onSend = quickAdd::add,
-                    onClearDate = quickAdd::clearDate,
-                ),
-                onHome = navController::navigateHome,
-            )
+    Box(modifier = modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            snackbarHost = {
+                SnackbarHost(
+                    hostState = snackbarHost,
+                    modifier = Modifier
+                        .navigationBarsPadding()
+                        .imePadding()
+                        .padding(bottom = snackbarClearance),
+                )
+            },
+            topBar = {
+                ShellTopBar(
+                    kind = chrome.topBar,
+                    title = title,
+                    unreadCount = unreadCount,
+                    menu = menu,
+                    clearEnabled = clearState.clearEnabled,
+                    actions = TopBarActions(
+                        onNotifications = {
+                            navController.navigate(AppDestination.NOTIFICATIONS.route) { launchSingleTop = true }
+                        },
+                        onBack = {
+                            when (back) {
+                                BackStep.Pop -> navController.popBackStack()
+                                is BackStep.Navigate -> navController.navigate(back.route) { launchSingleTop = true }
+                                BackStep.None -> Unit
+                            }
+                        },
+                        onMenuItem = { item ->
+                            when (item) {
+                                MenuItem.CLEAR_COMPLETED -> clearCompleted.requestClear()
+                                MenuItem.SETTINGS ->
+                                    navController.navigate(AppDestination.SETTINGS.route) { launchSingleTop = true }
+                                MenuItem.RENAME_LIST -> listId?.let { listsViewModel?.openRename(it) }
+                                MenuItem.DELETE_LIST -> listId?.let { listsViewModel?.openDelete(it) }
+                                MenuItem.RENAME_BOARD -> boardId?.let { boardsViewModel?.openRename(it) }
+                                MenuItem.DELETE_BOARD -> boardId?.let { boardsViewModel?.openDelete(it) }
+                                MenuItem.MY_CALENDARS, MenuItem.FILTER, MenuItem.SORT -> Unit
+                            }
+                        },
+                    ),
+                )
+            },
+        ) { innerPadding ->
+            Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+                AppNavHost(
+                    navController = navController,
+                    viewModelFactory = viewModelFactory,
+                    swipeHint = swipeHint,
+                    onAddForDate = quickAdd::openWithDate,
+                    onDelete = deletion::delete,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .navigationBarsPadding()
+                        .imePadding(),
+                )
+            }
         }
+        QuickAddScrim(visible = quickAddState.isOpen, onDismiss = quickAdd::close)
+        FloatingChrome(
+            chrome = chrome,
+            pill = quickAddState,
+            pillActions = PillActions(
+                onOpen = quickAdd::open,
+                onTitleChange = quickAdd::onTitleChange,
+                onSend = quickAdd::add,
+                onClearDate = quickAdd::clearDate,
+                onShortcut = quickAdd::selectShortcut,
+                onPickDate = quickAdd::openDatePicker,
+                onDatePicked = quickAdd::pickDate,
+                onDismissDatePicker = quickAdd::dismissDatePicker,
+                onToggleListPanel = quickAdd::toggleListPanel,
+                onSelectList = quickAdd::selectList,
+            ),
+            onHome = navController::navigateHome,
+        )
     }
     ClearCompletedDialog(
         state = clearState,

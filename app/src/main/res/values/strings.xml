@@ -245,6 +245,23 @@
     <string name="pill_send">Añadir tarea</string>
     <string name="pill_date_chip">Para: %1$s</string>
     <string name="pill_remove_date">Quitar fecha</string>
+    <string name="pill_shortcut_tomorrow_morning">Mañana por la mañana</string>
+    <string name="pill_shortcut_next_week">Próxima semana</string>
+    <string name="pill_shortcut_someday">Algún día</string>
+    <string name="pill_shortcut_pick">Elegir</string>
+    <string name="pill_shortcuts_description">Atajos de fecha</string>
+    <string name="pill_date_chip_someday">Para: Algún día</string>
+    <string name="pill_list_button">Elegir lista, actual: %1$s</string>
+    <string name="pill_list_panel_description">Listas</string>
+    <string name="pill_list_selected">Seleccionada</string>
+    <string name="pill_list_panel_open">Panel de listas abierto</string>
+    <string name="pill_list_panel_closed">Panel de listas cerrado</string>
+    <string name="pill_scrim_description">Cerrar alta rápida</string>
+    <string name="pill_list_row_description">%1$s, %2$s</string>
+    <plurals name="pill_list_task_count">
+        <item quantity="one">%d tarea</item>
+        <item quantity="other">%d tareas</item>
+    </plurals>
     <string name="group_today">Hoy</string>
     <string name="group_tomorrow">Mañana</string>
     <string name="group_upcoming">Próximamente</string>
