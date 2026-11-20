@@ -1,6 +1,17 @@
 package com.simposio.taskeer.ui
 
+import com.simposio.taskeer.data.repository.MyDayRepository
 import com.simposio.taskeer.data.repository.TaskRepository
+import com.simposio.taskeer.domain.model.Board
+import com.simposio.taskeer.domain.model.Column
+import com.simposio.taskeer.domain.model.MyDay
+import com.simposio.taskeer.domain.task.TASK_DESCRIPTION_TOO_LONG
+import com.simposio.taskeer.ui.tasks.EditorPanel
+import com.simposio.taskeer.ui.tasks.PickedDateTime
+import com.simposio.taskeer.ui.tasks.PickerTarget
+import com.simposio.taskeer.ui.tasks.parent
+import java.time.LocalDate
+import kotlinx.coroutines.flow.MutableStateFlow
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
@@ -19,7 +30,11 @@ import com.simposio.taskeer.domain.task.RepeatPresets
 import com.simposio.taskeer.domain.task.TASK_REPEAT_INVALID
 import com.simposio.taskeer.domain.task.newTask
 import com.simposio.taskeer.domain.task.newTaskWithExtras
+import com.simposio.taskeer.testing.FakeDestinationBoardRepository
+import com.simposio.taskeer.testing.FakeDestinationColumnRepository
 import com.simposio.taskeer.testing.FakePreferencesRepository
+import com.simposio.taskeer.testing.FakeTaskListRepository
+import com.simposio.taskeer.testing.listSummary
 import com.simposio.taskeer.ui.tasks.SubtaskDraftItem
 import com.simposio.taskeer.ui.tasks.TaskEditorUiState
 import com.simposio.taskeer.ui.tasks.TaskEditorViewModel
@@ -51,6 +66,14 @@ class TaskEditorViewModelTest {
 
     private val now: Instant = Instant.parse("2026-11-04T10:00:00Z")
     private val preferences = FakePreferencesRepository()
+    private val lists = FakeTaskListRepository(
+        listOf(listSummary("l1", "Compras", 2), listSummary("l2", "Trabajo", 1, position = 1)),
+    )
+    private val myDay = FakeMarkedRepository()
+    private val boards = FakeDestinationBoardRepository(MutableStateFlow(listOf(board("b1", "Proyecto"))))
+    private val columns = FakeDestinationColumnRepository(
+        MutableStateFlow(listOf(column("c1", "b1", "Por hacer"), column("c2", "b1", "Hecho", done = true))),
+    )
 
     @Before
     fun setUp() {
@@ -112,32 +135,15 @@ class TaskEditorViewModelTest {
     }
 
     @Test
-    fun delete_conBorradoEnCurso_noLanzaUnSegundoBorrado() = runTest {
+    fun close_marcaCierreYNoBorraEnElRepositorio() = runTest {
         val repository = FakeTaskRepository(task("t1", "Informe"))
-        val gate = CompletableDeferred<Unit>()
-        repository.deleteGate = gate
         val viewModel = viewModel(repository)
         viewModel.openForEdit("t1")
 
-        viewModel.delete()
-        viewModel.delete()
-        gate.complete(Unit)
+        viewModel.close()
 
-        assertEquals(1, repository.deleteCalls)
-        assertFalse(viewModel.uiState.value.isOpen)
-    }
-
-    @Test
-    fun delete_conFallo_muestraElErrorYPermiteReintentar() = runTest {
-        val repository = FakeTaskRepository(task("t1", "Informe"))
-        repository.deleteError = DomainError.Unknown("UNKNOWN", "Fallo")
-        val viewModel = viewModel(repository)
-        viewModel.openForEdit("t1")
-
-        viewModel.delete()
-
-        assertNotNull(viewModel.uiState.value.error)
-        assertFalse(viewModel.uiState.value.isSaving)
+        assertTrue(viewModel.uiState.value.isClosing)
+        assertEquals(0, repository.deleteCalls)
     }
 
     @Test
@@ -301,7 +307,7 @@ class TaskEditorViewModelTest {
         )
         assertEquals(Instant.parse("2026-11-04T15:00:00Z"), creation?.remindAt)
         assertEquals(1, repository.extrasCalls)
-        assertFalse(viewModel.uiState.value.isOpen)
+        assertTrue(viewModel.uiState.value.isClosing)
     }
 
     @Test
@@ -537,16 +543,495 @@ class TaskEditorViewModelTest {
         assertFalse(viewModel.uiState.value.isSaving)
     }
 
+    @Test
+    fun isDirty_conTituloEditado_esVerdadero() = runTest {
+        val viewModel = viewModel(FakeTaskRepository(task("t1", "Informe")))
+        viewModel.openForEdit("t1")
+
+        viewModel.onTitleChange("Informe final")
+
+        assertTrue(viewModel.uiState.value.isDirty)
+    }
+
+    @Test
+    fun isDirty_trasRestaurarElValor_esFalso() = runTest {
+        val viewModel = viewModel(FakeTaskRepository(task("t1", "Informe")))
+        viewModel.openForEdit("t1")
+
+        viewModel.onTitleChange("Informe final")
+        viewModel.onTitleChange("Informe ")
+
+        assertFalse(viewModel.uiState.value.isDirty)
+    }
+
+    @Test
+    fun isDirty_enAltaVacia_esFalso() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+
+        viewModel.openForCreate("c1")
+
+        assertFalse(viewModel.uiState.value.isDirty)
+    }
+
+    @Test
+    fun isDirty_enAltaConSubtareaOMiDia_esVerdadero() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+        viewModel.openForCreate("c1")
+        viewModel.onToggleMyDay()
+        assertTrue(viewModel.uiState.value.isDirty)
+
+        viewModel.openForCreate("c1")
+        viewModel.onNewSubtaskTitleChange("Datos")
+        viewModel.addSubtaskDraft()
+
+        assertTrue(viewModel.uiState.value.isDirty)
+    }
+
+    @Test
+    fun isDirty_enTareaGuardada_ignoraMiDiaYLista() = runTest {
+        val repository = FakeTaskRepository(task("t1", "Informe", columnId = null, listId = "l1"))
+        val viewModel = viewModel(repository)
+        viewModel.openForEdit("t1")
+
+        myDay.marked.value = setOf("t1")
+        viewModel.onListChosen("l2")
+
+        assertEquals("l2", viewModel.uiState.value.listId)
+        assertTrue(viewModel.uiState.value.inMyDay)
+        assertFalse(viewModel.uiState.value.isDirty)
+    }
+
+    @Test
+    fun panel_parent_deCadaPanel() {
+        assertEquals(EditorPanel.DateTime(PickerTarget.TASK_DUE), EditorPanel.DateTime(PickerTarget.TASK_DUE, 5L).parent())
+        assertEquals(EditorPanel.None, EditorPanel.DateTime(PickerTarget.REMINDER).parent())
+        assertEquals(EditorPanel.DateTime(PickerTarget.REMINDER), EditorPanel.DateTime(PickerTarget.REMINDER, 5L).parent())
+        assertEquals(EditorPanel.None, EditorPanel.DateTime(PickerTarget.TASK_DUE).parent())
+        assertEquals(EditorPanel.None, EditorPanel.DateTime(PickerTarget.SUBTASK_DUE).parent())
+        assertEquals(EditorPanel.None, EditorPanel.ListPicker.parent())
+        assertEquals(EditorPanel.None, EditorPanel.DiscardConfirm.parent())
+        assertEquals(EditorPanel.None, EditorPanel.None.parent())
+    }
+
+    @Test
+    fun route_deTareaDeLista_muestraNombreDeLista() = runTest {
+        val viewModel = viewModel(FakeTaskRepository(task("t1", "Informe", columnId = null, listId = "l1")))
+
+        viewModel.openForEdit("t1")
+
+        val state = viewModel.uiState.value
+        assertEquals("Compras", state.lists.first { it.list.id == state.listId }.list.name)
+        assertFalse(state.isBoardTask)
+    }
+
+    @Test
+    fun route_deTareaDeTablero_muestraTableroYColumna() = runTest {
+        val viewModel = viewModel(FakeTaskRepository(task("t1", "Informe", columnId = "c1")))
+
+        viewModel.openForEdit("t1")
+
+        val state = viewModel.uiState.value
+        assertTrue(state.isBoardTask)
+        assertEquals("Proyecto", state.boardName)
+        assertEquals("Por hacer", state.columnName)
+    }
+
+    @Test
+    fun onListChosen_enTareaGuardada_mueveALaLista() = runTest {
+        val repository = FakeTaskRepository(task("t1", "Informe", columnId = null, listId = "l1"))
+        val viewModel = viewModel(repository)
+        viewModel.openForEdit("t1")
+        viewModel.openPanel(EditorPanel.ListPicker)
+
+        viewModel.onListChosen("l2")
+
+        assertEquals(listOf("t1" to "l2"), repository.moveCalls)
+        assertEquals("l2", viewModel.uiState.value.listId)
+        assertEquals(EditorPanel.None, viewModel.uiState.value.panel)
+    }
+
+    @Test
+    fun onListChosen_conFallo_exponeElError() = runTest {
+        val repository = FakeTaskRepository(task("t1", "Informe", columnId = null, listId = "l1"))
+        repository.moveError = DomainError.Conflict("TASK_IN_BOARD", "La tarea está en un tablero")
+        val viewModel = viewModel(repository)
+        viewModel.openForEdit("t1")
+        viewModel.openPanel(EditorPanel.ListPicker)
+
+        viewModel.onListChosen("l2")
+
+        val state = viewModel.uiState.value
+        assertEquals("TASK_IN_BOARD", state.error?.code)
+        assertEquals("l1", state.listId)
+        assertEquals(EditorPanel.ListPicker, state.panel)
+    }
+
+    @Test
+    fun onListChosen_enAltaSinColumna_sePasaALaCreacion() = runTest {
+        val repository = FakeTaskRepository()
+        val viewModel = viewModel(repository)
+        viewModel.openForCreate(null, "l1")
+        viewModel.onTitleChange("Comprar pan")
+
+        viewModel.onListChosen("l2")
+        viewModel.save()
+
+        assertEquals("l2", repository.lastListId)
+        assertTrue(repository.moveCalls.isEmpty())
+    }
+
+    @Test
+    fun onToggleCompleted_llamaASetCompleted() = runTest {
+        val repository = FakeTaskRepository(task("t1", "Informe"))
+        val viewModel = viewModel(repository)
+        viewModel.openForEdit("t1")
+
+        viewModel.onToggleCompleted()
+
+        assertEquals(listOf("t1" to true), repository.completedCalls)
+        assertTrue(viewModel.uiState.value.completed)
+
+        viewModel.onToggleCompleted()
+
+        assertEquals(listOf("t1" to true, "t1" to false), repository.completedCalls)
+        assertFalse(viewModel.uiState.value.completed)
+    }
+
+    @Test
+    fun onToggleCompleted_conFallo_exponeElErrorYNoCambia() = runTest {
+        val repository = FakeTaskRepository(task("t1", "Informe"))
+        repository.completeError = DomainError.Conflict("COLUMN_WIP_LIMIT_REACHED", "Límite alcanzado")
+        val viewModel = viewModel(repository)
+        viewModel.openForEdit("t1")
+
+        viewModel.onToggleCompleted()
+
+        assertEquals("COLUMN_WIP_LIMIT_REACHED", viewModel.uiState.value.error?.code)
+        assertFalse(viewModel.uiState.value.completed)
+    }
+
+    @Test
+    fun onToggleCompleted_actualizaLaColumnaDelResultado() = runTest {
+        val repository = FakeTaskRepository(task("t1", "Informe", columnId = "c1"))
+        repository.completedColumnId = "c2"
+        val viewModel = viewModel(repository)
+        viewModel.openForEdit("t1")
+
+        viewModel.onToggleCompleted()
+
+        assertEquals("c2", viewModel.uiState.value.columnId)
+        assertEquals("Hecho", viewModel.uiState.value.columnName)
+    }
+
+    @Test
+    fun onToggleCompleted_enAltaNueva_noHaceNada() = runTest {
+        val repository = FakeTaskRepository()
+        val viewModel = viewModel(repository)
+        viewModel.openForCreate("c1")
+
+        viewModel.onToggleCompleted()
+
+        assertTrue(repository.completedCalls.isEmpty())
+        assertFalse(viewModel.uiState.value.completed)
+    }
+
+    @Test
+    fun onToggleMyDay_enTareaGuardada_llamaASetMarked() = runTest {
+        val viewModel = viewModel(FakeTaskRepository(task("t1", "Informe")))
+        viewModel.openForEdit("t1")
+
+        viewModel.onToggleMyDay()
+
+        assertEquals(listOf("t1" to true), myDay.setMarkedCalls)
+    }
+
+    @Test
+    fun inMyDay_sigueAlRepositorio() = runTest {
+        val viewModel = viewModel(FakeTaskRepository(task("t1", "Informe")))
+        viewModel.openForEdit("t1")
+        assertFalse(viewModel.uiState.value.inMyDay)
+
+        myDay.marked.value = setOf("t1")
+        assertTrue(viewModel.uiState.value.inMyDay)
+
+        myDay.marked.value = emptySet()
+        assertFalse(viewModel.uiState.value.inMyDay)
+    }
+
+    @Test
+    fun onToggleMyDay_enAltaNueva_seEnviaEnLaCreacion() = runTest {
+        val repository = FakeTaskRepository()
+        val viewModel = viewModel(repository)
+        viewModel.openForCreate("c1")
+        viewModel.onTitleChange("Nueva")
+
+        viewModel.onToggleMyDay()
+        viewModel.save()
+
+        assertTrue(myDay.setMarkedCalls.isEmpty())
+        assertEquals(true, repository.lastCreation?.addToMyDay)
+    }
+
+    @Test
+    fun save_exitoso_marcaCierre() = runTest {
+        val viewModel = viewModel(FakeTaskRepository(task("t1", "Informe")))
+        viewModel.openForEdit("t1")
+
+        viewModel.save()
+
+        assertTrue(viewModel.uiState.value.isClosing)
+        assertTrue(viewModel.uiState.value.isOpen)
+    }
+
+    @Test
+    fun save_enAltaConLista_pasaElListId() = runTest {
+        val repository = FakeTaskRepository()
+        val viewModel = viewModel(repository)
+        viewModel.openForCreate(null, "l1")
+        viewModel.onTitleChange("Comprar pan")
+
+        viewModel.save()
+
+        assertEquals("l1", repository.lastListId)
+    }
+
+    @Test
+    fun save_conNotasLargas_exponeElErrorDeLongitud() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+        viewModel.openForCreate("c1")
+        viewModel.onTitleChange("Informe")
+        viewModel.onDescriptionChange("x".repeat(5001))
+
+        viewModel.save()
+
+        assertEquals(TASK_DESCRIPTION_TOO_LONG, viewModel.uiState.value.error?.code)
+        assertFalse(viewModel.uiState.value.isClosing)
+    }
+
+    @Test
+    fun requestClose_sinCambios_cierra() = runTest {
+        val viewModel = viewModel(FakeTaskRepository(task("t1", "Informe")))
+        viewModel.openForEdit("t1")
+
+        viewModel.requestClose()
+
+        assertTrue(viewModel.uiState.value.isClosing)
+        assertEquals(EditorPanel.None, viewModel.uiState.value.panel)
+    }
+
+    @Test
+    fun requestClose_conCambios_muestraLaConfirmacion() = runTest {
+        val viewModel = viewModel(FakeTaskRepository(task("t1", "Informe")))
+        viewModel.openForEdit("t1")
+        viewModel.onTitleChange("Otro")
+
+        viewModel.requestClose()
+
+        assertEquals(EditorPanel.DiscardConfirm, viewModel.uiState.value.panel)
+        assertFalse(viewModel.uiState.value.isClosing)
+    }
+
+    @Test
+    fun confirmDiscard_cierraYVaciaElEstado() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+        viewModel.openForCreate("c1")
+        viewModel.onNewSubtaskTitleChange("Datos")
+        viewModel.addSubtaskDraft()
+        viewModel.requestClose()
+
+        viewModel.confirmDiscard()
+        assertTrue(viewModel.uiState.value.isClosing)
+
+        viewModel.dismiss()
+        assertEquals(TaskEditorUiState(), viewModel.uiState.value)
+    }
+
+    @Test
+    fun keepEditing_vuelveAlFormulario() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+        viewModel.openForCreate("c1")
+        viewModel.onTitleChange("Informe")
+        viewModel.requestClose()
+
+        viewModel.keepEditing()
+
+        assertEquals(EditorPanel.None, viewModel.uiState.value.panel)
+        assertEquals("Informe", viewModel.uiState.value.title)
+        assertFalse(viewModel.uiState.value.isClosing)
+    }
+
+    @Test
+    fun onBack_desdePasoDeHora_vuelveAlPasoDeFecha() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+        viewModel.openForCreate("c1")
+        viewModel.openPanel(EditorPanel.DateTime(PickerTarget.TASK_DUE))
+        viewModel.onPickerDate(20_000L)
+
+        viewModel.onBack()
+
+        assertEquals(EditorPanel.DateTime(PickerTarget.TASK_DUE), viewModel.uiState.value.panel)
+    }
+
+    @Test
+    fun onBack_desdeFechaDeRecordatorio_vuelveAlFormulario() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+        viewModel.openForCreate("c1")
+        viewModel.openPanel(EditorPanel.DateTime(PickerTarget.REMINDER))
+
+        viewModel.onBack()
+
+        assertEquals(EditorPanel.None, viewModel.uiState.value.panel)
+    }
+
+    @Test
+    fun onBack_desdePanel_vuelveAlFormulario() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+        viewModel.openForCreate("c1")
+        viewModel.openPanel(EditorPanel.ListPicker)
+
+        viewModel.onBack()
+
+        assertEquals(EditorPanel.None, viewModel.uiState.value.panel)
+        assertFalse(viewModel.uiState.value.isClosing)
+    }
+
+    @Test
+    fun onBack_desdeFormularioSucio_pideConfirmar() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+        viewModel.openForCreate("c1")
+        viewModel.onTitleChange("Informe")
+
+        viewModel.onBack()
+
+        assertEquals(EditorPanel.DiscardConfirm, viewModel.uiState.value.panel)
+    }
+
+    @Test
+    fun onBack_desdeConfirmacion_vuelveAlFormulario() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+        viewModel.openForCreate("c1")
+        viewModel.onTitleChange("Informe")
+        viewModel.onBack()
+
+        viewModel.onBack()
+
+        assertEquals(EditorPanel.None, viewModel.uiState.value.panel)
+        assertEquals("Informe", viewModel.uiState.value.title)
+    }
+
+    @Test
+    fun pickerDate_pasaAHora_yAlAceptarFijaLaFecha() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+        viewModel.openForCreate("c1")
+        val day = LocalDate.of(2026, 12, 15)
+
+        viewModel.openPanel(EditorPanel.DateTime(PickerTarget.TASK_DUE))
+        viewModel.onPickerDate(day.toEpochDay())
+        assertEquals(EditorPanel.DateTime(PickerTarget.TASK_DUE, day.toEpochDay()), viewModel.uiState.value.panel)
+
+        val delegated = viewModel.onPickerTime(LocalTime.of(9, 30))
+
+        assertNull(delegated)
+        assertEquals(LocalDateTime.of(2026, 12, 15, 9, 30), viewModel.uiState.value.dueAtLocal)
+        assertEquals(EditorPanel.None, viewModel.uiState.value.panel)
+    }
+
+    @Test
+    fun pickerDate_alQuitar_limpiaFechaYRepeticion() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+        viewModel.openForCreate("c1")
+        viewModel.onDueAtChange(dueDate)
+        viewModel.onRepeatPresetChange(RepeatPreset.MONTHLY)
+        viewModel.openPanel(EditorPanel.DateTime(PickerTarget.TASK_DUE))
+
+        viewModel.onClearDue()
+
+        assertNull(viewModel.uiState.value.dueAtLocal)
+        assertNull(viewModel.uiState.value.repeat)
+        assertEquals(EditorPanel.None, viewModel.uiState.value.panel)
+    }
+
+    @Test
+    fun pickerDeSubtarea_aceptaYVuelveAlFormulario() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+        viewModel.openForCreate("c1")
+        viewModel.onNewSubtaskTitleChange("Datos")
+        viewModel.addSubtaskDraft()
+        val id = viewModel.uiState.value.subtaskDrafts.single().id
+        viewModel.startEditSubtaskDraft(id)
+        viewModel.openPanel(EditorPanel.DateTime(PickerTarget.SUBTASK_DUE))
+        viewModel.onPickerDate(LocalDate.of(2026, 12, 15).toEpochDay())
+
+        viewModel.onPickerTime(LocalTime.of(8, 0))
+
+        val state = viewModel.uiState.value
+        assertEquals(LocalDateTime.of(2026, 12, 15, 8, 0), state.editingDraftDueAtLocal)
+        assertEquals(id, state.editingDraftId)
+        assertEquals(EditorPanel.None, state.panel)
+    }
+
+    @Test
+    fun pickerDeSubtarea_enTareaGuardada_devuelveElValorParaElHost() = runTest {
+        val viewModel = viewModel(FakeTaskRepository(task("t1", "Informe")))
+        viewModel.openForEdit("t1")
+        viewModel.openPanel(EditorPanel.DateTime(PickerTarget.SUBTASK_DUE))
+        viewModel.onPickerDate(LocalDate.of(2026, 12, 15).toEpochDay())
+
+        val delegated = viewModel.onPickerTime(LocalTime.of(8, 0))
+
+        assertEquals(
+            PickedDateTime(PickerTarget.SUBTASK_DUE, LocalDateTime.of(2026, 12, 15, 8, 0)),
+            delegated,
+        )
+        assertEquals(EditorPanel.None, viewModel.uiState.value.panel)
+    }
+
+    @Test
+    fun recordatorioPersonalizado_desdeElMenuFijaElBorrador() = runTest {
+        val viewModel = viewModel(FakeTaskRepository())
+        viewModel.openForCreate("c1")
+
+        viewModel.openPanel(EditorPanel.DateTime(PickerTarget.REMINDER))
+        viewModel.onPickerDate(LocalDate.of(2026, 11, 10).toEpochDay())
+        viewModel.onPickerTime(LocalTime.of(9, 0))
+
+        assertEquals(Instant.parse("2026-11-10T09:00:00Z"), viewModel.uiState.value.reminderDraft)
+        assertEquals(EditorPanel.None, viewModel.uiState.value.panel)
+    }
+
+    @Test
+    fun dismiss_cancelaLaObservacionDelContexto() = runTest {
+        val viewModel = viewModel(FakeTaskRepository(task("t1", "Informe")))
+        viewModel.openForEdit("t1")
+
+        viewModel.dismiss()
+        myDay.marked.value = setOf("t1")
+
+        assertEquals(TaskEditorUiState(), viewModel.uiState.value)
+    }
+
     private fun viewModel(repository: TaskRepository) =
         TaskEditorViewModel(
             repository,
             DateTimeConverter { ZoneOffset.UTC },
             preferences,
             { ZoneOffset.UTC },
+            lists,
+            myDay,
+            boards,
+            columns,
         ) { now }
 
-    private fun task(id: String, title: String, dueAt: Instant? = null, repeat: TaskRepeat? = null) = Task(
-        columnId = "c1",
+    private fun task(
+        id: String,
+        title: String,
+        dueAt: Instant? = null,
+        repeat: TaskRepeat? = null,
+        columnId: String? = "c1",
+        listId: String? = null,
+    ) = Task(
+        columnId = columnId,
+        listId = listId,
         title = title,
         description = null,
         priority = TaskPriority.MEDIUM,
@@ -576,6 +1061,12 @@ class TaskEditorViewModelTest {
         var lastCreation: TaskCreation? = null
         var extrasCalls = 0
         var updateCalls = 0
+        var lastListId: String? = null
+        var completeError: DomainError? = null
+        var completedColumnId: String? = null
+        val completedCalls = mutableListOf<Pair<String, Boolean>>()
+        var moveError: DomainError? = null
+        val moveCalls = mutableListOf<Pair<String, String>>()
 
         override fun observeTasks(boardId: String): Flow<List<Task>> = emptyFlow()
 
@@ -601,6 +1092,7 @@ class TaskEditorViewModelTest {
         ): DomainResult<Task> {
             extrasCalls++
             lastCreation = creation
+            lastListId = listId
             return createError?.let { DomainResult.Failure(it) }
                 ?: newTaskWithExtras(columnId, creation, position = 0, now = Instant.EPOCH, listId = listId)
                     .let { result ->
@@ -614,7 +1106,12 @@ class TaskEditorViewModelTest {
 
         var lastUpdateDraft: TaskDraft? = null
 
-        override suspend fun moveToList(id: String, listId: String): DomainResult<Task> = error("no se usa")
+        override suspend fun moveToList(id: String, listId: String): DomainResult<Task> {
+            moveCalls += id to listId
+            moveError?.let { return DomainResult.Failure(it) }
+            return stored[id]?.let { DomainResult.Success(it.copy(columnId = null, listId = listId)) }
+                ?: DomainResult.Failure(DomainError.NotFound("TASK_NOT_FOUND", "No existe"))
+        }
 
         override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> {
             updateCalls++
@@ -626,7 +1123,18 @@ class TaskEditorViewModelTest {
         override suspend fun moveTask(id: String, toColumnId: String, toIndex: Int): DomainResult<Task> =
             error("no se usa")
 
-        override suspend fun setCompleted(id: String, completed: Boolean): DomainResult<Task> = error("no se usa")
+        override suspend fun setCompleted(id: String, completed: Boolean): DomainResult<Task> {
+            completedCalls += id to completed
+            completeError?.let { return DomainResult.Failure(it) }
+            val task = stored[id]
+                ?: return DomainResult.Failure(DomainError.NotFound("TASK_NOT_FOUND", "No existe"))
+            return DomainResult.Success(
+                task.copy(
+                    completedAt = Instant.EPOCH.takeIf { completed },
+                    columnId = completedColumnId ?: task.columnId,
+                ),
+            )
+        }
 
         override fun observeCompletedCount(): Flow<Int> = error("no se usa")
 
@@ -640,4 +1148,30 @@ class TaskEditorViewModelTest {
             return deleteError?.let { DomainResult.Failure(it) } ?: DomainResult.Success(Unit)
         }
     }
+
+    private class FakeMarkedRepository : MyDayRepository {
+        val marked = MutableStateFlow<Set<String>>(emptySet())
+        val setMarkedCalls = mutableListOf<Pair<String, Boolean>>()
+        var setMarkedError: DomainError? = null
+
+        override fun observeMyDay(): Flow<MyDay> = emptyFlow()
+
+        override fun observeMarkedTaskIds(): Flow<Set<String>> = marked
+
+        override fun observeOverdueCount(): Flow<Int> = emptyFlow()
+
+        override suspend fun setMarked(taskId: String, marked: Boolean): DomainResult<Unit> {
+            setMarkedCalls += taskId to marked
+            setMarkedError?.let { return DomainResult.Failure(it) }
+            this.marked.value = if (marked) this.marked.value + taskId else this.marked.value - taskId
+            return DomainResult.Success(Unit)
+        }
+    }
+
+    private fun sync(id: String) = SyncMetadata(id, Instant.EPOCH, pending = false, deletedAt = null)
+
+    private fun board(id: String, name: String) = Board(name, Instant.EPOCH, sync(id))
+
+    private fun column(id: String, boardId: String, name: String, done: Boolean = false) =
+        Column(boardId, name, 0, wipLimit = null, isDoneColumn = done, createdAt = Instant.EPOCH, sync = sync(id))
 }

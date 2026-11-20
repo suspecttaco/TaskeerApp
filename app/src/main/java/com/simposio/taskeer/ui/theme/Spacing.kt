@@ -24,4 +24,9 @@ internal object Spacing {
     val HubBarClearance = ChromeClearance + FloatingControlSize
     val FloatingElevation = 6.dp
     val PillListPanelMaxHeight = 240.dp
+    val EditorPillMinHeight = MinTouchTarget
+    val EditorTitleMinHeight = 56.dp
+    const val EditorSheetHeightFraction = 0.65f
+    val EditorDragHandleHeight = 48.dp
+    val EditorSheetMinHeight = 400.dp
 }

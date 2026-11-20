@@ -37,10 +37,14 @@ import com.simposio.taskeer.ui.tasks.rememberTaskEditorHost
 import com.simposio.taskeer.ui.theme.Spacing
 
 @Composable
-fun NotificationsScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifier = Modifier) {
+fun NotificationsScreen(
+    viewModelFactory: ViewModelProvider.Factory,
+    onDelete: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val viewModel: NotificationsViewModel = viewModel(factory = viewModelFactory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val editorHost = rememberTaskEditorHost(viewModelFactory)
+    val editorHost = rememberTaskEditorHost(viewModelFactory, onDelete)
     val snackbarHostState = remember { SnackbarHostState() }
     val taskGoneMessage = stringResource(R.string.notifications_task_gone)
 

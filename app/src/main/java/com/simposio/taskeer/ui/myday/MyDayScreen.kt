@@ -70,7 +70,7 @@ fun MyDayScreen(
 ) {
     val viewModel: MyDayViewModel = viewModel(factory = viewModelFactory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val editorHost = rememberTaskEditorHost(viewModelFactory)
+    val editorHost = rememberTaskEditorHost(viewModelFactory, onDelete)
     val openAssign = rememberAssignToBoardHost(viewModelFactory)
     val handle: (RowContext, String, RowAction) -> Unit = { context, id, action ->
         when (action) {

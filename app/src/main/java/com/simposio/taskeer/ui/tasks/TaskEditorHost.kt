@@ -15,7 +15,10 @@ class TaskEditorHost internal constructor(
 )
 
 @Composable
-fun rememberTaskEditorHost(viewModelFactory: ViewModelProvider.Factory): TaskEditorHost {
+fun rememberTaskEditorHost(
+    viewModelFactory: ViewModelProvider.Factory,
+    onDelete: (String) -> Unit,
+): TaskEditorHost {
     val editorViewModel: TaskEditorViewModel = viewModel(factory = viewModelFactory)
     val editorState by editorViewModel.uiState.collectAsStateWithLifecycle()
 
@@ -36,73 +39,99 @@ fun rememberTaskEditorHost(viewModelFactory: ViewModelProvider.Factory): TaskEdi
         }
     }
 
-    TaskEditorDialog(
-        state = editorState,
-        onTitleChange = editorViewModel::onTitleChange,
-        onDescriptionChange = editorViewModel::onDescriptionChange,
-        onPriorityChange = editorViewModel::onPriorityChange,
-        onDueAtChange = editorViewModel::onDueAtChange,
-        onAssigneeChange = editorViewModel::onAssigneeChange,
-        repeatActions = RepeatActions(
-            onPresetChange = editorViewModel::onRepeatPresetChange,
-            onIntervalChange = editorViewModel::onRepeatIntervalChange,
-            onUnitChange = editorViewModel::onRepeatUnitChange,
-            onWeekdayToggle = editorViewModel::onRepeatWeekdayToggle,
-        ),
-        subtasks = subtasksState,
-        subtaskActions = SubtaskActions(
-            onNewTitleChange = subtasksViewModel::onNewTitleChange,
-            onAdd = subtasksViewModel::add,
-            onToggle = subtasksViewModel::toggle,
-            onStartEdit = subtasksViewModel::startEdit,
-            onEditTitleChange = subtasksViewModel::onEditTitleChange,
-            onEditDueAtChange = subtasksViewModel::onEditDueAtChange,
-            onEditAssigneeChange = subtasksViewModel::onEditAssigneeChange,
-            onSaveEdit = subtasksViewModel::saveEdit,
-            onCancelEdit = subtasksViewModel::cancelEdit,
-            onDelete = subtasksViewModel::delete,
-        ),
-        subtaskDraftActions = SubtaskDraftActions(
-            onNewTitleChange = editorViewModel::onNewSubtaskTitleChange,
-            onAdd = editorViewModel::addSubtaskDraft,
-            onStartEdit = editorViewModel::startEditSubtaskDraft,
-            onEditTitleChange = editorViewModel::onEditSubtaskTitleChange,
-            onEditDueAtChange = editorViewModel::onEditSubtaskDueAtChange,
-            onEditAssigneeChange = editorViewModel::onEditSubtaskAssigneeChange,
-            onSaveEdit = editorViewModel::saveSubtaskDraftEdit,
-            onCancelEdit = editorViewModel::cancelSubtaskDraftEdit,
-            onDelete = editorViewModel::removeSubtaskDraft,
-        ),
-        reminders = if (editorState.taskId == null) {
-            RemindersUiState(
-                reminderAtLocal = editorState.reminderDraftLocal,
-                error = editorState.reminderError,
-            )
-        } else {
-            remindersState
-        },
-        reminderActions = if (editorState.taskId == null) {
-            ReminderActions(
-                onLaterToday = editorViewModel::reminderLaterToday,
-                onTomorrow = editorViewModel::reminderTomorrow,
-                onNextWeek = editorViewModel::reminderNextWeek,
-                onCustom = editorViewModel::reminderCustom,
-                onCancel = editorViewModel::clearReminderDraft,
-            )
-        } else {
-            ReminderActions(
-                onLaterToday = remindersViewModel::laterToday,
-                onTomorrow = remindersViewModel::tomorrow,
-                onNextWeek = remindersViewModel::nextWeek,
-                onCustom = remindersViewModel::custom,
-                onCancel = remindersViewModel::cancel,
-            )
-        },
-        permissionNotice = { NotificationPermissionNotice(viewModelFactory) },
-        onSave = editorViewModel::save,
-        onDelete = editorViewModel::delete,
-        onDismiss = editorViewModel::dismiss,
-    )
+    if (editorState.isOpen) {
+        val savedTask = editorState.taskId != null
+        TaskEditorSheet(
+            state = editorState,
+            actions = TaskEditorActions(
+                onTitleChange = editorViewModel::onTitleChange,
+                onDescriptionChange = editorViewModel::onDescriptionChange,
+                onPriorityChange = editorViewModel::onPriorityChange,
+                onAssigneeChange = editorViewModel::onAssigneeChange,
+                onToggleCompleted = editorViewModel::onToggleCompleted,
+                onToggleMyDay = editorViewModel::onToggleMyDay,
+                onOpenPanel = editorViewModel::openPanel,
+                onListChosen = editorViewModel::onListChosen,
+                onPickerDate = editorViewModel::onPickerDate,
+                onPickerTime = { time ->
+                    editorViewModel.onPickerTime(time)?.let { picked ->
+                        when (picked.target) {
+                            PickerTarget.REMINDER -> remindersViewModel.custom(picked.local)
+                            PickerTarget.SUBTASK_DUE -> subtasksViewModel.onEditDueAtChange(picked.local)
+                            PickerTarget.TASK_DUE -> editorViewModel.onDueAtChange(picked.local)
+                        }
+                    }
+                },
+                onClearDue = editorViewModel::onClearDue,
+                onBack = editorViewModel::onBack,
+                onRequestClose = editorViewModel::requestClose,
+                onConfirmDiscard = editorViewModel::confirmDiscard,
+                onKeepEditing = editorViewModel::keepEditing,
+                onSave = editorViewModel::save,
+                onDelete = {
+                    editorState.taskId?.let(onDelete)
+                    editorViewModel.close()
+                },
+                onClosed = editorViewModel::dismiss,
+            ),
+            repeatActions = RepeatActions(
+                onPresetChange = editorViewModel::onRepeatPresetChange,
+                onIntervalChange = editorViewModel::onRepeatIntervalChange,
+                onUnitChange = editorViewModel::onRepeatUnitChange,
+                onWeekdayToggle = editorViewModel::onRepeatWeekdayToggle,
+            ),
+            subtasks = subtasksState,
+            subtaskActions = SubtaskActions(
+                onNewTitleChange = subtasksViewModel::onNewTitleChange,
+                onAdd = subtasksViewModel::add,
+                onToggle = subtasksViewModel::toggle,
+                onStartEdit = subtasksViewModel::startEdit,
+                onEditTitleChange = subtasksViewModel::onEditTitleChange,
+                onEditDueAtChange = subtasksViewModel::onEditDueAtChange,
+                onEditAssigneeChange = subtasksViewModel::onEditAssigneeChange,
+                onSaveEdit = subtasksViewModel::saveEdit,
+                onCancelEdit = subtasksViewModel::cancelEdit,
+                onDelete = subtasksViewModel::delete,
+            ),
+            subtaskDraftActions = SubtaskDraftActions(
+                onNewTitleChange = editorViewModel::onNewSubtaskTitleChange,
+                onAdd = editorViewModel::addSubtaskDraft,
+                onStartEdit = editorViewModel::startEditSubtaskDraft,
+                onEditTitleChange = editorViewModel::onEditSubtaskTitleChange,
+                onEditDueAtChange = editorViewModel::onEditSubtaskDueAtChange,
+                onEditAssigneeChange = editorViewModel::onEditSubtaskAssigneeChange,
+                onSaveEdit = editorViewModel::saveSubtaskDraftEdit,
+                onCancelEdit = editorViewModel::cancelSubtaskDraftEdit,
+                onDelete = editorViewModel::removeSubtaskDraft,
+            ),
+            reminders = if (savedTask) {
+                remindersState
+            } else {
+                RemindersUiState(
+                    reminderAtLocal = editorState.reminderDraftLocal,
+                    error = editorState.reminderError,
+                )
+            },
+            reminderActions = if (savedTask) {
+                ReminderActions(
+                    onLaterToday = remindersViewModel::laterToday,
+                    onTomorrow = remindersViewModel::tomorrow,
+                    onNextWeek = remindersViewModel::nextWeek,
+                    onCustom = remindersViewModel::custom,
+                    onCancel = remindersViewModel::cancel,
+                )
+            } else {
+                ReminderActions(
+                    onLaterToday = editorViewModel::reminderLaterToday,
+                    onTomorrow = editorViewModel::reminderTomorrow,
+                    onNextWeek = editorViewModel::reminderNextWeek,
+                    onCustom = editorViewModel::reminderCustom,
+                    onCancel = editorViewModel::clearReminderDraft,
+                )
+            },
+            permissionNotice = { NotificationPermissionNotice(viewModelFactory) },
+        )
+    }
 
     return remember(editorViewModel) {
         TaskEditorHost(

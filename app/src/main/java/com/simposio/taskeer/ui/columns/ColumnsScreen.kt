@@ -52,14 +52,18 @@ import com.simposio.taskeer.ui.theme.TaskeerTheme
 import java.time.Instant
 
 @Composable
-fun ColumnsScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifier = Modifier) {
+fun ColumnsScreen(
+    viewModelFactory: ViewModelProvider.Factory,
+    onDelete: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val viewModel: ColumnsViewModel = viewModel(factory = viewModelFactory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     val tasksViewModel: TasksViewModel = viewModel(factory = viewModelFactory)
     val tasks by tasksViewModel.tasks.collectAsStateWithLifecycle()
 
-    val editorHost = rememberTaskEditorHost(viewModelFactory)
+    val editorHost = rememberTaskEditorHost(viewModelFactory, onDelete)
 
     ColumnsContent(
         state = state,

@@ -62,7 +62,7 @@ fun UpcomingScreen(
 ) {
     val viewModel: UpcomingViewModel = viewModel(factory = viewModelFactory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val editorHost = rememberTaskEditorHost(viewModelFactory)
+    val editorHost = rememberTaskEditorHost(viewModelFactory, onDelete)
     val openActions = rememberTaskActionsSheet(
         onAction = { _, id, action ->
             if (action == RowAction.DELETE) onDelete(id) else viewModel.onRowAction(id, action)

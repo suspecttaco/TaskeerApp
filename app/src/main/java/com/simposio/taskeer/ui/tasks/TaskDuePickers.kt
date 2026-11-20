@@ -116,11 +116,16 @@ internal fun DueDatePickerContent(
     initialDate: LocalDate?,
     onDatePicked: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     val state = rememberDatePickerState(initialSelectedDateMillis = initialDate.toPickerMillis())
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap)) {
-        DatePicker(state = state, showModeToggle = false)
+        if (compact) {
+            DatePicker(state = state, title = null, headline = null, showModeToggle = false)
+        } else {
+            DatePicker(state = state, showModeToggle = false)
+        }
         Button(
             onClick = { state.selectedUtcDate()?.let(onDatePicked) },
             enabled = state.selectedDateMillis != null,

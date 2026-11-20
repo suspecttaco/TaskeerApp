@@ -1,5 +1,7 @@
 package com.simposio.taskeer.ui.tasks
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +14,8 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -20,9 +24,12 @@ import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.Subtask
 import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.ui.components.ActionIcon
-import com.simposio.taskeer.ui.components.AppDivider
 import com.simposio.taskeer.ui.components.InlineAddField
 import com.simposio.taskeer.ui.components.SectionHeader
+import com.simposio.taskeer.ui.components.rememberAnimationsEnabled
+import com.simposio.taskeer.ui.navigation.editorRowEnter
+import com.simposio.taskeer.ui.navigation.editorRowExit
+import com.simposio.taskeer.ui.navigation.editorSizeSpec
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 import java.time.Instant
@@ -37,39 +44,58 @@ fun SubtasksSection(
     onStartEdit: (String) -> Unit,
     onEditTitleChange: (String) -> Unit,
     onEditDueAtChange: (LocalDateTime?) -> Unit,
+    onPickSubtaskDue: () -> Unit,
     onEditAssigneeChange: (String?) -> Unit,
     onSaveEdit: () -> Unit,
     onCancelEdit: () -> Unit,
     onDelete: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap)) {
+    val animated = rememberAnimationsEnabled()
+    val initialIds = remember { state.items.map { it.id }.toSet() }
+    Column(
+        modifier = modifier.animateContentSize(editorSizeSpec(animated)),
+        verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap),
+    ) {
         SectionHeader(
             text = stringResource(R.string.subtasks_title),
             icon = Icons.Filled.Checklist,
         )
-        if (state.items.isEmpty()) {
+        AnimatedVisibility(
+            visible = state.items.isEmpty(),
+            enter = editorRowEnter(animated),
+            exit = editorRowExit(animated),
+        ) {
             Text(
                 text = stringResource(R.string.subtasks_empty),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
         state.items.forEach { subtask ->
-            if (state.editingId == subtask.id) {
-                SubtaskEditFields(
-                    title = state.editingTitle,
-                    dueAtLocal = state.editingDueAtLocal,
-                    assigneeId = state.editingAssigneeId,
-                    onTitleChange = onEditTitleChange,
-                    onDueAtChange = onEditDueAtChange,
-                    onAssigneeChange = onEditAssigneeChange,
-                    onSave = onSaveEdit,
-                    onCancel = onCancelEdit,
-                )
-            } else {
-                SubtaskRow(subtask, onToggle, onStartEdit, onDelete)
+            key(subtask.id) {
+                AnimatedSubtaskRow(
+                    id = subtask.id,
+                    isEditing = state.editingId == subtask.id,
+                    initiallyVisible = subtask.id in initialIds,
+                    onExited = { onDelete(subtask.id) },
+                ) { editing, requestDelete ->
+                    if (editing) {
+                        SubtaskEditFields(
+                            title = state.editingTitle,
+                            dueAtLocal = state.editingDueAtLocal,
+                            assigneeId = state.editingAssigneeId,
+                            onTitleChange = onEditTitleChange,
+                            onDueAtChange = onEditDueAtChange,
+                            onPickDueAt = onPickSubtaskDue,
+                            onAssigneeChange = onEditAssigneeChange,
+                            onSave = onSaveEdit,
+                            onCancel = onCancelEdit,
+                        )
+                    } else {
+                        SubtaskRow(subtask, onToggle, onStartEdit) { requestDelete() }
+                    }
+                }
             }
-            AppDivider()
         }
         InlineAddField(
             value = state.newTitle,
@@ -133,6 +159,7 @@ private fun SubtasksSectionPreview() {
             onStartEdit = {},
             onEditTitleChange = {},
             onEditDueAtChange = {},
+            onPickSubtaskDue = {},
             onEditAssigneeChange = {},
             onSaveEdit = {},
             onCancelEdit = {},

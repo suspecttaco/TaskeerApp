@@ -20,6 +20,7 @@ import com.simposio.taskeer.ui.lists.TaskListsViewModel
 import com.simposio.taskeer.ui.quickadd.QuickAddViewModel
 import com.simposio.taskeer.ui.shell.ClearCompletedViewModel
 import com.simposio.taskeer.ui.tasks.TaskDeletionViewModel
+import com.simposio.taskeer.ui.tasks.TaskEditorViewModel
 import com.simposio.taskeer.ui.tasks.MoveToListViewModel
 import com.simposio.taskeer.ui.upcoming.UpcomingViewModel
 import java.lang.reflect.Proxy
@@ -61,6 +62,13 @@ class AppViewModelFactoryTest {
         val factory = AppViewModelFactory(container())
 
         assertEquals(TaskDeletionViewModel::class.java, factory.create(TaskDeletionViewModel::class.java).javaClass)
+    }
+
+    @Test
+    fun crea_editorDeTareaConLosRepositoriosDeContexto() {
+        val factory = AppViewModelFactory(container())
+
+        assertEquals(TaskEditorViewModel::class.java, factory.create(TaskEditorViewModel::class.java).javaClass)
     }
 
     private fun container(): AppContainer = AppContainer(

@@ -13,10 +13,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -24,9 +20,7 @@ import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.LocalUser
 import com.simposio.taskeer.ui.components.ActionIcon
 import com.simposio.taskeer.ui.theme.Spacing
-import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.LocalTime
 
 @Composable
 fun SubtaskEditFields(
@@ -35,15 +29,12 @@ fun SubtaskEditFields(
     assigneeId: String?,
     onTitleChange: (String) -> Unit,
     onDueAtChange: (LocalDateTime?) -> Unit,
+    onPickDueAt: () -> Unit,
     onAssigneeChange: (String?) -> Unit,
     onSave: () -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var showDatePicker by rememberSaveable { mutableStateOf(false) }
-    var showTimePicker by rememberSaveable { mutableStateOf(false) }
-    var pickedEpochDay by rememberSaveable { mutableStateOf<Long?>(null) }
-
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap),
@@ -59,7 +50,7 @@ fun SubtaskEditFields(
             style = MaterialTheme.typography.labelLarge,
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(onClick = { showDatePicker = true }) {
+            OutlinedButton(onClick = onPickDueAt) {
                 Text(
                     text = dueAtLocal?.format(DUE_DATE_TIME_FORMATTER)
                         ?: stringResource(R.string.task_due_at_none),
@@ -101,29 +92,5 @@ fun SubtaskEditFields(
                 enabled = title.isNotBlank(),
             )
         }
-    }
-
-    if (showDatePicker) {
-        DueDatePickerDialog(
-            initialDate = dueAtLocal?.toLocalDate(),
-            onDatePicked = { date ->
-                pickedEpochDay = date.toEpochDay()
-                showDatePicker = false
-                showTimePicker = true
-            },
-            onDismiss = { showDatePicker = false },
-        )
-    }
-
-    if (showTimePicker) {
-        val date = pickedEpochDay?.let(LocalDate::ofEpochDay)
-        DueTimePickerDialog(
-            initialTime = dueAtLocal?.toLocalTime() ?: LocalTime.of(0, 0),
-            onTimePicked = { time ->
-                showTimePicker = false
-                onDueAtChange(date?.let { LocalDateTime.of(it, time) })
-            },
-            onDismiss = { showTimePicker = false },
-        )
     }
 }

@@ -54,7 +54,7 @@ fun ListScreen(
     val listsViewModel: TaskListsViewModel = viewModel(factory = viewModelFactory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val listsState by listsViewModel.uiState.collectAsStateWithLifecycle()
-    val editorHost = rememberTaskEditorHost(viewModelFactory)
+    val editorHost = rememberTaskEditorHost(viewModelFactory, onDelete)
     val openAssign = rememberAssignToBoardHost(viewModelFactory)
     val openMove = rememberMoveToListHost(viewModelFactory)
     LaunchedEffect(state.missing) {
