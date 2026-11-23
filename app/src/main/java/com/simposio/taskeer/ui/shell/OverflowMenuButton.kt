@@ -37,6 +37,7 @@ fun OverflowMenuButton(
     clearEnabled: Boolean,
     onItem: (MenuItem) -> Unit,
     modifier: Modifier = Modifier,
+    calendarsEnabled: Boolean = true,
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box(modifier = modifier) {
@@ -72,7 +73,9 @@ fun OverflowMenuButton(
                 val placeholder = item.isPlaceholder()
                 DropdownMenuItem(
                     text = { Text(if (placeholder) stringResource(R.string.wip_suffix, label) else label) },
-                    enabled = !placeholder && (item != MenuItem.CLEAR_COMPLETED || clearEnabled),
+                    enabled = !placeholder &&
+                        (item != MenuItem.CLEAR_COMPLETED || clearEnabled) &&
+                        (item != MenuItem.MY_CALENDARS || calendarsEnabled),
                     onClick = {
                         expanded = false
                         onItem(item)
@@ -83,8 +86,7 @@ fun OverflowMenuButton(
     }
 }
 
-private fun MenuItem.isPlaceholder(): Boolean =
-    this == MenuItem.MY_CALENDARS || this == MenuItem.FILTER || this == MenuItem.SORT
+private fun MenuItem.isPlaceholder(): Boolean = this == MenuItem.FILTER || this == MenuItem.SORT
 
 private fun MenuAction.icon(): ImageVector = when (this) {
     MenuAction.SYNC -> Icons.Filled.Sync

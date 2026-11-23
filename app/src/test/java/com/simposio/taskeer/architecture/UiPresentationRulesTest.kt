@@ -262,12 +262,149 @@ class UiPresentationRulesTest {
     }
 
     @Test
-    fun calendario_noPideNingunPermiso() {
+    fun calendario_declaraPermisosDeLecturaYEscritura() {
         val manifest = File(sourcesRoot, "../../../../AndroidManifest.xml").readText()
 
-        assertTrue(!manifest.contains("READ_CALENDAR"))
-        assertTrue(!manifest.contains("WRITE_CALENDAR"))
-        assertTrue(!source("ui/calendar/CalendarPlaceholderScreen.kt").contains("viewModel("))
+        assertTrue(manifest.contains("android.permission.READ_CALENDAR"))
+        assertTrue(manifest.contains("android.permission.WRITE_CALENDAR"))
+    }
+
+    @Test
+    fun calendarContractSoloViveEnDataCalendar() {
+        val platformTokens = listOf("CalendarContract", "ContentResolver", "ContentObserver")
+        val violations = mainFiles()
+            .filterNot { it.relativeTo(sourcesRoot).path.replace(File.separatorChar, '/').startsWith("data/calendar/") }
+            .flatMap { file ->
+                platformTokens.filter { file.readText().contains(it) }.map { "${file.relativeTo(sourcesRoot)} usa $it" }
+            }
+
+        assertTrue("el proveedor de calendario vive en data/calendar/: $violations", violations.isEmpty())
+        assertTrue(File(sourcesRoot, "data/calendar/DeviceCalendarRepository.kt").isFile)
+    }
+
+    @Test
+    fun misCalendariosSeDesactivaSinPermisoDeLecturaEnElMenuYLaCabecera() {
+        val menu = source("ui/shell/OverflowMenuButton.kt")
+        val header = source("ui/calendar/CalendarHeader.kt")
+
+        assertTrue(menu.contains("(item != MenuItem.MY_CALENDARS || calendarsEnabled)"))
+        assertTrue(!menu.substringAfter("private fun MenuItem.isPlaceholder()").substringBefore("private fun MenuAction").contains("MY_CALENDARS"))
+        assertTrue(header.contains("enabled = calendarsEnabled"))
+        assertTrue(header.contains("R.string.calendar_my_calendars_unavailable"))
+        assertTrue(source("ui/shell/AppShell.kt").contains("calendarsEnabled = calendarsReadable"))
+    }
+
+    @Test
+    fun calendarioYaNoEsMarcador() {
+        val strings = File(sourcesRoot, "../../../../res/values/strings.xml").readText()
+
+        assertTrue(!File(sourcesRoot, "ui/calendar/CalendarPlaceholderScreen.kt").exists())
+        assertTrue(!strings.contains("name=\"calendar_placeholder\""))
+        assertTrue(source("ui/navigation/AppNavHost.kt").contains("CalendarScreen(viewModelFactory, onDelete)"))
+        assertTrue(!source("ui/home/HomeSection.kt").contains("isPlaceholder"))
+    }
+
+    @Test
+    fun calendarioNoMuestraSinEventosHoyEnMiDia() {
+        val strings = File(sourcesRoot, "../../../../res/values/strings.xml").readText()
+
+        assertTrue(!strings.contains("Sin eventos hoy"))
+        assertTrue(!source("ui/myday/MyDayScreen.kt").contains("calendar"))
+        assertTrue(!source("ui/navigation/ChromeRules.kt").substringAfter("fun overflowMenuFor(").substringBefore("AppDestination.UPCOMING_7_DAYS")
+            .contains("MY_CALENDARS"))
+    }
+
+    @Test
+    fun hojasDeCalendarioSonModalesYRegistranApertura() {
+        listOf("ui/calendar/CalendarsSheet.kt", "ui/calendar/EventEditorSheet.kt").forEach { path ->
+            val text = source(path)
+            assertEquals("$path: una sola hoja", 1, Regex("ModalBottomSheet\\(").findAll(text).count())
+            assertTrue("$path: registra la hoja abierta", text.contains("TrackOpenSheet()"))
+            listOf("AlertDialog", "Dialog(", "DatePickerDialog", "DueDatePickerDialog", "DueTimePickerDialog").forEach {
+                assertTrue("$path no debe usar $it", !text.contains(it))
+            }
+        }
+        assertTrue(!source("ui/calendar/EventEditorSheet.kt").contains("CalendarsSheet("))
+        assertTrue(!source("ui/calendar/CalendarScreen.kt").contains("EventEditorSheet("))
+        assertTrue(source("ui/shell/AppShell.kt").contains("if (eventState.isOpen && destination == AppDestination.CALENDAR)"))
+    }
+
+    @Test
+    fun calendarioUsaClavesEstables() {
+        assertTrue(source("ui/calendar/CalendarBody.kt").contains("items(rows, key = { it.key })"))
+        assertTrue(source("ui/calendar/CalendarsSheet.kt").contains("items(rowsOf(calendars), key = { it.key })"))
+        val rows = source("ui/calendar/CalendarBodyRows.kt")
+        listOf("\"d:\$date\"", "\"e:\${item.event.instanceKey}:\$date\"", "\"t:\${item.task.taskId}:\$date\"").forEach {
+            assertTrue("falta la clave $it", rows.contains(it))
+        }
+        assertTrue(source("ui/calendar/CalendarsSheet.kt").contains("\"c:\${option.calendar.id}\""))
+    }
+
+    @Test
+    fun calendarioNoGuardaNegocioEnRememberSaveable() {
+        val offenders = File(sourcesRoot, "ui/calendar").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" && it.readText().contains("rememberSaveable") }
+            .map { it.name }
+            .toList()
+
+        assertTrue("estado de negocio fuera del ViewModel: $offenders", offenders.isEmpty())
+    }
+
+    @Test
+    fun calendarioSoloUsaDuracionesDeNavMotion() {
+        val calendarFiles = File(sourcesRoot, "ui/calendar").walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+
+        calendarFiles.forEach { file ->
+            listOf("tween(", "spring(", "snap(", "durationMillis", "Settings.Global", "animateFloatAsState").forEach {
+                assertTrue("${file.name} no debe usar $it", !file.readText().contains(it))
+            }
+        }
+        val screen = source("ui/calendar/CalendarScreen.kt")
+        assertTrue(screen.contains("panelEnter(animated)") && screen.contains("panelExit(animated)"))
+        assertTrue(screen.contains("rememberAnimationsEnabled()"))
+        assertTrue(source("ui/calendar/EventEditorSheet.kt").contains("editorPanelTransition(animated)"))
+    }
+
+    @Test
+    fun cuadriculaYFilasTienenObjetivoTactilYDescripcion() {
+        val grid = source("ui/calendar/MonthGrid.kt")
+        assertTrue(grid.contains("heightIn(min = Spacing.MinTouchTarget)"))
+        assertTrue(grid.contains("cellDescription("))
+        assertTrue(grid.contains("onClick = onClick"))
+        val body = source("ui/calendar/CalendarBody.kt")
+        assertTrue(body.contains("clearAndSetSemantics { contentDescription = description }"))
+        assertTrue(body.contains("heading()"))
+        assertTrue(body.contains("minimumInteractiveComponentSize()"))
+        val calendars = source("ui/calendar/CalendarsSheet.kt")
+        assertTrue(calendars.contains("Role.Checkbox") && calendars.contains("heightIn(min = Spacing.MinTouchTarget)"))
+        val header = source("ui/calendar/CalendarHeader.kt")
+        assertTrue(header.contains("stateDescription = gridState") && header.contains("SingleChoiceSegmentedButtonRow("))
+        assertTrue(header.contains("selected = state.mode == mode"))
+    }
+
+    @Test
+    fun pildoraDeEventoUsaCadenasPropias() {
+        val chrome = source("ui/shell/FloatingChrome.kt")
+        val strings = File(sourcesRoot, "../../../../res/values/strings.xml").readText()
+
+        assertTrue(chrome.contains("R.string.pill_event_hint") && chrome.contains("R.string.pill_event_description"))
+        assertTrue(strings.contains("name=\"pill_event_hint\"") && strings.contains("name=\"pill_event_description\""))
+        assertTrue(chrome.contains("chrome.pill == PillKind.TASK && pill.isOpen"))
+    }
+
+    @Test
+    fun calendarioNoAnadeImePaddingNiBackHandlerEnShell() {
+        assertEquals(1, Regex("BackHandler\\(").findAll(source("ui/shell/AppShell.kt")).count())
+        assertEquals(1, Regex("imePadding\\(\\)").findAll(source("ui/shell/FloatingChrome.kt")).count())
+        val sheet = source("ui/calendar/EventEditorSheet.kt")
+        assertEquals(1, Regex("BackHandler\\(").findAll(sheet).count())
+        assertEquals(1, Regex("imePadding\\(\\)").findAll(sheet).count())
+        File(sourcesRoot, "ui/calendar").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" && it.name != "EventEditorSheet.kt" }
+            .forEach { file ->
+                assertTrue("${file.name} no debe usar imePadding", !file.readText().contains("imePadding"))
+                assertTrue("${file.name} no debe usar BackHandler", !file.readText().contains("BackHandler"))
+            }
     }
 
     @Test
@@ -436,7 +573,10 @@ class UiPresentationRulesTest {
         val names = sheetFiles.map { it.name }.toSet()
 
         assertEquals(
-            setOf("TaskActionsSheet.kt", "AssignToBoardHost.kt", "MoveToListHost.kt", "TaskEditorSheet.kt", "SuggestionsSheet.kt"),
+            setOf(
+                "TaskActionsSheet.kt", "AssignToBoardHost.kt", "MoveToListHost.kt", "TaskEditorSheet.kt", "SuggestionsSheet.kt",
+                "CalendarsSheet.kt", "EventEditorSheet.kt",
+            ),
             names,
         )
         sheetFiles.forEach { file ->
@@ -480,6 +620,17 @@ class UiPresentationRulesTest {
             Regex("R\\.string\\.([a-z0-9_]+)").findAll(text).map { it.groupValues[1] }.forEach { name ->
                 assertTrue("$path usa R.string.$name inexistente", strings.contains("name=\"$name\""))
             }
+        }
+    }
+
+    @Test
+    fun cadenasDelCalendarioExistenYLasRetiradasNoQuedan() {
+        val strings = File(sourcesRoot, "../../../../res/values/strings.xml").readText()
+
+        listOf("calendar_mode_agenda", "calendar_permission_allow", "pill_event_hint", "event_sheet_title", "event_added", "event_no_writable")
+            .forEach { assertTrue("falta $it", strings.contains("name=\"$it\"")) }
+        listOf("calendar_placeholder", "coming_soon").forEach {
+            assertTrue("$it ya no debe existir", !strings.contains("name=\"$it\""))
         }
     }
 
@@ -1296,6 +1447,15 @@ class UiPresentationRulesTest {
             "ui/shell/QuickAddListPanel.kt",
         )
         // QuickAddScrim.kt queda fuera a propósito: es un velo de pantalla completa, no un control de 48 dp.
+        val CALENDAR_FILES = listOf(
+            "ui/calendar/CalendarScreen.kt",
+            "ui/calendar/CalendarHeader.kt",
+            "ui/calendar/MonthGrid.kt",
+            "ui/calendar/CalendarBody.kt",
+            "ui/calendar/CalendarsSheet.kt",
+            "ui/calendar/EventEditorSheet.kt",
+            "ui/permission/CalendarPermissionNotice.kt",
+        )
         val NEW_CONTROL_FILES = listOf(
             "ui/shell/QuickDateShortcutRow.kt",
             "ui/shell/QuickAddListPanel.kt",
@@ -1308,9 +1468,8 @@ class UiPresentationRulesTest {
             "ui/shell/ClearCompletedDialog.kt",
             "ui/upcoming/UpcomingScreen.kt",
             "ui/alltasks/AllTasksScreen.kt",
-            "ui/calendar/CalendarPlaceholderScreen.kt",
             "ui/boards/BoardNameDialog.kt",
-        ) + EDITOR_NEW_FILES
+        ) + CALENDAR_FILES + EDITOR_NEW_FILES
         val NEW_UI_FILES = listOf(
             "ui/shell/QuickAddScrim.kt",
             "ui/navigation/NavMotion.kt",
@@ -1326,7 +1485,6 @@ class UiPresentationRulesTest {
             "ui/shell/SectionTopBar.kt",
             "ui/shell/ClearCompletedDialog.kt",
             "ui/home/HomeScreen.kt",
-            "ui/calendar/CalendarPlaceholderScreen.kt",
             "ui/boards/BoardNameDialog.kt",
             "ui/tasks/TaskActionsSheet.kt",
             "ui/tasks/AssignToBoardHost.kt",
@@ -1338,6 +1496,6 @@ class UiPresentationRulesTest {
             "ui/lists/ListScreen.kt",
             "ui/upcoming/UpcomingScreen.kt",
             "ui/alltasks/AllTasksScreen.kt",
-        ) + EDITOR_NEW_FILES
+        ) + CALENDAR_FILES + EDITOR_NEW_FILES
     }
 }

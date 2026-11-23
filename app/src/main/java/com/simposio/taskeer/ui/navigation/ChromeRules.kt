@@ -4,11 +4,14 @@ import com.simposio.taskeer.ui.quickadd.QuickAddContext
 
 enum class TopBarKind { SECTION, HUB, DETAIL, DETAIL_WITH_MENU }
 
+enum class PillKind { TASK, EVENT }
+
 data class Chrome(
     val topBar: TopBarKind,
     val showHomeButton: Boolean,
     val showPill: Boolean,
     val showSuggestions: Boolean = false,
+    val pill: PillKind = PillKind.TASK,
 )
 
 fun chromeFor(destination: AppDestination): Chrome = when (destination) {
@@ -16,9 +19,10 @@ fun chromeFor(destination: AppDestination): Chrome = when (destination) {
         Chrome(TopBarKind.SECTION, showHomeButton = true, showPill = true, showSuggestions = true)
     AppDestination.UPCOMING_7_DAYS,
     AppDestination.ALL_TASKS,
-    AppDestination.CALENDAR,
     AppDestination.LIST,
     -> Chrome(TopBarKind.SECTION, showHomeButton = true, showPill = true)
+    AppDestination.CALENDAR ->
+        Chrome(TopBarKind.SECTION, showHomeButton = true, showPill = true, pill = PillKind.EVENT)
     AppDestination.HOME -> Chrome(TopBarKind.HUB, showHomeButton = false, showPill = false)
     AppDestination.BOARD -> Chrome(TopBarKind.DETAIL_WITH_MENU, showHomeButton = true, showPill = false)
     AppDestination.BOARD_COLUMNS,
@@ -48,12 +52,12 @@ private val SECTION_ACTIONS = listOf(MenuAction.SYNC, MenuAction.PRINT, MenuActi
 private fun sectionMenu(vararg items: MenuItem) = OverflowMenu(SECTION_ACTIONS, items.toList())
 
 fun overflowMenuFor(destination: AppDestination): OverflowMenu = when (destination) {
-    AppDestination.MY_DAY ->
-        sectionMenu(MenuItem.CLEAR_COMPLETED, MenuItem.MY_CALENDARS, MenuItem.SETTINGS)
+    AppDestination.MY_DAY -> sectionMenu(MenuItem.CLEAR_COMPLETED, MenuItem.SETTINGS)
     AppDestination.UPCOMING_7_DAYS,
     AppDestination.ALL_TASKS,
     -> sectionMenu(MenuItem.CLEAR_COMPLETED, MenuItem.FILTER, MenuItem.SORT, MenuItem.SETTINGS)
-    AppDestination.CALENDAR -> sectionMenu(MenuItem.CLEAR_COMPLETED, MenuItem.SETTINGS)
+    AppDestination.CALENDAR ->
+        sectionMenu(MenuItem.CLEAR_COMPLETED, MenuItem.MY_CALENDARS, MenuItem.SETTINGS)
     AppDestination.LIST ->
         sectionMenu(MenuItem.CLEAR_COMPLETED, MenuItem.RENAME_LIST, MenuItem.DELETE_LIST, MenuItem.SETTINGS)
     AppDestination.BOARD -> OverflowMenu(emptyList(), listOf(MenuItem.RENAME_BOARD, MenuItem.DELETE_BOARD))

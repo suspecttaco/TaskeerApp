@@ -1,5 +1,6 @@
 package com.simposio.taskeer.ui.shell
 
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,6 +51,7 @@ import com.simposio.taskeer.ui.components.DecorativeIcon
 import com.simposio.taskeer.ui.components.HomeButton
 import com.simposio.taskeer.ui.components.rememberAnimationsEnabled
 import com.simposio.taskeer.ui.navigation.Chrome
+import com.simposio.taskeer.ui.navigation.PillKind
 import com.simposio.taskeer.ui.navigation.TopBarKind
 import com.simposio.taskeer.ui.navigation.panelEnter
 import com.simposio.taskeer.ui.navigation.panelExit
@@ -84,6 +86,7 @@ fun BoxScope.FloatingChrome(
     pill: QuickAddUiState,
     pillActions: PillActions,
     onHome: () -> Unit,
+    onAddEvent: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val inputFocus = remember { FocusRequester() }
@@ -105,7 +108,7 @@ fun BoxScope.FloatingChrome(
     }
     if (!chrome.showHomeButton && !chrome.showPill) return
     Box(modifier = modifier.align(Alignment.BottomCenter).fillMaxWidth().imePadding()) {
-        if (chrome.showPill && pill.isOpen) {
+        if (chrome.showPill && chrome.pill == PillKind.TASK && pill.isOpen) {
             ExpandedPill(state = pill, actions = pillActions, inputFocus = inputFocus)
         } else {
             Row(
@@ -117,15 +120,34 @@ fun BoxScope.FloatingChrome(
             ) {
                 if (chrome.showHomeButton) HomeButton(onClick = onHome)
                 Spacer(Modifier.weight(1f))
-                if (chrome.showPill) CollapsedPill(onOpen = pillActions.onOpen)
+                if (chrome.showPill) {
+                    if (chrome.pill == PillKind.EVENT) {
+                        CollapsedPill(
+                            onOpen = onAddEvent,
+                            hint = R.string.pill_event_hint,
+                            description = R.string.pill_event_description,
+                        )
+                    } else {
+                        CollapsedPill(
+                            onOpen = pillActions.onOpen,
+                            hint = R.string.pill_hint,
+                            description = R.string.pill_description,
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun CollapsedPill(onOpen: () -> Unit, modifier: Modifier = Modifier) {
-    val description = stringResource(R.string.pill_description)
+private fun CollapsedPill(
+    onOpen: () -> Unit,
+    @StringRes hint: Int,
+    @StringRes description: Int,
+    modifier: Modifier = Modifier,
+) {
+    val descriptionText = stringResource(description)
     Surface(
         onClick = onOpen,
         shape = MaterialTheme.shapes.medium,
@@ -135,7 +157,7 @@ private fun CollapsedPill(onOpen: () -> Unit, modifier: Modifier = Modifier) {
         modifier = modifier
             .heightIn(min = Spacing.FloatingControlSize)
             .widthIn(min = Spacing.PillCollapsedMinWidth)
-            .semantics { contentDescription = description },
+            .semantics { contentDescription = descriptionText },
     ) {
         Row(
             modifier = Modifier.padding(horizontal = Spacing.ScreenPadding),
@@ -143,7 +165,7 @@ private fun CollapsedPill(onOpen: () -> Unit, modifier: Modifier = Modifier) {
             horizontalArrangement = Arrangement.spacedBy(Spacing.InlineGap, Alignment.CenterHorizontally),
         ) {
             DecorativeIcon(Icons.Filled.Add)
-            Text(text = stringResource(R.string.pill_hint), style = MaterialTheme.typography.titleSmall)
+            Text(text = stringResource(hint), style = MaterialTheme.typography.titleSmall)
         }
     }
 }
@@ -269,6 +291,7 @@ private fun QuickAddPillCollapsedPreview() {
                 pill = QuickAddUiState(),
                 pillActions = PillActions({}, {}, {}, {}, {}, {}, {}, {}, {}, {}),
                 onHome = {},
+                onAddEvent = {},
             )
         }
     }
