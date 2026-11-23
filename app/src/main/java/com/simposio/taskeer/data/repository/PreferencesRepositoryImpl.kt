@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.simposio.taskeer.domain.model.DEFAULT_REMINDER_TIME
 import com.simposio.taskeer.domain.model.DeadlineReminderSettings
 import com.simposio.taskeer.domain.model.DigestSettings
@@ -53,6 +54,10 @@ class PreferencesRepositoryImpl(
     override val suggestionsLastShownDay: Flow<LocalDate?> = readPreferences()
         .map { prefs -> prefs[KEY_SUGGESTIONS_LAST_SHOWN_DAY]?.let { runCatching { LocalDate.parse(it) }.getOrNull() } }
 
+    // Los ids ocultos (no los visibles) para que un calendario nuevo aparezca solo; lo no numérico se ignora.
+    override val hiddenCalendarIds: Flow<Set<Long>> = readPreferences()
+        .map { prefs -> prefs[KEY_HIDDEN_CALENDAR_IDS].orEmpty().mapNotNull { it.toLongOrNull() }.toSet() }
+
     override suspend fun setThemeMode(mode: ThemeMode) {
         dataStore.edit { it[KEY_THEME_MODE] = mode.name }
     }
@@ -87,6 +92,14 @@ class PreferencesRepositoryImpl(
 
     override suspend fun setSuggestionsLastShownDay(day: LocalDate) {
         dataStore.edit { it[KEY_SUGGESTIONS_LAST_SHOWN_DAY] = day.toString() }
+    }
+
+    override suspend fun setCalendarHidden(id: Long, hidden: Boolean) {
+        dataStore.edit { prefs ->
+            val current = prefs[KEY_HIDDEN_CALENDAR_IDS].orEmpty()
+            val updated = if (hidden) current + id.toString() else current - id.toString()
+            if (updated.isEmpty()) prefs.remove(KEY_HIDDEN_CALENDAR_IDS) else prefs[KEY_HIDDEN_CALENDAR_IDS] = updated
+        }
     }
 
     private fun readPreferences(): Flow<Preferences> = dataStore.data
@@ -133,5 +146,6 @@ class PreferencesRepositoryImpl(
         private val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
         private val KEY_DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         private val KEY_SUGGESTIONS_LAST_SHOWN_DAY = stringPreferencesKey("suggestions_last_shown_day")
+        private val KEY_HIDDEN_CALENDAR_IDS = stringSetPreferencesKey("calendar_hidden_ids")
     }
 }

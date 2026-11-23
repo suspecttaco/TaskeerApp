@@ -2,6 +2,8 @@ package com.simposio.taskeer.di
 
 import com.simposio.taskeer.data.reminder.ReminderReconciler
 import com.simposio.taskeer.data.repository.BoardRepository
+import com.simposio.taskeer.data.repository.CalendarRepository
+import com.simposio.taskeer.data.repository.DayWindowSource
 import com.simposio.taskeer.data.repository.ColumnRepository
 import com.simposio.taskeer.data.repository.MyDayRepository
 import com.simposio.taskeer.data.repository.NotificationHistoryRepository
@@ -12,6 +14,8 @@ import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskListRepository
 import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.date.DateTimeConverter
+import com.simposio.taskeer.domain.date.FirstDayOfWeekProvider
+import com.simposio.taskeer.domain.date.SystemFirstDayOfWeekProvider
 import com.simposio.taskeer.domain.date.TimeZoneProvider
 
 class AppContainer(
@@ -27,6 +31,11 @@ class AppContainer(
     val reminderRepository: ReminderRepository,
     val reminderReconciler: ReminderReconciler,
     val notificationHistoryRepository: NotificationHistoryRepository,
+    val calendarRepository: CalendarRepository,
+    val dayWindowSource: DayWindowSource,
+    val firstDayOfWeek: FirstDayOfWeekProvider = SystemFirstDayOfWeekProvider(),
+    val calendarReadGranted: () -> Boolean = { false },
+    val calendarWriteGranted: () -> Boolean = { false },
     val notificationsEnabled: () -> Boolean = { true },
     val sdkInt: Int = 0,
     val animationScale: () -> Float = { 1f },

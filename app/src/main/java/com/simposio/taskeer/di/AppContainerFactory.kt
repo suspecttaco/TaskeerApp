@@ -1,11 +1,15 @@
 package com.simposio.taskeer.di
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
+import com.simposio.taskeer.data.calendar.DeviceCalendarRepository
 import com.simposio.taskeer.data.local.AppDatabase
 import com.simposio.taskeer.data.local.ColumnDao
 import com.simposio.taskeer.data.local.ReminderDao
@@ -17,6 +21,7 @@ import com.simposio.taskeer.data.reminder.HistoryRecordingNotifier
 import com.simposio.taskeer.data.reminder.NotificationReminderNotifier
 import com.simposio.taskeer.data.reminder.ReminderReconciler
 import com.simposio.taskeer.data.repository.BoardRepositoryImpl
+import com.simposio.taskeer.data.repository.ClockDayWindowSource
 import com.simposio.taskeer.data.repository.ColumnRepositoryImpl
 import com.simposio.taskeer.data.repository.MyDayRepositoryImpl
 import com.simposio.taskeer.data.repository.NotificationHistoryRepositoryImpl
@@ -56,6 +61,9 @@ fun createAppContainer(context: Context): AppContainer {
     )
     val reminderRepository = ReminderRepositoryImpl(database.reminderDao(), database.taskDao())
     val notificationHistoryRepository = NotificationHistoryRepositoryImpl(database.appNotificationDao())
+    val dayWindowSource = ClockDayWindowSource(Instant::now, SystemTimeZoneProvider)
+    val calendarReadGranted = { isGranted(context, Manifest.permission.READ_CALENDAR) }
+    val calendarWriteGranted = { isGranted(context, Manifest.permission.WRITE_CALENDAR) }
     return AppContainer(
         preferencesRepository = preferencesRepository,
         timeZoneProvider = SystemTimeZoneProvider,
@@ -74,7 +82,7 @@ fun createAppContainer(context: Context): AppContainer {
             clock = Instant::now,
             timeZone = SystemTimeZoneProvider,
         ),
-        plannedRepository = PlannedRepositoryImpl(database.myDayDao(), SystemTimeZoneProvider),
+        plannedRepository = PlannedRepositoryImpl(database.myDayDao(), SystemTimeZoneProvider, dayWindowSource),
         reminderRepository = reminderRepository,
         reminderReconciler = ReminderReconciler(
             tasks = taskRepository,
@@ -90,6 +98,15 @@ fun createAppContainer(context: Context): AppContainer {
             clock = Instant::now,
         ),
         notificationHistoryRepository = notificationHistoryRepository,
+        calendarRepository = DeviceCalendarRepository(
+            resolver = context.contentResolver,
+            timeZone = SystemTimeZoneProvider,
+            hasRead = calendarReadGranted,
+            hasWrite = calendarWriteGranted,
+        ),
+        dayWindowSource = dayWindowSource,
+        calendarReadGranted = calendarReadGranted,
+        calendarWriteGranted = calendarWriteGranted,
         notificationsEnabled = { NotificationManagerCompat.from(context).areNotificationsEnabled() },
         sdkInt = Build.VERSION.SDK_INT,
         animationScale = {
@@ -97,6 +114,9 @@ fun createAppContainer(context: Context): AppContainer {
         },
     )
 }
+
+private fun isGranted(context: Context, permission: String): Boolean =
+    ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
 
 // Función aparte y no una línea en createAppContainer para poder probarla en un test JVM.
 fun taskCountByColumn(taskDao: TaskDao): suspend (String) -> Int =

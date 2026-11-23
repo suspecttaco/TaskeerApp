@@ -9,13 +9,18 @@ import com.simposio.taskeer.data.repository.PreferencesRepository
 import com.simposio.taskeer.data.repository.ReminderRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskRepository
+import com.simposio.taskeer.testing.FakeCalendarRepository
+import com.simposio.taskeer.testing.FakeDayWindowSource
 import com.simposio.taskeer.testing.FakeDestinationTaskRepository
 import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
+import com.simposio.taskeer.testing.FakePreferencesRepository
 import com.simposio.taskeer.testing.FakeTaskListRepository
 import com.simposio.taskeer.testing.InMemoryCheckpointStore
 import com.simposio.taskeer.testing.RecordingNotifier
 import com.simposio.taskeer.testing.RecordingReminderScheduler
 import com.simposio.taskeer.ui.alltasks.AllTasksViewModel
+import com.simposio.taskeer.ui.calendar.CalendarViewModel
+import com.simposio.taskeer.ui.calendar.EventEditorViewModel
 import com.simposio.taskeer.ui.lists.TaskListsViewModel
 import com.simposio.taskeer.ui.myday.MySuggestionsViewModel
 import com.simposio.taskeer.ui.quickadd.QuickAddViewModel
@@ -79,8 +84,18 @@ class AppViewModelFactoryTest {
         assertEquals(TaskEditorViewModel::class.java, factory.create(TaskEditorViewModel::class.java).javaClass)
     }
 
-    private fun container(): AppContainer = AppContainer(
-        preferencesRepository = stub<PreferencesRepository>(),
+    @Test
+    fun crea_calendarioYEditorDeEventos() {
+        val factory = AppViewModelFactory(container(FakePreferencesRepository()))
+
+        assertEquals(CalendarViewModel::class.java, factory.create(CalendarViewModel::class.java).javaClass)
+        assertEquals(EventEditorViewModel::class.java, factory.create(EventEditorViewModel::class.java).javaClass)
+    }
+
+    private fun container(
+        preferences: PreferencesRepository = stub<PreferencesRepository>(),
+    ): AppContainer = AppContainer(
+        preferencesRepository = preferences,
         timeZoneProvider = { java.time.ZoneOffset.UTC },
         boardRepository = flowStub<BoardRepository>(),
         columnRepository = flowStub<ColumnRepository>(),
@@ -101,6 +116,8 @@ class AppViewModelFactoryTest {
             clock = { java.time.Instant.EPOCH },
         ),
         notificationHistoryRepository = FakeNotificationHistoryRepository(),
+        calendarRepository = FakeCalendarRepository(),
+        dayWindowSource = FakeDayWindowSource(java.time.Instant.EPOCH, java.time.ZoneOffset.UTC),
     )
 
     private inline fun <reified T : Any> stub(): T = Proxy.newProxyInstance(

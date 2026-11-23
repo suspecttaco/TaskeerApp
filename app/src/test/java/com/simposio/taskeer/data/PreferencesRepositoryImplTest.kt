@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.simposio.taskeer.data.repository.PreferencesRepositoryImpl
 import com.simposio.taskeer.domain.model.DeadlineReminderSettings
 import com.simposio.taskeer.domain.model.DigestSettings
@@ -210,6 +211,54 @@ class PreferencesRepositoryImplTest {
         store.edit { it[stringPreferencesKey("suggestions_last_shown_day")] = "ayer" }
 
         assertNull(PreferencesRepositoryImpl(store).suggestionsLastShownDay.first())
+    }
+
+    @Test
+    fun hiddenCalendarIds_sinValor_esVacio() = runTest {
+        val repository = PreferencesRepositoryImpl(newDataStore(backgroundScope))
+
+        assertEquals(emptySet<Long>(), repository.hiddenCalendarIds.first())
+    }
+
+    @Test
+    fun hiddenCalendarIds_ocultarSeLeeDeNuevo() = runTest {
+        val store = newDataStore(backgroundScope)
+        val repository = PreferencesRepositoryImpl(store)
+        repository.setCalendarHidden(7, hidden = true)
+        repository.setCalendarHidden(9, hidden = true)
+
+        assertEquals(setOf(7L, 9L), PreferencesRepositoryImpl(store).hiddenCalendarIds.first())
+    }
+
+    @Test
+    fun hiddenCalendarIds_desocultarQuitaSoloEseId() = runTest {
+        val repository = PreferencesRepositoryImpl(newDataStore(backgroundScope))
+        repository.setCalendarHidden(7, hidden = true)
+        repository.setCalendarHidden(9, hidden = true)
+
+        repository.setCalendarHidden(7, hidden = false)
+
+        assertEquals(setOf(9L), repository.hiddenCalendarIds.first())
+    }
+
+    @Test
+    fun hiddenCalendarIds_ocultarDosVecesNoDuplicaYDesocultarElUltimoVacia() = runTest {
+        val repository = PreferencesRepositoryImpl(newDataStore(backgroundScope))
+        repository.setCalendarHidden(7, hidden = true)
+        repository.setCalendarHidden(7, hidden = true)
+        assertEquals(setOf(7L), repository.hiddenCalendarIds.first())
+
+        repository.setCalendarHidden(7, hidden = false)
+
+        assertEquals(emptySet<Long>(), repository.hiddenCalendarIds.first())
+    }
+
+    @Test
+    fun hiddenCalendarIds_valoresNoNumericosSeIgnoran() = runTest {
+        val store = newDataStore(backgroundScope)
+        store.edit { it[stringSetPreferencesKey("calendar_hidden_ids")] = setOf("5", "abc", "") }
+
+        assertEquals(setOf(5L), PreferencesRepositoryImpl(store).hiddenCalendarIds.first())
     }
 
     private fun newDataStore(scope: CoroutineScope): DataStore<Preferences> =

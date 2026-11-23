@@ -1,6 +1,7 @@
 package com.simposio.taskeer.ui
 
 import com.simposio.taskeer.data.repository.PlannedRepository
+import com.simposio.taskeer.domain.calendar.TaskDue
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.date.TimeZoneProvider
 import com.simposio.taskeer.domain.model.DomainError
@@ -26,6 +27,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -306,5 +308,7 @@ class UpcomingViewModelTest {
 
         override fun observeAllTasks(): Flow<AllTasksView> =
             combine(today, items) { day, list -> groupAllTasks(list, day, zone) }
+
+        override fun observeDatedTasks(): Flow<List<TaskDue>> = emptyFlow()
     }
 }

@@ -19,6 +19,8 @@ import com.simposio.taskeer.data.repository.ReminderRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.date.TimeZoneProvider
+import com.simposio.taskeer.testing.FakeCalendarRepository
+import com.simposio.taskeer.testing.FakeDayWindowSource
 import com.simposio.taskeer.testing.FakeDestinationTaskRepository
 import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
 import com.simposio.taskeer.testing.FakeTaskListRepository
@@ -108,6 +110,18 @@ class AppContainerFactoryTest {
     }
 
     @Test
+    fun calendario_comparteLaVentanaDeDiaYLeeLosPermisosConContextCompat() {
+        val source = factorySource()
+
+        assertTrue(source.contains("val dayWindowSource = ClockDayWindowSource(Instant::now, SystemTimeZoneProvider)"))
+        assertTrue(source.contains("PlannedRepositoryImpl(database.myDayDao(), SystemTimeZoneProvider, dayWindowSource)"))
+        assertTrue(source.contains("dayWindowSource = dayWindowSource"))
+        assertTrue(source.contains("ContextCompat.checkSelfPermission(context, permission)"))
+        assertTrue(source.contains("Manifest.permission.READ_CALENDAR") && source.contains("Manifest.permission.WRITE_CALENDAR"))
+        assertTrue(source.contains("hasRead = calendarReadGranted") && source.contains("hasWrite = calendarWriteGranted"))
+    }
+
+    @Test
     fun factory_construyeSubtasksViewModel() {
         val container = AppContainer(
             preferencesRepository = stub<PreferencesRepository>(),
@@ -122,6 +136,8 @@ class AppContainerFactoryTest {
             reminderRepository = stub<ReminderRepository>(),
             reminderReconciler = reconciler(),
             notificationHistoryRepository = FakeNotificationHistoryRepository(),
+            calendarRepository = FakeCalendarRepository(),
+            dayWindowSource = FakeDayWindowSource(java.time.Instant.EPOCH, java.time.ZoneOffset.UTC),
         )
 
         val viewModel = AppViewModelFactory(container).create(SubtasksViewModel::class.java)
@@ -151,6 +167,8 @@ class AppContainerFactoryTest {
             reminderRepository = stub<ReminderRepository>(),
             reminderReconciler = reconciler(),
             notificationHistoryRepository = FakeNotificationHistoryRepository(),
+            calendarRepository = FakeCalendarRepository(),
+            dayWindowSource = FakeDayWindowSource(java.time.Instant.EPOCH, java.time.ZoneOffset.UTC),
         )
 
         val viewModel = AppViewModelFactory(container).create(MyDayViewModel::class.java)
@@ -178,6 +196,8 @@ class AppContainerFactoryTest {
             reminderRepository = stub<ReminderRepository>(),
             reminderReconciler = reconciler(),
             notificationHistoryRepository = FakeNotificationHistoryRepository(),
+            calendarRepository = FakeCalendarRepository(),
+            dayWindowSource = FakeDayWindowSource(java.time.Instant.EPOCH, java.time.ZoneOffset.UTC),
         )
 
         assertSame(planned, container.plannedRepository)
@@ -201,6 +221,8 @@ class AppContainerFactoryTest {
             reminderRepository = stub<ReminderRepository>(),
             reminderReconciler = reconciler(),
             notificationHistoryRepository = FakeNotificationHistoryRepository(),
+            calendarRepository = FakeCalendarRepository(),
+            dayWindowSource = FakeDayWindowSource(java.time.Instant.EPOCH, java.time.ZoneOffset.UTC),
         )
 
         val viewModel = AppViewModelFactory(container).create(RemindersViewModel::class.java)

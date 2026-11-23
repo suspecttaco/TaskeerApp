@@ -2,7 +2,9 @@ package com.simposio.taskeer.di
 
 import com.simposio.taskeer.data.reminder.ReminderReconciler
 import com.simposio.taskeer.data.repository.BoardRepository
+import com.simposio.taskeer.data.repository.CalendarRepository
 import com.simposio.taskeer.data.repository.ColumnRepository
+import com.simposio.taskeer.data.repository.DayWindowSource
 import com.simposio.taskeer.data.repository.MyDayRepository
 import com.simposio.taskeer.data.repository.PlannedRepository
 import com.simposio.taskeer.data.repository.PreferencesRepository
@@ -10,6 +12,8 @@ import com.simposio.taskeer.data.repository.ReminderRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskListRepository
 import com.simposio.taskeer.data.repository.TaskRepository
+import com.simposio.taskeer.domain.calendar.TaskDue
+import com.simposio.taskeer.domain.date.FirstDayOfWeekProvider
 import com.simposio.taskeer.domain.date.TimeZoneProvider
 import com.simposio.taskeer.domain.model.Board
 import com.simposio.taskeer.domain.model.Column
@@ -26,6 +30,8 @@ import com.simposio.taskeer.domain.model.TaskCreation
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.planned.AllTasksView
 import com.simposio.taskeer.domain.planned.UpcomingDay
+import com.simposio.taskeer.testing.FakeCalendarRepository
+import com.simposio.taskeer.testing.FakeDayWindowSource
 import com.simposio.taskeer.testing.FakePreferencesRepository
 import com.simposio.taskeer.testing.FakeReminderRepository
 import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
@@ -33,9 +39,11 @@ import com.simposio.taskeer.testing.FakeTaskListRepository
 import com.simposio.taskeer.testing.InMemoryCheckpointStore
 import com.simposio.taskeer.testing.RecordingNotifier
 import com.simposio.taskeer.testing.RecordingReminderScheduler
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
@@ -129,6 +137,24 @@ class AppContainerTest {
     }
 
     @Test
+    fun container_exponeElCalendarioYSusCosturas() {
+        val calendar = FakeCalendarRepository()
+        val windows = FakeDayWindowSource(Instant.EPOCH, ZoneOffset.UTC)
+
+        val container = container(
+            calendarRepository = calendar,
+            dayWindowSource = windows,
+            calendarReadGranted = { true },
+        )
+
+        assertSame(calendar, container.calendarRepository)
+        assertSame(windows, container.dayWindowSource)
+        assertEquals(DayOfWeek.MONDAY, container.firstDayOfWeek.current())
+        assertEquals(true, container.calendarReadGranted())
+        assertEquals(false, container.calendarWriteGranted())
+    }
+
+    @Test
     fun conversorUsaLaZonaEntregada() {
         val container = container()
 
@@ -164,6 +190,11 @@ class AppContainerTest {
         reminderReconciler: ReminderReconciler =
             reconciler(preferencesRepository, taskRepository, reminderRepository),
         animationScale: () -> Float = { 1f },
+        calendarRepository: CalendarRepository = FakeCalendarRepository(),
+        dayWindowSource: DayWindowSource = FakeDayWindowSource(Instant.EPOCH, ZoneOffset.UTC),
+        firstDayOfWeek: FirstDayOfWeekProvider = FirstDayOfWeekProvider { DayOfWeek.MONDAY },
+        calendarReadGranted: () -> Boolean = { false },
+        calendarWriteGranted: () -> Boolean = { false },
     ): AppContainer = AppContainer(
         preferencesRepository = preferencesRepository,
         timeZoneProvider = TimeZoneProvider { auckland },
@@ -177,6 +208,11 @@ class AppContainerTest {
         reminderRepository = reminderRepository,
         reminderReconciler = reminderReconciler,
         notificationHistoryRepository = FakeNotificationHistoryRepository(),
+        calendarRepository = calendarRepository,
+        dayWindowSource = dayWindowSource,
+        firstDayOfWeek = firstDayOfWeek,
+        calendarReadGranted = calendarReadGranted,
+        calendarWriteGranted = calendarWriteGranted,
         animationScale = animationScale,
     )
 
@@ -294,6 +330,8 @@ class AppContainerTest {
         override fun observeUpcoming(): Flow<List<UpcomingDay>> = emptyFlow()
 
         override fun observeAllTasks(): Flow<AllTasksView> = emptyFlow()
+
+        override fun observeDatedTasks(): Flow<List<TaskDue>> = emptyFlow()
     }
 
     private class FakeSubtaskRepository : SubtaskRepository {

@@ -104,6 +104,31 @@ class PlannedRepositoryImplTest {
         assertEquals(listOf("ok"), repository.observeAllTasks().first().today.ids())
     }
 
+    @Test
+    fun observeDatedTasks_incluyeSoloLasAbiertasConFecha() = runTest {
+        dao.add("con-fecha", "2026-11-17T18:00:00Z")
+        dao.add("sin-fecha", null)
+        dao.add("completada", "2026-11-17T18:00:00Z", completedAt = now.toEpochMilli())
+        dao.add("borrada", "2026-11-17T18:00:00Z", deletedAt = 1L)
+        dao.add("lejana", "2027-03-01T08:00:00Z")
+
+        val due = repository.observeDatedTasks().first()
+
+        assertEquals(listOf("con-fecha", "lejana"), due.map { it.taskId })
+        assertEquals(Instant.parse("2026-11-17T18:00:00Z"), due.first().dueAt)
+    }
+
+    @Test
+    fun observeDatedTasks_usaElNombreDelTableroComoLugar() = runTest {
+        dao.add("tablero", "2026-11-17T18:00:00Z", columnId = "c1")
+        dao.add("lista", "2026-11-17T19:00:00Z", columnId = null)
+
+        val due = repository.observeDatedTasks().first().associate { it.taskId to it.place }
+
+        assertEquals("Tablero b1", due["tablero"])
+        assertNull(due["lista"])
+    }
+
     private fun List<PlannedItem>.ids(): List<String> = map { it.task.id }
 
     private class FakeDatedDao : MyDayDao() {

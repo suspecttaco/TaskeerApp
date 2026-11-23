@@ -2,6 +2,7 @@ package com.simposio.taskeer.data.repository
 
 import com.simposio.taskeer.data.local.MyDayDao
 import com.simposio.taskeer.data.local.toMyDayTask
+import com.simposio.taskeer.domain.calendar.TaskDue
 import com.simposio.taskeer.domain.date.DayWindow
 import com.simposio.taskeer.domain.date.TimeZoneProvider
 import com.simposio.taskeer.domain.model.LocalUser
@@ -13,6 +14,7 @@ import com.simposio.taskeer.domain.planned.groupUpcoming
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 
 class PlannedRepositoryImpl(
     private val myDayDao: MyDayDao,
@@ -26,6 +28,13 @@ class PlannedRepositoryImpl(
 
     override fun observeAllTasks(): Flow<AllTasksView> = observeItems { items, window ->
         groupAllTasks(items, window.date, timeZone.current())
+    }
+
+    override fun observeDatedTasks(): Flow<List<TaskDue>> = myDayDao.observeOpen(LocalUser.ID).map { rows ->
+        rows.mapNotNull { row ->
+            val task = row.toMyDayTask()
+            task.task.dueAt?.let { dueAt -> TaskDue(task.task.id, task.task.title, dueAt, task.boardName ?: task.listName) }
+        }
     }
 
     private fun <T> observeItems(

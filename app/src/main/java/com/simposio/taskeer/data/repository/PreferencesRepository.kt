@@ -22,6 +22,8 @@ interface PreferencesRepository {
 
     val suggestionsLastShownDay: Flow<LocalDate?>
 
+    val hiddenCalendarIds: Flow<Set<Long>>
+
     suspend fun setThemeMode(mode: ThemeMode)
 
     suspend fun setDynamicColor(enabled: Boolean)
@@ -39,4 +41,6 @@ interface PreferencesRepository {
     suspend fun setDefaultReminderTime(time: LocalTime)
 
     suspend fun setSuggestionsLastShownDay(day: LocalDate)
+
+    suspend fun setCalendarHidden(id: Long, hidden: Boolean)
 }
