@@ -118,4 +118,13 @@ class ReminderDaoConventionsTest {
             .firstOrNull { it.isDirectory }
             ?: error("No encontré $relativePath subiendo desde $userDir")
     }
+
+    @Test
+    fun insertIfNoPending_esTransaccional() {
+        val start = source.indexOf("fun insertIfNoPending(")
+        assertTrue(start >= 0)
+
+        assertTrue(source.substring(0, start).trimEnd().lines().takeLast(3).any { it.trim() == "@Transaction" })
+        assertTrue(source.substring(start).contains("findPendingByTask"))
+    }
 }

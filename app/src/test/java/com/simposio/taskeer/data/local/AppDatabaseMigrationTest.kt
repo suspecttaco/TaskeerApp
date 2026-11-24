@@ -13,10 +13,10 @@ class AppDatabaseMigrationTest {
     private val source: String = File(resolveLocalRoot(), "AppDatabase.kt").readText()
 
     @Test
-    fun versionActual_esCatorce() {
+    fun versionActual_esQuince() {
         assertTrue(
-            "AppDatabase debe declarar la versión 14",
-            Regex("version\\s*=\\s*14\\b").containsMatchIn(source),
+            "AppDatabase debe declarar la versión 15",
+            Regex("version\\s*=\\s*15\\b").containsMatchIn(source),
         )
     }
 
@@ -148,12 +148,12 @@ class AppDatabaseMigrationTest {
     }
 
     @Test
-    fun migraciones_formanLaCadenaCompleta1a14() {
+    fun migraciones_formanLaCadenaCompleta1a15() {
         assertTrue(
-            "MIGRATIONS debe incluir de MIGRATION_1_2 a MIGRATION_13_14",
+            "MIGRATIONS debe incluir de MIGRATION_1_2 a MIGRATION_14_15",
             Regex(
                 "MIGRATIONS[^=]*=\\s*listOf\\(\\s*MIGRATION_1_2\\s*,\\s*MIGRATION_2_3\\s*,\\s*" +
-                    "MIGRATION_3_4\\s*,\\s*MIGRATION_4_5\\s*,\\s*MIGRATION_5_6\\s*,\\s*MIGRATION_6_7\\s*,\\s*MIGRATION_7_8\\s*,\\s*MIGRATION_8_9\\s*,\\s*MIGRATION_9_10\\s*,\\s*MIGRATION_10_11\\s*,\\s*MIGRATION_11_12\\s*,\\s*MIGRATION_12_13\\s*,\\s*MIGRATION_13_14\\s*,?\\s*\\)",
+                    "MIGRATION_3_4\\s*,\\s*MIGRATION_4_5\\s*,\\s*MIGRATION_5_6\\s*,\\s*MIGRATION_6_7\\s*,\\s*MIGRATION_7_8\\s*,\\s*MIGRATION_8_9\\s*,\\s*MIGRATION_9_10\\s*,\\s*MIGRATION_10_11\\s*,\\s*MIGRATION_11_12\\s*,\\s*MIGRATION_12_13\\s*,\\s*MIGRATION_13_14\\s*,\\s*MIGRATION_14_15\\s*,?\\s*\\)",
             ).containsMatchIn(source),
         )
         assertTrue("las migraciones se aplican con addMigrations", source.contains("addMigrations("))
@@ -579,7 +579,7 @@ class AppDatabaseMigrationTest {
     private fun migration13to14(): String {
         val start = source.indexOf("Migration(13, 14)")
         assertTrue("debe declarar una Migration(13, 14)", start >= 0)
-        val end = source.indexOf("private val MIGRATIONS", start)
+        val end = source.indexOf("private val MIGRATION_14_15", start)
         return source.substring(start, end).substringAfter("override fun migrate")
             .replace(Regex("\"\\s*\\+\\s*\""), "")
     }
@@ -604,5 +604,19 @@ class AppDatabaseMigrationTest {
             .map { File(it, relativePath) }
             .firstOrNull { it.isDirectory }
             ?: error("No encontré $relativePath subiendo desde $userDir")
+    }
+
+    @Test
+    fun migrate14To15_conservaFilasYDejaNulos() {
+        val start = source.indexOf("Migration(14, 15)")
+        assertTrue("debe declarar una Migration(14, 15)", start >= 0)
+        val body = source.substring(start, source.indexOf("private val MIGRATIONS", start))
+
+        assertTrue(body.contains("ALTER TABLE `app_notifications` ADD COLUMN `reminderId` TEXT\""))
+        assertTrue(body.contains("ALTER TABLE `app_notifications` ADD COLUMN `snoozedUntil` INTEGER\""))
+        assertEquals(2, Regex("execSQL\\(").findAll(body).count())
+        listOf("DROP", "DELETE", "UPDATE", "NOT NULL", "DEFAULT").forEach {
+            assertFalse(it, body.uppercase().contains(it))
+        }
     }
 }

@@ -2,6 +2,7 @@ package com.simposio.taskeer.data.repository
 
 import com.simposio.taskeer.domain.model.AppNotification
 import com.simposio.taskeer.domain.model.NotificationEvent
+import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 
 interface NotificationHistoryRepository {
@@ -12,6 +13,8 @@ interface NotificationHistoryRepository {
     suspend fun record(event: NotificationEvent, delivered: Boolean)
 
     suspend fun markRead(id: String)
+
+    suspend fun markSnoozed(id: String, until: Instant)
 
     suspend fun markAllRead()
 

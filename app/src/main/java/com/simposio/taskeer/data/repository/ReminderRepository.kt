@@ -15,6 +15,8 @@ interface ReminderRepository {
 
     suspend fun cancelReminder(id: String): DomainResult<Unit>
 
+    suspend fun snoozeReminder(reminderId: String, remindAt: Instant): DomainResult<Reminder>
+
     suspend fun claimDue(now: Instant): ClaimResult
 
     suspend fun nextPendingAt(now: Instant): Instant?

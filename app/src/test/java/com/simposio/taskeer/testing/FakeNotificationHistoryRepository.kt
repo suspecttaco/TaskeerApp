@@ -38,6 +38,17 @@ class FakeNotificationHistoryRepository(
         if (readAt == null) copy(readAt = now, sync = sync.afterLocalChange(now)) else this
     }
 
+    val snoozed: MutableList<Pair<String, Instant>> = mutableListOf()
+
+    override suspend fun markSnoozed(id: String, until: Instant) = update(id) { now ->
+        if (snoozedUntil != null) {
+            this
+        } else {
+            snoozed += id to until
+            copy(snoozedUntil = until, readAt = readAt ?: now, sync = sync.afterLocalChange(now))
+        }
+    }
+
     override suspend fun markAllRead() {
         all.value.forEach { if (!it.sync.isDeleted) markRead(it.id) }
     }

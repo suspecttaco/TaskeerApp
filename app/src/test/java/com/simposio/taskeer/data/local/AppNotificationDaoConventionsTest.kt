@@ -99,4 +99,15 @@ class AppNotificationDaoConventionsTest {
             .firstOrNull { it.isDirectory }
             ?: error("No encontré $relativePath subiendo desde $userDir")
     }
+
+    @Test
+    fun markSnoozed_esUpdateCondicionadoYSinDelete() {
+        val query = querySource("markSnoozed")
+
+        assertTrue(query.contains("UPDATE app_notifications SET snoozedUntil = :until"))
+        assertTrue(query.contains("readAt = COALESCE(readAt, :now)"))
+        assertTrue(query.contains("pending = 1"))
+        assertTrue(query.contains("WHERE id = :id AND deletedAt IS NULL AND snoozedUntil IS NULL"))
+        assertFalse(query.contains("DELETE"))
+    }
 }

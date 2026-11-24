@@ -49,6 +49,46 @@ class NotificationHistoryRepositoryImplTest {
     }
 
     @Test
+    fun record_manualGuardaReminderId() = runTest {
+        repository.record(NotificationEvent.Manual("r1", "t1", "Llamar"), delivered = true)
+        repository.record(NotificationEvent.Deadline("t1", "Entregar"), delivered = true)
+
+        val rows = dao.rows.value.values.associateBy { it.kind }
+        assertEquals("r1", rows.getValue("REMINDER").reminderId)
+        assertNull(rows.getValue("DEADLINE").reminderId)
+    }
+
+    @Test
+    fun markSnoozed_marcaLeidaYIdempotente() = runTest {
+        repository.record(NotificationEvent.Manual("r1", "t1", "Llamar"), delivered = true)
+        val id = dao.rows.value.values.single().id
+        val until = now.plusSeconds(3_600)
+        tick(10)
+
+        repository.markSnoozed(id, until)
+        val first = dao.rows.value.getValue(id)
+        tick(10)
+        repository.markSnoozed(id, until.plusSeconds(60))
+
+        assertEquals(until.toEpochMilli(), first.snoozedUntil)
+        assertEquals(now.minusSeconds(10).toEpochMilli(), first.readAt)
+        assertEquals(first, dao.rows.value.getValue(id))
+    }
+
+    @Test
+    fun markSnoozed_idInexistenteOBorrado_sinError() = runTest {
+        repository.record(NotificationEvent.Manual("r1", "t1", "Llamar"), delivered = true)
+        val id = dao.rows.value.values.single().id
+        repository.delete(id)
+        val before = dao.rows.value
+
+        repository.markSnoozed("no-existe", now.plusSeconds(60))
+        repository.markSnoozed(id, now.plusSeconds(60))
+
+        assertEquals(before, dao.rows.value)
+    }
+
+    @Test
     fun record_resumenConCero_guardaConteoCero() = runTest {
         repository.record(NotificationEvent.Digest(0), delivered = true)
 
@@ -239,6 +279,8 @@ class NotificationHistoryRepositoryImplTest {
         delivered = true,
         createdAt = createdAt,
         readAt = null,
+        reminderId = null,
+        snoozedUntil = null,
         updatedAt = createdAt,
         pending = true,
         deletedAt = null,
@@ -263,6 +305,11 @@ class NotificationHistoryRepositoryImplTest {
         override suspend fun markRead(id: String, now: Long): Int =
             change({ it.id == id && it.readAt == null && it.deletedAt == null }) {
                 it.copy(readAt = now, updatedAt = now, pending = true)
+            }
+
+        override suspend fun markSnoozed(id: String, until: Long, now: Long): Int =
+            change({ it.id == id && it.deletedAt == null && it.snoozedUntil == null }) {
+                it.copy(snoozedUntil = until, readAt = it.readAt ?: now, updatedAt = now, pending = true)
             }
 
         override suspend fun markAllRead(now: Long): Int =

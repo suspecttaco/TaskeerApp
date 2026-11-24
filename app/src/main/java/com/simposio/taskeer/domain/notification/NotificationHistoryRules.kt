@@ -3,6 +3,7 @@ package com.simposio.taskeer.domain.notification
 import com.simposio.taskeer.domain.model.AppNotification
 import com.simposio.taskeer.domain.model.AppNotificationKind
 import com.simposio.taskeer.domain.model.NotificationEvent
+import com.simposio.taskeer.domain.model.afterLocalChange
 import com.simposio.taskeer.domain.model.newClientId
 import com.simposio.taskeer.domain.model.newSyncMetadata
 import java.time.Instant
@@ -23,9 +24,15 @@ fun NotificationEvent.toNotification(
         AppNotificationKind.DIGEST, null, null, activeTaskCount, delivered, now, clientId,
     )
     is NotificationEvent.Manual -> entry(
-        AppNotificationKind.REMINDER, taskId, taskTitle, null, delivered, now, clientId,
+        AppNotificationKind.REMINDER, taskId, taskTitle, null, delivered, now, clientId, reminderId,
     )
 }
+
+fun AppNotification.snoozedUntil(until: Instant, now: Instant): AppNotification = copy(
+    snoozedUntil = until,
+    readAt = readAt ?: now,
+    sync = sync.afterLocalChange(now),
+)
 
 fun badgeLabel(unread: Int): String? = when {
     unread <= 0 -> null
@@ -41,6 +48,7 @@ private fun entry(
     delivered: Boolean,
     now: Instant,
     clientId: String,
+    reminderId: String? = null,
 ): AppNotification = AppNotification(
     kind = kind,
     taskId = taskId,
@@ -49,5 +57,7 @@ private fun entry(
     delivered = delivered,
     createdAt = now,
     readAt = null,
+    reminderId = reminderId,
+    snoozedUntil = null,
     sync = newSyncMetadata(now, clientId),
 )

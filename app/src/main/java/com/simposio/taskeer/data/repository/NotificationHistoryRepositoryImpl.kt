@@ -30,6 +30,10 @@ class NotificationHistoryRepositoryImpl(
         dao.markRead(id, clock().toEpochMilli())
     }
 
+    override suspend fun markSnoozed(id: String, until: Instant) {
+        dao.markSnoozed(id, until.toEpochMilli(), clock().toEpochMilli())
+    }
+
     override suspend fun markAllRead() {
         dao.markAllRead(clock().toEpochMilli())
     }

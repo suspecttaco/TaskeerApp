@@ -1,5 +1,6 @@
 package com.simposio.taskeer.data.reminder
 
+import kotlinx.coroutines.flow.first
 import com.simposio.taskeer.domain.date.TimeZoneProvider
 import com.simposio.taskeer.domain.model.DeadlineReminderSettings
 import com.simposio.taskeer.domain.model.DigestSettings
@@ -396,5 +397,70 @@ class ReminderReconcilerTest {
         reconciler(reminders = reminders).reconcile()
 
         assertTrue(notifier.events.none { it is NotificationEvent.Manual })
+    }
+
+    private suspend fun snoozedRepository(snoozeAt: Instant): FakeReminderRepository {
+        val repository = reminders()
+        repository.put(
+            newReminder("t1", now.minusSeconds(120), now.minusSeconds(3_600), clientId = "orig")
+                .copy(status = ReminderStatus.SENT, sentAt = now.minusSeconds(120)),
+        )
+        repository.snoozeReminder("orig", snoozeAt)
+        return repository
+    }
+
+    @Test
+    fun pospuesto_programaLaMenorAlarmaUnica() = runTest {
+        tasks.candidates.value = listOf(candidate("t1", now.plusSeconds(7_200)))
+        val repository = snoozedRepository(now.plusSeconds(1_800))
+
+        reconciler(deadlineOn(), digestOn(), repository).reconcile()
+
+        assertEquals(now.plusSeconds(1_800), scheduler.current)
+    }
+
+    @Test
+    fun pospuesto_alLlegarLaHora_notificaUnaVezYNoReavisaElOriginal() = runTest {
+        val at = now.plusSeconds(600)
+        val repository = snoozedRepository(at)
+        val reconciler = reconciler(reminders = repository)
+
+        reconciler.reconcile()
+        assertTrue(notifier.events.isEmpty())
+        now = at
+        reconciler.reconcile()
+
+        assertEquals(1, notifier.events.size)
+        val event = notifier.events.single() as NotificationEvent.Manual
+        assertEquals("Escribir el informe", event.taskTitle)
+        assertTrue(event.reminderId != "orig")
+    }
+
+    @Test
+    fun pospuesto_canceladoOTareaBorrada_noDispara() = runTest {
+        val at = now.plusSeconds(600)
+        val repository = snoozedRepository(at)
+        val next = repository.observePending().first().single()
+        repository.cancelReminder(next.id)
+        now = at
+
+        reconciler(reminders = repository).reconcile()
+
+        assertTrue(notifier.events.isEmpty())
+        assertEquals(ReminderStatus.DISMISSED, repository.statusOf(next.id))
+    }
+
+    @Test
+    fun pospuesto_conReconciliacionRepetida_unSoloAviso() = runTest {
+        val at = now.plusSeconds(600)
+        val repository = snoozedRepository(at)
+        val reconciler = reconciler(reminders = repository)
+        now = at
+
+        reconciler.reconcile()
+        reconciler.reconcile()
+        reconciler.reconcile()
+
+        assertEquals(1, notifier.events.size)
     }
 }

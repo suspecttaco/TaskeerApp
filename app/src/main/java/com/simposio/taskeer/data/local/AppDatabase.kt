@@ -23,7 +23,7 @@ private const val SEED_DEFAULT_LIST_SQL =
         AppNotificationEntity::class,
         TaskListEntity::class,
     ],
-    version = 14,
+    version = 15,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -293,6 +293,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_14_15: Migration = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `app_notifications` ADD COLUMN `reminderId` TEXT")
+                db.execSQL("ALTER TABLE `app_notifications` ADD COLUMN `snoozedUntil` INTEGER")
+            }
+        }
+
         private val MIGRATIONS: List<Migration> = listOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -307,6 +314,7 @@ abstract class AppDatabase : RoomDatabase() {
             MIGRATION_11_12,
             MIGRATION_12_13,
             MIGRATION_13_14,
+            MIGRATION_14_15,
         )
 
         fun create(context: Context): AppDatabase =

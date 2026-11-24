@@ -14,8 +14,10 @@ import com.simposio.taskeer.domain.model.ReminderStatus
 import com.simposio.taskeer.domain.reminder.REMINDER_ALREADY_PENDING
 import com.simposio.taskeer.domain.reminder.REMINDER_NOT_FOUND
 import com.simposio.taskeer.domain.reminder.dismissed
+import com.simposio.taskeer.domain.reminder.TASK_COMPLETED
 import com.simposio.taskeer.domain.reminder.isWithinTolerance
 import com.simposio.taskeer.domain.reminder.newReminder
+import com.simposio.taskeer.domain.reminder.snoozed
 import com.simposio.taskeer.domain.reminder.validateRemindAt
 import com.simposio.taskeer.domain.task.TASK_NOT_FOUND
 import java.time.Instant
@@ -63,6 +65,37 @@ class ReminderRepositoryImpl(
                 DomainResult.Success(Unit)
             }
         }
+    }
+
+    override suspend fun snoozeReminder(reminderId: String, remindAt: Instant): DomainResult<Reminder> {
+        val current = now()
+        validateRemindAt(remindAt, current)?.let { return DomainResult.Failure(it) }
+        val origin = reminderDao.findById(reminderId)?.toReminder()
+            ?: return DomainResult.Failure(
+                DomainError.NotFound(REMINDER_NOT_FOUND, "El recordatorio no existe"),
+            )
+        val next = when (val result = origin.snoozed(remindAt, current)) {
+            is DomainResult.Failure -> return result
+            is DomainResult.Success -> result.value
+        }
+        val state = taskDao.findReminderState(origin.taskId)
+        if (state == null || state.deleted) {
+            return DomainResult.Failure(DomainError.NotFound(TASK_NOT_FOUND, "La tarea no existe"))
+        }
+        if (state.completed) {
+            return DomainResult.Failure(
+                DomainError.Validation(TASK_COMPLETED, "La tarea ya está completada"),
+            )
+        }
+        if (!reminderDao.insertIfNoPending(next.toEntity())) {
+            return DomainResult.Failure(
+                DomainError.Conflict(
+                    REMINDER_ALREADY_PENDING,
+                    "La tarea ya tiene un recordatorio pendiente",
+                ),
+            )
+        }
+        return DomainResult.Success(next)
     }
 
     override fun observePending(): Flow<List<Reminder>> =

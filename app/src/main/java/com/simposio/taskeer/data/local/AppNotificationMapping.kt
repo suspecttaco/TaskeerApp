@@ -15,6 +15,8 @@ fun AppNotificationEntity.toAppNotification(): AppNotification? {
         delivered = delivered,
         createdAt = Instant.ofEpochMilli(createdAt),
         readAt = readAt?.let(Instant::ofEpochMilli),
+        reminderId = reminderId,
+        snoozedUntil = snoozedUntil?.let(Instant::ofEpochMilli),
         sync = toSyncMetadata(),
     )
 }
@@ -28,6 +30,8 @@ fun AppNotification.toEntity(): AppNotificationEntity = AppNotificationEntity(
     delivered = delivered,
     createdAt = createdAt.toEpochMilli(),
     readAt = readAt?.toEpochMilli(),
+    reminderId = reminderId,
+    snoozedUntil = snoozedUntil?.toEpochMilli(),
     updatedAt = sync.updatedAt.toEpochMilli(),
     pending = sync.pending,
     deletedAt = sync.deletedAt?.toEpochMilli(),
