@@ -54,6 +54,7 @@ import com.simposio.taskeer.ui.navigation.chromeFor
 import com.simposio.taskeer.ui.navigation.navigateHome
 import com.simposio.taskeer.ui.navigation.overflowMenuFor
 import com.simposio.taskeer.ui.navigation.quickAddContextFor
+import com.simposio.taskeer.ui.navigation.withBoardPresent
 import com.simposio.taskeer.ui.navigation.withListCount
 import com.simposio.taskeer.ui.myday.MySuggestionsViewModel
 import com.simposio.taskeer.ui.myday.SuggestionsSheet
@@ -186,7 +187,7 @@ fun AppShell(
         quickAdd.setContext(quickAddContextFor(destination, listId))
     }
 
-    val menu: OverflowMenu = overflowMenuFor(destination).withListCount(listCount)
+    val menu: OverflowMenu = overflowMenuFor(destination).withListCount(listCount).withBoardPresent(boardName != null)
     val title = destination.title(listName, boardName)
     val back = backStep(destination, boardId, hasPrevious = navController.previousBackStackEntry != null)
 

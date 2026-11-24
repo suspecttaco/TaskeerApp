@@ -79,3 +79,6 @@ fun canDeleteList(listCount: Int): Boolean = listCount > 1
 
 fun OverflowMenu.withListCount(listCount: Int): OverflowMenu =
     copy(items = items.filter { it != MenuItem.DELETE_LIST || canDeleteList(listCount) })
+
+fun OverflowMenu.withBoardPresent(present: Boolean): OverflowMenu =
+    copy(items = items.filter { present || (it != MenuItem.RENAME_BOARD && it != MenuItem.DELETE_BOARD) })
