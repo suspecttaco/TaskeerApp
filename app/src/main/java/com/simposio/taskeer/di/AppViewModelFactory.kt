@@ -7,6 +7,8 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import com.simposio.taskeer.ui.app.AppViewModel
 import com.simposio.taskeer.ui.components.settleMillis
 import com.simposio.taskeer.ui.board.BoardViewModel
+import com.simposio.taskeer.ui.calendar.CalendarViewModel
+import com.simposio.taskeer.ui.calendar.EventEditorViewModel
 import com.simposio.taskeer.ui.boards.BoardsViewModel
 import com.simposio.taskeer.ui.columns.ColumnsViewModel
 import com.simposio.taskeer.ui.alltasks.AllTasksViewModel
@@ -126,6 +128,25 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 container.taskRepository,
                 container.boardRepository,
                 container.columnRepository,
+            ) as T
+        modelClass.isAssignableFrom(CalendarViewModel::class.java) ->
+            CalendarViewModel(
+                container.calendarRepository,
+                container.plannedRepository,
+                container.preferencesRepository,
+                container.dayWindowSource,
+                container.timeZoneProvider,
+                container.firstDayOfWeek,
+                container.calendarReadGranted,
+                container.calendarWriteGranted,
+            ) as T
+        modelClass.isAssignableFrom(EventEditorViewModel::class.java) ->
+            EventEditorViewModel(
+                container.calendarRepository,
+                container.preferencesRepository,
+                container.calendarReadGranted,
+                container.calendarWriteGranted,
+                container.timeZoneProvider,
             ) as T
         modelClass.isAssignableFrom(NotificationsViewModel::class.java) ->
             NotificationsViewModel(

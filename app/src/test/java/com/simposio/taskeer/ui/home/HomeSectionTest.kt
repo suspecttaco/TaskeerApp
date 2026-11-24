@@ -2,7 +2,6 @@ package com.simposio.taskeer.ui.home
 
 import com.simposio.taskeer.ui.navigation.AppDestination
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -22,10 +21,9 @@ class HomeSectionTest {
     }
 
     @Test
-    fun calendario_esMarcadorWip() {
-        assertTrue(HomeSection.CALENDAR.isPlaceholder)
+    fun ningunaSeccionEsMarcador() {
         assertEquals(AppDestination.CALENDAR, HomeSection.CALENDAR.destination)
-        assertEquals(1, HomeSection.entries.count { it.isPlaceholder })
+        assertTrue(HomeSection::class.java.declaredFields.none { it.name == "isPlaceholder" })
     }
 
     @Test
@@ -33,6 +31,5 @@ class HomeSectionTest {
         val destinations = HomeSection.entries.map { it.destination }
 
         assertEquals(destinations.size, destinations.toSet().size)
-        assertFalse(HomeSection.MY_DAY.isPlaceholder)
     }
 }

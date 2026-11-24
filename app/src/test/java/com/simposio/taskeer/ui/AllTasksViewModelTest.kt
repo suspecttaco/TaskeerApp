@@ -1,6 +1,7 @@
 package com.simposio.taskeer.ui
 
 import com.simposio.taskeer.data.repository.PlannedRepository
+import com.simposio.taskeer.domain.calendar.TaskDue
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.date.TimeZoneProvider
 import com.simposio.taskeer.domain.model.DomainError
@@ -54,6 +55,8 @@ class AllTasksViewModelTest {
         override fun observeUpcoming(): Flow<List<UpcomingDay>> = emptyFlow()
 
         override fun observeAllTasks(): Flow<AllTasksView> = items.map { groupAllTasks(it, today.value, zone) }
+
+        override fun observeDatedTasks(): Flow<List<TaskDue>> = emptyFlow()
     }
 
     @Before

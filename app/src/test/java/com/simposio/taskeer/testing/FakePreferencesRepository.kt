@@ -19,6 +19,7 @@ class FakePreferencesRepository(
     digest: DigestSettings = DigestSettings(),
     defaultTime: LocalTime = DEFAULT_REMINDER_TIME,
     lastShownDay: LocalDate? = null,
+    hiddenCalendars: Set<Long> = emptySet(),
 ) : PreferencesRepository {
 
     private val mode = MutableStateFlow(ThemeMode.AUTO)
@@ -27,6 +28,7 @@ class FakePreferencesRepository(
     private val digestState = MutableStateFlow(digest)
     private val defaultTimeState = MutableStateFlow(defaultTime)
     private val lastShownDayState = MutableStateFlow(lastShownDay)
+    private val hiddenCalendarState = MutableStateFlow(hiddenCalendars)
 
     var failOnSetLastShownDay: Boolean = false
 
@@ -36,6 +38,7 @@ class FakePreferencesRepository(
     override val digest: Flow<DigestSettings> = digestState
     override val defaultReminderTime: Flow<LocalTime> = defaultTimeState
     override val suggestionsLastShownDay: Flow<LocalDate?> = lastShownDayState
+    override val hiddenCalendarIds: Flow<Set<Long>> = hiddenCalendarState
 
     override suspend fun setThemeMode(mode: ThemeMode) {
         this.mode.value = mode
@@ -72,5 +75,9 @@ class FakePreferencesRepository(
     override suspend fun setSuggestionsLastShownDay(day: LocalDate) {
         if (failOnSetLastShownDay) throw IOException("escritura de DataStore fallida")
         lastShownDayState.value = day
+    }
+
+    override suspend fun setCalendarHidden(id: Long, hidden: Boolean) {
+        hiddenCalendarState.update { if (hidden) it + id else it - id }
     }
 }

@@ -44,6 +44,7 @@ fun ShellTopBar(
     clearEnabled: Boolean,
     actions: TopBarActions,
     modifier: Modifier = Modifier,
+    calendarsEnabled: Boolean = true,
 ) {
     TopAppBar(
         modifier = modifier,
@@ -69,7 +70,12 @@ fun ShellTopBar(
                 SuggestionsAction(suggestionCount, actions.onSuggestions)
             }
             if (kind != TopBarKind.HUB && kind != TopBarKind.DETAIL) {
-                OverflowMenuButton(menu = menu, clearEnabled = clearEnabled, onItem = actions.onMenuItem)
+                OverflowMenuButton(
+                    menu = menu,
+                    clearEnabled = clearEnabled,
+                    onItem = actions.onMenuItem,
+                    calendarsEnabled = calendarsEnabled,
+                )
             }
         },
     )

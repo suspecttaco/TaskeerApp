@@ -39,9 +39,25 @@ class ChromeRulesTest {
             Chrome(TopBarKind.SECTION, showHomeButton = true, showPill = true, showSuggestions = true),
             chromeFor(AppDestination.MY_DAY),
         )
-        (sections - AppDestination.MY_DAY).forEach {
+        (sections - AppDestination.MY_DAY - AppDestination.CALENDAR).forEach {
             assertEquals(Chrome(TopBarKind.SECTION, showHomeButton = true, showPill = true), chromeFor(it))
         }
+    }
+
+    @Test
+    fun calendario_pildoraEsDeEvento() {
+        assertEquals(
+            Chrome(TopBarKind.SECTION, showHomeButton = true, showPill = true, pill = PillKind.EVENT),
+            chromeFor(AppDestination.CALENDAR),
+        )
+    }
+
+    @Test
+    fun soloElCalendarioTienePildoraDeEvento() {
+        assertEquals(
+            listOf(AppDestination.CALENDAR),
+            AppDestination.entries.filter { chromeFor(it).pill == PillKind.EVENT },
+        )
     }
 
     @Test
@@ -83,7 +99,7 @@ class ChromeRulesTest {
     @Test
     fun menu_miDia() {
         assertEquals(
-            listOf(MenuItem.CLEAR_COMPLETED, MenuItem.MY_CALENDARS, MenuItem.SETTINGS),
+            listOf(MenuItem.CLEAR_COMPLETED, MenuItem.SETTINGS),
             overflowMenuFor(AppDestination.MY_DAY).items,
         )
     }
@@ -99,7 +115,7 @@ class ChromeRulesTest {
     @Test
     fun menu_calendario() {
         assertEquals(
-            listOf(MenuItem.CLEAR_COMPLETED, MenuItem.SETTINGS),
+            listOf(MenuItem.CLEAR_COMPLETED, MenuItem.MY_CALENDARS, MenuItem.SETTINGS),
             overflowMenuFor(AppDestination.CALENDAR).items,
         )
     }

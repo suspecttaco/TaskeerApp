@@ -18,6 +18,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -36,6 +37,10 @@ import androidx.navigation.compose.rememberNavController
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.myday.shouldAutoOpenSuggestions
 import com.simposio.taskeer.ui.board.BoardViewModel
+import com.simposio.taskeer.ui.calendar.CalendarViewModel
+import com.simposio.taskeer.ui.calendar.EventEditorActions
+import com.simposio.taskeer.ui.calendar.EventEditorSheet
+import com.simposio.taskeer.ui.calendar.EventEditorViewModel
 import com.simposio.taskeer.ui.boards.BoardsViewModel
 import com.simposio.taskeer.ui.lists.ListViewModel
 import com.simposio.taskeer.ui.lists.TaskListsViewModel
@@ -57,6 +62,7 @@ import com.simposio.taskeer.ui.tasks.SwipeHintState
 import com.simposio.taskeer.ui.tasks.TaskDeletionViewModel
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
+import kotlinx.coroutines.launch
 
 @Composable
 fun AppShell(
@@ -96,6 +102,10 @@ fun AppShell(
     val suggestionsBadge by suggestions.badge.collectAsStateWithLifecycle()
     var suggestionsOpen by rememberSaveable { mutableStateOf(false) }
     val sheetGate = remember { SheetGate() }
+    val eventEditor: EventEditorViewModel = viewModel(factory = viewModelFactory)
+    val eventState by eventEditor.uiState.collectAsStateWithLifecycle()
+    val eventAddedText = stringResource(R.string.event_added)
+    val scope = rememberCoroutineScope()
 
     // Los ViewModels de lista y tablero comparten dueño con su pantalla (la entrada de navegación).
     val entry = currentEntry
@@ -114,6 +124,12 @@ fun AppShell(
     } else {
         null
     }
+    val calendarViewModel: CalendarViewModel? = if (destination == AppDestination.CALENDAR && entry != null) {
+        viewModel(viewModelStoreOwner = entry, factory = viewModelFactory)
+    } else {
+        null
+    }
+    val calendarsReadable = calendarViewModel?.canReadCalendars?.collectAsStateWithLifecycle()?.value ?: true
     val listName = listViewModel?.uiState?.collectAsStateWithLifecycle()?.value?.listName
     val listCount = listsViewModel?.uiState?.collectAsStateWithLifecycle()?.value?.lists?.size ?: 0
     val boardName = boardsViewModel?.uiState?.collectAsStateWithLifecycle()?.value
@@ -155,6 +171,16 @@ fun AppShell(
         snackbarHost.showSnackbar(message = text, duration = SnackbarDuration.Short)
         deletion.consumeError()
     }
+    LaunchedEffect(destination) {
+        if (destination != AppDestination.CALENDAR) eventEditor.dismiss()
+    }
+    // El avance de la fecha y el aviso salen del shell porque la hoja y el Calendario son hermanos, no padre e hijo.
+    LaunchedEffect(eventState.createdDate) {
+        val date = eventState.createdDate ?: return@LaunchedEffect
+        calendarViewModel?.selectDate(date)
+        eventEditor.consumeCreated()
+        scope.launch { snackbarHost.showSnackbar(message = eventAddedText, duration = SnackbarDuration.Short) }
+    }
     LaunchedEffect(destination, listId) {
         quickAdd.close()
         quickAdd.setContext(quickAddContextFor(destination, listId))
@@ -188,6 +214,7 @@ fun AppShell(
                         suggestionCount = suggestionsBadge.count,
                         menu = menu,
                         clearEnabled = clearState.clearEnabled,
+                        calendarsEnabled = calendarsReadable,
                         actions = TopBarActions(
                             onNotifications = {
                                 navController.navigate(AppDestination.NOTIFICATIONS.route) { launchSingleTop = true }
@@ -209,7 +236,8 @@ fun AppShell(
                                     MenuItem.DELETE_LIST -> listId?.let { listsViewModel?.openDelete(it) }
                                     MenuItem.RENAME_BOARD -> boardId?.let { boardsViewModel?.openRename(it) }
                                     MenuItem.DELETE_BOARD -> boardId?.let { boardsViewModel?.openDelete(it) }
-                                    MenuItem.MY_CALENDARS, MenuItem.FILTER, MenuItem.SORT -> Unit
+                                    MenuItem.MY_CALENDARS -> calendarViewModel?.openPicker()
+                                    MenuItem.FILTER, MenuItem.SORT -> Unit
                                 }
                             },
                         ),
@@ -249,7 +277,29 @@ fun AppShell(
                     onSelectList = quickAdd::selectList,
                 ),
                 onHome = navController::navigateHome,
+                onAddEvent = { calendarViewModel?.let { eventEditor.open(it.currentAnchor()) } },
             )
+            if (eventState.isOpen && destination == AppDestination.CALENDAR) {
+                EventEditorSheet(
+                    state = eventState,
+                    actions = EventEditorActions(
+                        onTitleChange = eventEditor::onTitleChange,
+                        onAllDayChange = eventEditor::onAllDayChange,
+                        onOpenPanel = eventEditor::openPanel,
+                        onPickStartDate = eventEditor::onPickStartDate,
+                        onPickStartTime = eventEditor::onPickStartTime,
+                        onPickEndDate = eventEditor::onPickEndDate,
+                        onPickEndTime = eventEditor::onPickEndTime,
+                        onCalendarChosen = eventEditor::onCalendarChosen,
+                        onSave = eventEditor::save,
+                        onBack = eventEditor::onBack,
+                        onRequestClose = eventEditor::close,
+                        onClosed = eventEditor::dismiss,
+                        onRefreshAccess = eventEditor::refreshAccess,
+                        onPermissionResult = eventEditor::onPermissionResult,
+                    ),
+                )
+            }
             if (suggestionsOpen && destination == AppDestination.MY_DAY) {
                 SuggestionsHost(suggestions = suggestions, onClose = { suggestionsOpen = false })
             }

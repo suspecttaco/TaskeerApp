@@ -11,7 +11,7 @@ import androidx.navigation.navArgument
 import com.simposio.taskeer.ui.alltasks.AllTasksScreen
 import com.simposio.taskeer.ui.board.BoardScreen
 import com.simposio.taskeer.ui.board.BoardViewModel
-import com.simposio.taskeer.ui.calendar.CalendarPlaceholderScreen
+import com.simposio.taskeer.ui.calendar.CalendarScreen
 import com.simposio.taskeer.ui.columns.ColumnsScreen
 import com.simposio.taskeer.ui.columns.ColumnsViewModel
 import com.simposio.taskeer.ui.components.rememberAnimationsEnabled
@@ -74,7 +74,7 @@ fun AppNavHost(
         composable(AppDestination.ALL_TASKS.route) {
             AllTasksScreen(viewModelFactory, swipeHint, onAddForDate, onDelete)
         }
-        composable(AppDestination.CALENDAR.route) { CalendarPlaceholderScreen() }
+        composable(AppDestination.CALENDAR.route) { CalendarScreen(viewModelFactory, onDelete) }
         composable(
             route = AppDestination.LIST.route,
             arguments = listOf(navArgument(ListViewModel.LIST_ID_ARG) { type = NavType.StringType }),

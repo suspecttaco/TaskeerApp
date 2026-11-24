@@ -213,7 +213,6 @@ private fun NewTile(label: String, onClick: () -> Unit) {
 // TalkBack no anuncie «no seleccionado».
 @Composable
 fun HomeSectionBar(onOpenSection: (HomeSection) -> Unit, modifier: Modifier = Modifier) {
-    val comingSoon = stringResource(R.string.coming_soon)
     NavigationBar(modifier = modifier) {
         HomeSection.entries.forEach { section ->
             val fullName = stringResource(section.labelRes())
@@ -226,7 +225,6 @@ fun HomeSectionBar(onOpenSection: (HomeSection) -> Unit, modifier: Modifier = Mo
                 modifier = Modifier.clearAndSetSemantics {
                     contentDescription = fullName
                     role = Role.Button
-                    if (section.isPlaceholder) stateDescription = comingSoon
                     onClick(label = fullName) {
                         onOpenSection(section)
                         true
