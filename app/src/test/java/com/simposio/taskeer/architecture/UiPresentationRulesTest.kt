@@ -575,7 +575,7 @@ class UiPresentationRulesTest {
         assertEquals(
             setOf(
                 "TaskActionsSheet.kt", "AssignToBoardHost.kt", "MoveToListHost.kt", "TaskEditorSheet.kt", "SuggestionsSheet.kt",
-                "CalendarsSheet.kt", "EventEditorSheet.kt",
+                "CalendarsSheet.kt", "EventEditorSheet.kt", "RegionPickerSheet.kt",
             ),
             names,
         )
@@ -1350,6 +1350,46 @@ class UiPresentationRulesTest {
         assertEquals(1, Regex("BackHandler\\(").findAll(sheet).count())
         assertTrue(sheet.contains("snapshotFlow { composedForms.intValue }"))
         assertTrue("el foco se pide tras esperar al formulario", sheet.indexOf("awaitForm()") in 0 until sheet.indexOf("pillFocus.forPanel(lastPanel)"))
+    }
+
+    @Test
+    fun seccionRegion_sinCamposDeTextoLibreComoValor() {
+        val sheet = source("ui/settings/RegionPickerSheet.kt")
+        val section = source("ui/settings/RegionSettingsSection.kt")
+
+        assertEquals("un solo campo de texto: el buscador", 1, Regex("OutlinedTextField\\(").findAll(sheet).count())
+        assertTrue(!section.contains("TextField("))
+        assertTrue("el buscador solo filtra", sheet.contains("onValueChange = onQueryChange"))
+        assertTrue(!sheet.contains("onSelectCountry(query") && !sheet.contains("onSelectTimeZone(query"))
+        assertEquals(1, Regex("ModalBottomSheet\\(").findAll(sheet).count())
+        assertTrue(sheet.contains("TrackOpenSheet()"))
+    }
+
+    @Test
+    fun seccionRegion_sinCadenasNiDpLiterales() {
+        listOf("ui/settings/RegionPickerSheet.kt", "ui/settings/RegionSettingsSection.kt").forEach { path ->
+            val text = source(path)
+            assertTrue("$path no usa dp literales", !Regex("\\d\\.dp").containsMatchIn(text))
+            assertTrue("$path no usa Text con cadena literal", !Regex("Text\\(\\s*\"[A-Za-zÁ-ú]").containsMatchIn(text))
+            assertTrue("$path no usa rememberSaveable", !text.contains("rememberSaveable"))
+        }
+        val strings = File(sourcesRoot, "../../../../res/values/strings.xml").readText()
+        listOf(
+            "settings_region_title", "settings_region_country", "settings_region_time_zone",
+            "settings_region_no_country", "settings_region_device_zone", "settings_region_device_zone_value",
+            "settings_region_search_hint", "settings_region_search_clear", "settings_region_empty",
+            "settings_region_selected", "settings_region_picker_country", "settings_region_picker_time_zone",
+        ).forEach { assertTrue("falta $it", strings.contains("name=\"$it\"")) }
+    }
+
+    @Test
+    fun seccionRegion_vaEntreTemaYRecordatorios() {
+        val screen = source("ui/settings/SettingsScreen.kt")
+
+        val theme = screen.indexOf("ThemeSettingsSection(")
+        val region = screen.indexOf("RegionSettingsSection(")
+        val reminders = screen.indexOf("ReminderSettingsSection(")
+        assertTrue(theme in 0 until region && region < reminders)
     }
 
     private fun source(path: String): String = File(sourcesRoot, path).readText()

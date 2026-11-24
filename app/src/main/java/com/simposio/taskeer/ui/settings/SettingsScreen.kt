@@ -35,6 +35,12 @@ fun SettingsScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifi
             onDynamicColorChange = viewModel::setDynamicColor,
         )
         AppDivider()
+        RegionSettingsSection(
+            state = state,
+            onCountryClick = { viewModel.openPicker(RegionPickerKind.COUNTRY) },
+            onTimeZoneClick = { viewModel.openPicker(RegionPickerKind.TIME_ZONE) },
+        )
+        AppDivider()
         ReminderSettingsSection(
             state = state,
             actions = ReminderSettingsActions(
@@ -46,6 +52,18 @@ fun SettingsScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifi
                 onDefaultTimeChange = viewModel::setDefaultReminderTime,
             ),
             permissionNotice = { NotificationPermissionNotice(viewModelFactory) },
+        )
+    }
+    state.picker?.let { kind ->
+        RegionPickerSheet(
+            kind = kind,
+            state = state,
+            actions = RegionPickerActions(
+                onQueryChange = viewModel::setQuery,
+                onSelectCountry = viewModel::setCountry,
+                onSelectTimeZone = viewModel::setTimeZone,
+                onDismiss = viewModel::closePicker,
+            ),
         )
     }
 }
