@@ -19,8 +19,10 @@ import com.simposio.taskeer.data.repository.ReminderRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.date.TimeZoneProvider
+import com.simposio.taskeer.domain.region.RegionPreferences
 import com.simposio.taskeer.testing.FakeCalendarRepository
 import com.simposio.taskeer.testing.FakeDayWindowSource
+import com.simposio.taskeer.testing.FakePreferencesRepository
 import com.simposio.taskeer.testing.FakeDestinationTaskRepository
 import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
 import com.simposio.taskeer.testing.FakeTaskListRepository
@@ -36,15 +38,20 @@ import com.simposio.taskeer.ui.tasks.RemindersViewModel
 import com.simposio.taskeer.ui.tasks.SubtasksViewModel
 import java.io.File
 import java.lang.reflect.Proxy
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class AppContainerFactoryTest {
 
     @Test
@@ -78,8 +85,8 @@ class AppContainerFactoryTest {
         val field = repository.javaClass.getDeclaredField("timeZone").apply { isAccessible = true }
         assertSame(zone, field.get(repository))
         assertTrue(
-            "el contenedor debe cablear el proveedor del sistema",
-            factorySource().contains("timeZone = SystemTimeZoneProvider"),
+            "el contenedor debe cablear el proveedor de zona elegida",
+            factorySource().contains("timeZone = timeZoneProvider"),
         )
     }
 
@@ -100,6 +107,36 @@ class AppContainerFactoryTest {
         )
     }
 
+    @Test
+    fun unaSolaInstanciaDeZonaEnTodosLosConsumidores() {
+        val source = factorySource()
+        val body = source.substringAfter("fun createAppContainer(").substringBefore("// La lectura inicial")
+
+        assertEquals(1, Regex("createPreferredTimeZoneProvider\\(").findAll(body).count())
+        assertTrue(!body.contains("SystemTimeZoneProvider"))
+        listOf(
+            "timeZoneProvider = timeZoneProvider,",
+            "PlannedRepositoryImpl(database.myDayDao(), timeZoneProvider, dayWindowSource)",
+            "ClockDayWindowSource(Instant::now, timeZoneProvider,",
+        ).forEach { assertTrue("falta $it", body.contains(it)) }
+        assertEquals(4, Regex("timeZone = timeZoneProvider,").findAll(body).count())
+        assertTrue(body.contains("zoneChanges = timeZoneProvider.changes"))
+    }
+
+    @Test
+    fun proveedorDeZona_leeLaEleccionInicialYSigueLosCambios() = runTest {
+        val preferences = FakePreferencesRepository(region = RegionPreferences(null, "Asia/Tokyo"))
+
+        val provider = createPreferredTimeZoneProvider(
+            preferences,
+            CoroutineScope(UnconfinedTestDispatcher(testScheduler) + Job()),
+        )
+        assertEquals(java.time.ZoneId.of("Asia/Tokyo"), provider.current())
+
+        preferences.setTimeZone("America/Bogota")
+        assertEquals(java.time.ZoneId.of("America/Bogota"), provider.current())
+    }
+
     private fun factorySource(): String {
         val relative = "app/src/main/java/com/simposio/taskeer/di/AppContainerFactory.kt"
         val start = File(requireNotNull(System.getProperty("user.dir"))).absoluteFile
@@ -113,8 +150,8 @@ class AppContainerFactoryTest {
     fun calendario_comparteLaVentanaDeDiaYLeeLosPermisosConContextCompat() {
         val source = factorySource()
 
-        assertTrue(source.contains("val dayWindowSource = ClockDayWindowSource(Instant::now, SystemTimeZoneProvider)"))
-        assertTrue(source.contains("PlannedRepositoryImpl(database.myDayDao(), SystemTimeZoneProvider, dayWindowSource)"))
+        assertTrue(source.contains("val dayWindowSource = ClockDayWindowSource(Instant::now, timeZoneProvider, zoneChanges = timeZoneProvider.changes)"))
+        assertTrue(source.contains("PlannedRepositoryImpl(database.myDayDao(), timeZoneProvider, dayWindowSource)"))
         assertTrue(source.contains("dayWindowSource = dayWindowSource"))
         assertTrue(source.contains("ContextCompat.checkSelfPermission(context, permission)"))
         assertTrue(source.contains("Manifest.permission.READ_CALENDAR") && source.contains("Manifest.permission.WRITE_CALENDAR"))

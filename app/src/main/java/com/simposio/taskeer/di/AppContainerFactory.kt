@@ -26,6 +26,7 @@ import com.simposio.taskeer.data.repository.ColumnRepositoryImpl
 import com.simposio.taskeer.data.repository.MyDayRepositoryImpl
 import com.simposio.taskeer.data.repository.NotificationHistoryRepositoryImpl
 import com.simposio.taskeer.data.repository.PlannedRepositoryImpl
+import com.simposio.taskeer.data.repository.PreferencesRepository
 import com.simposio.taskeer.data.repository.PreferencesRepositoryImpl
 import com.simposio.taskeer.data.repository.ReminderCheckpointStoreImpl
 import com.simposio.taskeer.data.repository.ReminderRepositoryImpl
@@ -39,6 +40,9 @@ import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 fun createAppContainer(context: Context): AppContainer {
     val dataStore = PreferenceDataStoreFactory.create(
@@ -49,6 +53,10 @@ fun createAppContainer(context: Context): AppContainer {
     )
     val database = AppDatabase.create(context)
     val preferencesRepository = PreferencesRepositoryImpl(dataStore)
+    val timeZoneProvider = createPreferredTimeZoneProvider(
+        preferencesRepository,
+        CoroutineScope(Dispatchers.IO + SupervisorJob()),
+    )
     val taskListRepository = createTaskListRepository(database.taskListDao(), database.taskDao())
     val taskRepository = createTaskRepository(
         taskDao = database.taskDao(),
@@ -57,16 +65,16 @@ fun createAppContainer(context: Context): AppContainer {
         reminderDao = database.reminderDao(),
         taskListDao = database.taskListDao(),
         defaultListId = taskListRepository::defaultListId,
-        timeZone = SystemTimeZoneProvider,
+        timeZone = timeZoneProvider,
     )
     val reminderRepository = ReminderRepositoryImpl(database.reminderDao(), database.taskDao())
     val notificationHistoryRepository = NotificationHistoryRepositoryImpl(database.appNotificationDao())
-    val dayWindowSource = ClockDayWindowSource(Instant::now, SystemTimeZoneProvider)
+    val dayWindowSource = ClockDayWindowSource(Instant::now, timeZoneProvider, zoneChanges = timeZoneProvider.changes)
     val calendarReadGranted = { isGranted(context, Manifest.permission.READ_CALENDAR) }
     val calendarWriteGranted = { isGranted(context, Manifest.permission.WRITE_CALENDAR) }
     return AppContainer(
         preferencesRepository = preferencesRepository,
-        timeZoneProvider = SystemTimeZoneProvider,
+        timeZoneProvider = timeZoneProvider,
         boardRepository = BoardRepositoryImpl(database.boardDao(), database.columnDao()),
         columnRepository = ColumnRepositoryImpl(
             database.boardDao(),
@@ -80,9 +88,9 @@ fun createAppContainer(context: Context): AppContainer {
             database.myDayDao(),
             database.taskDao(),
             clock = Instant::now,
-            timeZone = SystemTimeZoneProvider,
+            timeZone = timeZoneProvider,
         ),
-        plannedRepository = PlannedRepositoryImpl(database.myDayDao(), SystemTimeZoneProvider, dayWindowSource),
+        plannedRepository = PlannedRepositoryImpl(database.myDayDao(), timeZoneProvider, dayWindowSource),
         reminderRepository = reminderRepository,
         reminderReconciler = ReminderReconciler(
             tasks = taskRepository,
@@ -94,17 +102,18 @@ fun createAppContainer(context: Context): AppContainer {
                 delegate = NotificationReminderNotifier(context),
                 history = notificationHistoryRepository,
             ),
-            timeZone = SystemTimeZoneProvider,
+            timeZone = timeZoneProvider,
             clock = Instant::now,
         ),
         notificationHistoryRepository = notificationHistoryRepository,
         calendarRepository = DeviceCalendarRepository(
             resolver = context.contentResolver,
-            timeZone = SystemTimeZoneProvider,
+            timeZone = timeZoneProvider,
             hasRead = calendarReadGranted,
             hasWrite = calendarWriteGranted,
         ),
         dayWindowSource = dayWindowSource,
+        zoneChanges = timeZoneProvider.changes,
         calendarReadGranted = calendarReadGranted,
         calendarWriteGranted = calendarWriteGranted,
         notificationsEnabled = { NotificationManagerCompat.from(context).areNotificationsEnabled() },
@@ -113,6 +122,17 @@ fun createAppContainer(context: Context): AppContainer {
             Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
         },
     )
+}
+
+// La lectura inicial es bloqueante para que el primer frame y la primera conciliación usen ya la zona elegida.
+fun createPreferredTimeZoneProvider(
+    preferences: PreferencesRepository,
+    scope: CoroutineScope,
+): PreferredTimeZoneProvider {
+    val initial = runBlocking { preferences.region.first().timeZoneIana }
+    val provider = PreferredTimeZoneProvider(SystemTimeZoneProvider, initial)
+    scope.launch { preferences.region.collect { provider.update(it.timeZoneIana) } }
+    return provider
 }
 
 private fun isGranted(context: Context, permission: String): Boolean =
