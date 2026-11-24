@@ -8,6 +8,8 @@ import com.simposio.taskeer.domain.model.ReminderMechanism
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.scan
 
 class ReminderTriggers(
     private val candidates: Flow<List<ReminderCandidate>>,
@@ -15,6 +17,7 @@ class ReminderTriggers(
     private val digest: Flow<DigestSettings>,
     private val pending: Flow<List<Reminder>>,
     private val reconcile: suspend (Set<ReminderMechanism>) -> Unit,
+    private val zone: Flow<Unit> = emptyFlow(),
 ) {
     // Solo cuentan los campos que cambian cuándo avisa cada mecanismo: editar un título no debe
     // silenciar un aviso vencido.
@@ -23,16 +26,20 @@ class ReminderTriggers(
         val deadline: DeadlineReminderSettings,
         val digest: DigestSettings,
         val pending: Set<Pair<String, Instant>>,
+        val zoneVersion: Int,
     )
 
     suspend fun run() {
         var previous: Snapshot? = null
-        combine(candidates, deadline, digest, pending) { tasks, deadlineSettings, digestSettings, due ->
+        // El resumen se define en hora local: cada cambio de zona elegida cuenta como un cambio del resumen.
+        val zoneVersions = zone.scan(0) { version, _ -> version + 1 }
+        combine(candidates, deadline, digest, pending, zoneVersions) { tasks, deadlineSettings, digestSettings, due, version ->
             Snapshot(
                 dueDates = tasks.map { it.taskId to it.dueAt }.toSet(),
                 deadline = deadlineSettings,
                 digest = digestSettings,
                 pending = due.map { it.id to it.remindAt }.toSet(),
+                zoneVersion = version,
             )
         }.collect { snapshot ->
             val before = previous
@@ -49,7 +56,7 @@ class ReminderTriggers(
         if (before.dueDates != after.dueDates || before.deadline != after.deadline) {
             add(ReminderMechanism.DEADLINE)
         }
-        if (before.digest != after.digest) {
+        if (before.digest != after.digest || before.zoneVersion != after.zoneVersion) {
             add(ReminderMechanism.DIGEST)
         }
     }
