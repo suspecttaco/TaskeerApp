@@ -1,5 +1,8 @@
 package com.simposio.taskeer.data.reminder
 
+import com.simposio.taskeer.testing.FakeReminderRepository
+import com.simposio.taskeer.domain.model.ReminderStatus
+import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.DeadlineReminderSettings
 import com.simposio.taskeer.domain.model.DigestSettings
 import com.simposio.taskeer.domain.model.Reminder
@@ -106,5 +109,19 @@ class ReminderTriggersTest {
         candidates.value = listOf(ReminderCandidate("t1", "Otro título", due))
 
         assertEquals(1, calls.size)
+    }
+
+    @Test
+    fun nuevoPendientePorSnooze_reconcilia() = runTest {
+        startTriggers()
+        val origin = newReminder("t1", due.minusSeconds(7_200), due.minusSeconds(9_000), clientId = "orig")
+            .copy(status = ReminderStatus.SENT)
+        val repository = FakeReminderRepository(now = due.minusSeconds(3_600))
+        repository.put(origin)
+
+        val next = (repository.snoozeReminder("orig", due) as DomainResult.Success).value
+        pending.value = listOf(next)
+
+        assertEquals(listOf(emptySet<ReminderMechanism>(), emptySet()), calls)
     }
 }

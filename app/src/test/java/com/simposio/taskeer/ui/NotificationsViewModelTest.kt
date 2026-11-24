@@ -1,5 +1,15 @@
 package com.simposio.taskeer.ui
 
+import java.time.LocalTime
+import java.time.LocalDateTime
+import java.time.Duration
+import com.simposio.taskeer.ui.notifications.NotificationRowUi
+import com.simposio.taskeer.domain.notification.toNotification
+import com.simposio.taskeer.domain.reminder.tomorrowAt
+import com.simposio.taskeer.domain.reminder.newReminder
+import com.simposio.taskeer.domain.reminder.SnoozeOption
+import com.simposio.taskeer.domain.model.ReminderStatus
+import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.date.TimeZoneProvider
 import com.simposio.taskeer.domain.model.AppNotificationKind
@@ -8,6 +18,8 @@ import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
+import com.simposio.taskeer.testing.FakePreferencesRepository
+import com.simposio.taskeer.testing.FakeReminderRepository
 import com.simposio.taskeer.testing.FakeTaskLookupRepository
 import com.simposio.taskeer.ui.notifications.NotificationsEvent
 import com.simposio.taskeer.ui.notifications.NotificationsUiState
@@ -41,6 +53,8 @@ class NotificationsViewModelTest {
     private var zone: ZoneId = ZoneId.of("Europe/Madrid")
     private val history = FakeNotificationHistoryRepository { now }
     private val tasks = FakeTaskLookupRepository()
+    private val reminders = FakeReminderRepository(now = now)
+    private val preferences = FakePreferencesRepository()
 
     @Before
     fun setUp() {
@@ -53,10 +67,20 @@ class NotificationsViewModelTest {
     }
 
     private fun TestScope.viewModel(): NotificationsViewModel {
-        val viewModel = NotificationsViewModel(history, tasks, DateTimeConverter(TimeZoneProvider { zone }))
+        val viewModel = newViewModel()
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }
+
+    private fun newViewModel() = NotificationsViewModel(
+        history,
+        tasks,
+        DateTimeConverter(TimeZoneProvider { zone }),
+        reminders,
+        preferences,
+        TimeZoneProvider { zone },
+        { now },
+    )
 
     private suspend fun record(event: NotificationEvent, delivered: Boolean = true) {
         history.record(event, delivered)
@@ -106,7 +130,7 @@ class NotificationsViewModelTest {
 
         val madrid = viewModel.uiState.value.rows.single().createdAtText
         zone = ZoneId.of("Asia/Tokyo")
-        val tokyo = NotificationsViewModel(history, tasks, DateTimeConverter(TimeZoneProvider { zone }))
+        val tokyo = newViewModel()
             .also { backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { it.uiState.collect {} } }
             .uiState.value.rows.single().createdAtText
 
@@ -297,5 +321,111 @@ class NotificationsViewModelTest {
         assertEquals(NotificationsEvent.ShowTaskGone, viewModel.firstEvent())
 
         assertNull(viewModel.firstEvent())
+    }
+
+    private suspend fun TestScope.snoozableRow(
+        viewModel: NotificationsViewModel,
+        reminderId: String = "r1",
+    ): NotificationRowUi {
+        reminders.put(
+            newReminder("t1", now, now.minusSeconds(60), clientId = reminderId)
+                .copy(status = ReminderStatus.SENT, sentAt = now),
+        )
+        record(NotificationEvent.Manual(reminderId, "t1", "Llamar"))
+        return viewModel.uiState.value.rows.single()
+    }
+
+    @Test
+    fun snooze_exito_marcaEntradaPospuestaYPidePosponerUnaVez() = runTest {
+        val viewModel = viewModel()
+        val row = snoozableRow(viewModel)
+
+        viewModel.snooze(row, SnoozeOption.LATER_TODAY)
+
+        assertEquals(listOf("r1" to now.plus(Duration.ofHours(5))), reminders.snoozeCalls)
+        val updated = viewModel.uiState.value.rows.single()
+        assertFalse(updated.canSnooze)
+        assertFalse(updated.unread)
+        assertEquals(1, history.snoozed.size)
+    }
+
+    @Test
+    fun snooze_opcionesResuelvenInstanteConZonaYHoraPorDefecto() = runTest {
+        val viewModel = viewModel()
+        val row = snoozableRow(viewModel)
+
+        viewModel.snooze(row, SnoozeOption.TOMORROW)
+
+        val expected = tomorrowAt(now, zone, LocalTime.of(9, 0))
+        assertEquals(expected, reminders.snoozeCalls.single().second)
+    }
+
+    @Test
+    fun snoozeAt_personalizado_conviertePorLaZonaVigente() = runTest {
+        val viewModel = viewModel()
+        val row = snoozableRow(viewModel)
+
+        viewModel.snoozeAt(row, LocalDateTime.of(2026, 11, 5, 18, 30))
+
+        assertEquals(Instant.parse("2026-11-05T17:30:00Z"), reminders.snoozeCalls.single().second)
+    }
+
+    @Test
+    fun snooze_falla_emiteErrorYNoMarcaEntrada() = runTest {
+        val viewModel = viewModel()
+        val row = snoozableRow(viewModel)
+        reminders.failure = DomainError.Validation("TASK_COMPLETED", "La tarea ya está completada")
+
+        viewModel.snooze(row, SnoozeOption.NEXT_WEEK)
+
+        assertEquals(NotificationsEvent.ShowError("La tarea ya está completada"), viewModel.firstEvent())
+        assertTrue(history.snoozed.isEmpty())
+        assertTrue(viewModel.uiState.value.rows.single().canSnooze)
+    }
+
+    @Test
+    fun snooze_dobleGesto_unSoloPendiente() = runTest {
+        val viewModel = viewModel()
+        val row = snoozableRow(viewModel)
+
+        viewModel.snooze(row, SnoozeOption.LATER_TODAY)
+        viewModel.snooze(row, SnoozeOption.LATER_TODAY)
+
+        assertEquals(1, reminders.observePending().first().size)
+        assertEquals(1, history.snoozed.size)
+        assertTrue(viewModel.firstEvent() is NotificationsEvent.ShowError)
+    }
+
+    @Test
+    fun fila_deadlineDigestAntiguaOPospuesta_noOfreceSnooze() = runTest {
+        val viewModel = viewModel()
+        record(NotificationEvent.Deadline("t1", "A"))
+        record(NotificationEvent.Digest(1))
+        history.put(
+            NotificationEvent.Manual("r0", "t1", "Antigua").toNotification(true, now)
+                .copy(reminderId = null),
+        )
+        history.put(
+            NotificationEvent.Manual("r2", "t1", "Pospuesta").toNotification(true, now)
+                .copy(snoozedUntil = now.plusSeconds(60)),
+        )
+
+        assertTrue(viewModel.uiState.value.rows.none { it.canSnooze })
+    }
+
+    @Test
+    fun fila_pospuesta_muestraTextoConFechaLocal() = runTest {
+        val viewModel = viewModel()
+        val until = Instant.parse("2026-11-05T08:00:00Z")
+        history.put(
+            NotificationEvent.Manual("r2", "t1", "Pospuesta").toNotification(true, now)
+                .copy(snoozedUntil = until),
+        )
+        val formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
+
+        assertEquals(
+            until.atZone(zone).toLocalDateTime().format(formatter),
+            viewModel.uiState.value.rows.single().snoozedUntilText,
+        )
     }
 }

@@ -16,6 +16,8 @@ class AppNotificationMappingTest {
         delivered = false,
         createdAt = 1_000L,
         readAt = 2_000L,
+        reminderId = null,
+        snoozedUntil = null,
         updatedAt = 3_000L,
         pending = true,
         deletedAt = null,
@@ -38,6 +40,17 @@ class AppNotificationMappingTest {
         val original = entity("REMINDER")
 
         assertEquals(original, original.toAppNotification()?.toEntity())
+    }
+
+    @Test
+    fun reminderIdYSnoozedUntil_ida_y_vuelta() {
+        val original = entity("REMINDER").copy(reminderId = "r1", snoozedUntil = 9_000L)
+
+        val notification = requireNotNull(original.toAppNotification())
+
+        assertEquals("r1", notification.reminderId)
+        assertEquals(9_000L, notification.snoozedUntil?.toEpochMilli())
+        assertEquals(original, notification.toEntity())
     }
 
     @Test

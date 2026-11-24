@@ -30,6 +30,13 @@ abstract class AppNotificationDao {
     abstract suspend fun markRead(id: String, now: Long): Int
 
     @Query(
+        "UPDATE app_notifications SET snoozedUntil = :until, readAt = COALESCE(readAt, :now), " +
+            "updatedAt = :now, pending = 1 " +
+            "WHERE id = :id AND deletedAt IS NULL AND snoozedUntil IS NULL",
+    )
+    abstract suspend fun markSnoozed(id: String, until: Long, now: Long): Int
+
+    @Query(
         "UPDATE app_notifications SET readAt = :now, updatedAt = :now, pending = 1 " +
             "WHERE readAt IS NULL AND deletedAt IS NULL",
     )

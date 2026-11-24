@@ -10,6 +10,7 @@ import com.simposio.taskeer.domain.model.ReminderStatus
 import com.simposio.taskeer.domain.reminder.dismissed
 import com.simposio.taskeer.domain.reminder.isWithinTolerance
 import com.simposio.taskeer.domain.reminder.newReminder
+import com.simposio.taskeer.domain.reminder.snoozed
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,6 +49,29 @@ class FakeReminderRepository(
         val reminder = newReminder(taskId, remindAt, now)
         put(reminder)
         return DomainResult.Success(reminder)
+    }
+
+    val snoozeCalls: MutableList<Pair<String, Instant>> = mutableListOf()
+
+    override suspend fun snoozeReminder(reminderId: String, remindAt: Instant): DomainResult<Reminder> {
+        snoozeCalls += reminderId to remindAt
+        failure?.let { return DomainResult.Failure(it) }
+        val origin = rows.value[reminderId]
+            ?: return DomainResult.Failure(DomainError.NotFound("REMINDER_NOT_FOUND", "no existe"))
+        return when (val result = origin.snoozed(remindAt, now)) {
+            is DomainResult.Failure -> result
+            is DomainResult.Success -> {
+                val pending = rows.value.values.any {
+                    it.taskId == origin.taskId && it.status == ReminderStatus.PENDING
+                }
+                if (pending) {
+                    DomainResult.Failure(DomainError.Conflict("REMINDER_ALREADY_PENDING", "ya hay pendiente"))
+                } else {
+                    put(result.value)
+                    result
+                }
+            }
+        }
     }
 
     override suspend fun cancelReminder(id: String): DomainResult<Unit> {

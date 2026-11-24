@@ -1,5 +1,8 @@
 package com.simposio.taskeer.domain
 
+import org.junit.Assert.assertFalse
+import com.simposio.taskeer.domain.model.newSyncMetadata
+import com.simposio.taskeer.domain.notification.snoozedUntil
 import com.simposio.taskeer.domain.model.AppNotificationKind
 import com.simposio.taskeer.domain.model.NotificationEvent
 import com.simposio.taskeer.domain.notification.HISTORY_LIMIT
@@ -83,5 +86,46 @@ class NotificationHistoryRulesTest {
     fun badgeLabel_100_es99Mas() {
         assertEquals("99+", badgeLabel(100))
         assertEquals("99+", badgeLabel(250))
+    }
+
+    @Test
+    fun manualEvent_guardaReminderId() {
+        val entry = NotificationEvent.Manual("r1", "t2", "Llamar").toNotification(true, now)
+
+        assertEquals("r1", entry.reminderId)
+        assertNull(entry.snoozedUntil)
+    }
+
+    @Test
+    fun deadlineYDigest_reminderIdNulo() {
+        assertNull(NotificationEvent.Deadline("t1", "A").toNotification(true, now).reminderId)
+        assertNull(NotificationEvent.Digest(2).toNotification(true, now).reminderId)
+    }
+
+    @Test
+    fun canSnooze_soloRecordatorioConReminderIdSinPosponer() {
+        val manual = NotificationEvent.Manual("r1", "t2", "Llamar").toNotification(true, now)
+
+        assertTrue(manual.canSnooze)
+        assertFalse(manual.copy(reminderId = null).canSnooze)
+        assertFalse(manual.copy(snoozedUntil = now.plusSeconds(60)).canSnooze)
+        assertFalse(NotificationEvent.Deadline("t1", "A").toNotification(true, now).canSnooze)
+        assertFalse(NotificationEvent.Digest(1).toNotification(true, now).canSnooze)
+    }
+
+    @Test
+    fun snoozedUntil_marcaLeidaYPendiente() {
+        val entry = NotificationEvent.Manual("r1", "t2", "Llamar").toNotification(true, now, "n1")
+            .copy(sync = newSyncMetadata(now, "n1").copy(pending = false))
+        val later = now.plusSeconds(30)
+        val until = now.plusSeconds(3_600)
+
+        val snoozed = entry.snoozedUntil(until, later)
+
+        assertEquals(until, snoozed.snoozedUntil)
+        assertEquals(later, snoozed.readAt)
+        assertTrue(snoozed.sync.pending)
+        assertEquals(later, snoozed.sync.updatedAt)
+        assertEquals(later, snoozed.copy(readAt = later).snoozedUntil(until, later.plusSeconds(5)).readAt)
     }
 }

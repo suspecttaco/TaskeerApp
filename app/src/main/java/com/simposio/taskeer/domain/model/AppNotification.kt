@@ -12,8 +12,13 @@ data class AppNotification(
     val delivered: Boolean,
     val createdAt: Instant,
     val readAt: Instant?,
+    val reminderId: String?,
+    val snoozedUntil: Instant?,
     val sync: SyncMetadata,
 ) {
     val id: String get() = sync.clientId
     val isUnread: Boolean get() = readAt == null
+    val isSnoozed: Boolean get() = snoozedUntil != null
+    val canSnooze: Boolean
+        get() = kind == AppNotificationKind.REMINDER && reminderId != null && snoozedUntil == null
 }

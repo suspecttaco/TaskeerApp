@@ -20,6 +20,7 @@ class AppDatabaseSchemaTest {
     private val schemaV12: String = resolveSchema(version = 12).readText()
     private val schemaV13: String = resolveSchema(version = 13).readText()
     private val schemaV14: String = resolveSchema(version = 14).readText()
+    private val schemaV15: String = resolveSchema(version = 15).readText()
 
     @Test
     fun esquemaVersion1_sigueExportado() {
@@ -650,4 +651,44 @@ class AppDatabaseSchemaTest {
     }
 
     private data class ColumnSchema(val affinity: String, val notNull: Boolean)
+
+    @Test
+    fun version_es15() {
+        assertTrue(
+            "el esquema debe declarar la versión 15 de la base de datos",
+            Regex("\"version\"\\s*:\\s*15\\b").containsMatchIn(schemaV15),
+        )
+    }
+
+    @Test
+    fun v15_appNotifications_anadeReminderIdYSnoozedUntilNulables() {
+        val table = tableOf(schemaV15, "app_notifications")
+
+        assertEquals(ColumnSchema("TEXT", false), column(table, "reminderId"))
+        assertEquals(ColumnSchema("INTEGER", false), column(table, "snoozedUntil"))
+    }
+
+    @Test
+    fun v15_soloDifiereDeV14EnLasDosColumnas() {
+        val tablesV14 = Regex("\"tableName\": \"(\\w+)\"").findAll(schemaV14).map { it.groupValues[1] }.toSet()
+        val tablesV15 = Regex("\"tableName\": \"(\\w+)\"").findAll(schemaV15).map { it.groupValues[1] }.toSet()
+        assertEquals(tablesV14, tablesV15)
+        (tablesV14 - "app_notifications").forEach { table ->
+            assertEquals(table, tableOf(schemaV14, table).substringBefore("\n      }"), tableOf(schemaV15, table).substringBefore("\n      }"))
+        }
+        val columns = { schema: String ->
+            Regex("\"columnName\": \"(\\w+)\"").findAll(tableOf(schema, "app_notifications").substringBefore("\"primaryKey\""))
+                .map { it.groupValues[1] }.toSet()
+        }
+        assertEquals(columns(schemaV14) + setOf("reminderId", "snoozedUntil"), columns(schemaV15))
+        val fields = AppNotificationEntity::class.java.declaredFields.map { it.name }.filter { !it.contains('$') }.toSet()
+        assertEquals(fields, columns(schemaV15))
+    }
+
+    private fun tableOf(schema: String, name: String): String {
+        val start = schema.indexOf("\"tableName\": \"$name\"")
+        assertTrue("el esquema debe declarar la tabla $name", start >= 0)
+        val nextTable = schema.indexOf("\"tableName\":", start + 1)
+        return schema.substring(start, if (nextTable < 0) schema.length else nextTable)
+    }
 }

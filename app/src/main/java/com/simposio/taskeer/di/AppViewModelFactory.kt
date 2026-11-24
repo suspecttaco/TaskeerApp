@@ -132,6 +132,9 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 container.notificationHistoryRepository,
                 container.taskRepository,
                 container.dateTimeConverter,
+                container.reminderRepository,
+                container.preferencesRepository,
+                container.timeZoneProvider,
             ) as T
         modelClass.isAssignableFrom(UnreadCounterViewModel::class.java) ->
             UnreadCounterViewModel(container.notificationHistoryRepository) as T

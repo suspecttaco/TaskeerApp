@@ -304,6 +304,93 @@ class ReminderRepositoryImplTest {
         assertEquals(listOf("p1"), repository.observePending().first().map { it.id })
     }
 
+    private suspend fun sentOrigin(id: String = "orig"): ReminderEntity =
+        reminderEntity(id, status = "SENT", remindAt = now.minusSeconds(60).toEpochMilli())
+            .copy(sentAt = now.minusSeconds(59).toEpochMilli())
+            .also { reminderDao.upsert(it) }
+
+    private fun failureCode(result: DomainResult<*>): String = (result as DomainResult.Failure).error.code
+
+    @Test
+    fun snooze_deEnviado_insertaPendienteYNoTocaOrigen() = runTest {
+        val origin = sentOrigin()
+
+        val next = (repository.snoozeReminder("orig", at) as DomainResult.Success).value
+
+        val row = reminderDao.rows.value.getValue(next.id)
+        assertEquals("PENDING", row.status)
+        assertEquals("t1", row.taskId)
+        assertEquals(at.toEpochMilli(), row.remindAt)
+        assertNull(row.sentAt)
+        assertEquals(now.toEpochMilli(), row.createdAt)
+        assertTrue(row.pending)
+        assertEquals(origin, reminderDao.rows.value.getValue("orig"))
+        assertEquals(2, reminderDao.rows.value.size)
+    }
+
+    @Test
+    fun snooze_enPasado_validationYNoPersiste() = runTest {
+        sentOrigin()
+
+        assertEquals("VALIDATION_ERROR", failureCode(repository.snoozeReminder("orig", now)))
+        assertEquals(1, reminderDao.rows.value.size)
+    }
+
+    @Test
+    fun snooze_origenInexistente_notFound() = runTest {
+        assertEquals("REMINDER_NOT_FOUND", failureCode(repository.snoozeReminder("nada", at)))
+        assertTrue(reminderDao.rows.value.isEmpty())
+    }
+
+    @Test
+    fun snooze_origenNoEnviado_notSent() = runTest {
+        reminderDao.upsert(reminderEntity("pend", status = "PENDING"))
+        reminderDao.upsert(reminderEntity("desc", status = "DISMISSED"))
+
+        assertEquals("REMINDER_NOT_SENT", failureCode(repository.snoozeReminder("pend", at)))
+        assertEquals("REMINDER_NOT_SENT", failureCode(repository.snoozeReminder("desc", at)))
+        assertEquals(2, reminderDao.rows.value.size)
+    }
+
+    @Test
+    fun snooze_tareaBorrada_taskNotFound() = runTest {
+        sentOrigin()
+        taskDao.put(taskEntity("t1", deletedAt = now.toEpochMilli()))
+
+        assertEquals("TASK_NOT_FOUND", failureCode(repository.snoozeReminder("orig", at)))
+        assertEquals(1, reminderDao.rows.value.size)
+    }
+
+    @Test
+    fun snooze_tareaCompletada_taskCompleted() = runTest {
+        sentOrigin()
+        taskDao.setCompleted("t1", true)
+
+        assertEquals("TASK_COMPLETED", failureCode(repository.snoozeReminder("orig", at)))
+        assertEquals(1, reminderDao.rows.value.size)
+    }
+
+    @Test
+    fun snooze_conPendiente_conflictYUnSoloPendiente() = runTest {
+        sentOrigin()
+        repository.createReminder("t1", at)
+
+        assertEquals("REMINDER_ALREADY_PENDING", failureCode(repository.snoozeReminder("orig", at.plusSeconds(60))))
+        assertEquals(1, reminderDao.rows.value.values.count { it.status == "PENDING" })
+    }
+
+    @Test
+    fun snooze_dosVeces_unSoloPendiente() = runTest {
+        sentOrigin()
+
+        val first = repository.snoozeReminder("orig", at)
+        val second = repository.snoozeReminder("orig", at.plusSeconds(60))
+
+        assertTrue(first is DomainResult.Success)
+        assertEquals("REMINDER_ALREADY_PENDING", failureCode(second))
+        assertEquals(1, reminderDao.rows.value.values.count { it.status == "PENDING" })
+    }
+
     private fun reminderEntity(
         id: String,
         status: String = "PENDING",

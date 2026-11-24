@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -52,4 +53,12 @@ abstract class ReminderDao {
             "WHERE id = :id AND status = 'PENDING'",
     )
     abstract suspend fun markDismissed(id: String, now: Long): Int
+
+    // La comprobación y la inserción van en la misma transacción: dos posponer simultáneos dejan un solo pendiente.
+    @Transaction
+    open suspend fun insertIfNoPending(reminder: ReminderEntity): Boolean {
+        if (findPendingByTask(reminder.taskId) != null) return false
+        upsert(reminder)
+        return true
+    }
 }

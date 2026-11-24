@@ -17,6 +17,8 @@ data class AppNotificationEntity(
     val delivered: Boolean,
     val createdAt: Long,
     val readAt: Long?,
+    val reminderId: String?,
+    val snoozedUntil: Long?,
     override val updatedAt: Long,
     override val pending: Boolean,
     override val deletedAt: Long?,

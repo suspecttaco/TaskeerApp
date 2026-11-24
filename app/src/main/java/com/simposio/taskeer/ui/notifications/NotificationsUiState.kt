@@ -6,11 +6,14 @@ data class NotificationRowUi(
     val id: String,
     val kind: AppNotificationKind,
     val taskId: String?,
+    val reminderId: String? = null,
     val taskTitle: String?,
     val activeTaskCount: Int?,
     val createdAtText: String,
     val unread: Boolean,
     val delivered: Boolean,
+    val canSnooze: Boolean = false,
+    val snoozedUntilText: String? = null,
 )
 
 data class NotificationsUiState(
@@ -23,4 +26,6 @@ sealed interface NotificationsEvent {
     data class OpenTask(val taskId: String) : NotificationsEvent
 
     data object ShowTaskGone : NotificationsEvent
+
+    data class ShowError(val message: String) : NotificationsEvent
 }
