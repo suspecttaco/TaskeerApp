@@ -10,9 +10,13 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.simposio.taskeer.domain.model.DEFAULT_REMINDER_TIME
 import com.simposio.taskeer.domain.model.DeadlineReminderSettings
+import com.simposio.taskeer.domain.model.DomainError
+import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.DigestSettings
 import com.simposio.taskeer.domain.model.ReminderLead
 import com.simposio.taskeer.domain.model.ThemeMode
+import com.simposio.taskeer.domain.region.RegionCatalog
+import com.simposio.taskeer.domain.region.RegionPreferences
 import java.io.IOException
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -58,6 +62,15 @@ class PreferencesRepositoryImpl(
     override val hiddenCalendarIds: Flow<Set<Long>> = readPreferences()
         .map { prefs -> prefs[KEY_HIDDEN_CALENDAR_IDS].orEmpty().mapNotNull { it.toLongOrNull() }.toSet() }
 
+    // Un valor fuera del catálogo se lee como «sin elección» pero no se borra del disco.
+    override val region: Flow<RegionPreferences> = readPreferences()
+        .map {
+            RegionPreferences(
+                countryIso = RegionCatalog.country(it[KEY_REGION_COUNTRY])?.isoCode,
+                timeZoneIana = RegionCatalog.timeZone(it[KEY_REGION_TIME_ZONE])?.ianaName,
+            )
+        }
+
     override suspend fun setThemeMode(mode: ThemeMode) {
         dataStore.edit { it[KEY_THEME_MODE] = mode.name }
     }
@@ -100,6 +113,26 @@ class PreferencesRepositoryImpl(
             val updated = if (hidden) current + id.toString() else current - id.toString()
             if (updated.isEmpty()) prefs.remove(KEY_HIDDEN_CALENDAR_IDS) else prefs[KEY_HIDDEN_CALENDAR_IDS] = updated
         }
+    }
+
+    override suspend fun setCountry(isoCode: String?): DomainResult<Unit> {
+        if (isoCode != null && RegionCatalog.country(isoCode) == null) {
+            return DomainResult.Failure(DomainError.Validation("INVALID_COUNTRY", "País no válido"))
+        }
+        writeOrRemove(KEY_REGION_COUNTRY, isoCode)
+        return DomainResult.Success(Unit)
+    }
+
+    override suspend fun setTimeZone(ianaName: String?): DomainResult<Unit> {
+        if (ianaName != null && RegionCatalog.timeZone(ianaName) == null) {
+            return DomainResult.Failure(DomainError.Validation("INVALID_TIMEZONE", "Zona horaria no válida"))
+        }
+        writeOrRemove(KEY_REGION_TIME_ZONE, ianaName)
+        return DomainResult.Success(Unit)
+    }
+
+    private suspend fun writeOrRemove(key: Preferences.Key<String>, value: String?) {
+        dataStore.edit { if (value == null) it.remove(key) else it[key] = value }
     }
 
     private fun readPreferences(): Flow<Preferences> = dataStore.data
@@ -146,6 +179,8 @@ class PreferencesRepositoryImpl(
         private val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
         private val KEY_DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         private val KEY_SUGGESTIONS_LAST_SHOWN_DAY = stringPreferencesKey("suggestions_last_shown_day")
+        private val KEY_REGION_COUNTRY = stringPreferencesKey("region_country_iso")
+        private val KEY_REGION_TIME_ZONE = stringPreferencesKey("region_timezone_iana")
         private val KEY_HIDDEN_CALENDAR_IDS = stringSetPreferencesKey("calendar_hidden_ids")
     }
 }

@@ -6,6 +6,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -62,6 +63,25 @@ class ClockDayWindowSourceTest {
         advanceTimeBy(10 * 60_000)
 
         assertEquals(1, seen.size)
+    }
+
+    @Test
+    fun cambioDeZona_emiteVentanaNuevaSinEsperar() = runTest {
+        var zone = utc
+        val changes = MutableSharedFlow<Unit>()
+        val source = ClockDayWindowSource(
+            clock = { Instant.parse("2026-11-17T12:00:00Z").plusMillis(testScheduler.currentTime) },
+            timeZone = { zone },
+            zoneChanges = changes,
+        )
+        val seen = collect(source)
+        assertEquals(listOf(LocalDate.of(2026, 11, 17)), seen.map { it.date })
+
+        zone = ZoneId.of("Pacific/Auckland")
+        changes.emit(Unit)
+
+        assertEquals(listOf(LocalDate.of(2026, 11, 17), LocalDate.of(2026, 11, 18)), seen.map { it.date })
+        assertEquals(0L, testScheduler.currentTime)
     }
 
     private fun TestScope.source(base: Instant, zone: TimeZoneProvider): ClockDayWindowSource =

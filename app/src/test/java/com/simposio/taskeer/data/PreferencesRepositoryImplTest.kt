@@ -10,8 +10,11 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.simposio.taskeer.data.repository.PreferencesRepositoryImpl
 import com.simposio.taskeer.domain.model.DeadlineReminderSettings
 import com.simposio.taskeer.domain.model.DigestSettings
+import com.simposio.taskeer.domain.model.DomainError
+import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.ReminderLead
 import com.simposio.taskeer.domain.model.ThemeMode
+import com.simposio.taskeer.domain.region.RegionPreferences
 import java.io.File
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -259,6 +262,65 @@ class PreferencesRepositoryImplTest {
         store.edit { it[stringSetPreferencesKey("calendar_hidden_ids")] = setOf("5", "abc", "") }
 
         assertEquals(setOf(5L), PreferencesRepositoryImpl(store).hiddenCalendarIds.first())
+    }
+
+    @Test
+    fun region_porDefectoEstaVacia() = runTest {
+        val repository = PreferencesRepositoryImpl(newDataStore(backgroundScope))
+
+        assertEquals(RegionPreferences(null, null), repository.region.first())
+    }
+
+    @Test
+    fun region_persisteYSeRelee() = runTest {
+        val store = newDataStore(backgroundScope)
+        val repository = PreferencesRepositoryImpl(store)
+        assertEquals(DomainResult.Success(Unit), repository.setCountry("MX"))
+        assertEquals(DomainResult.Success(Unit), repository.setTimeZone("America/Mexico_City"))
+
+        val reread = PreferencesRepositoryImpl(store).region.first()
+
+        assertEquals(RegionPreferences("MX", "America/Mexico_City"), reread)
+    }
+
+    @Test
+    fun region_conNullBorraLaPreferencia() = runTest {
+        val repository = PreferencesRepositoryImpl(newDataStore(backgroundScope))
+        repository.setCountry("MX")
+        repository.setTimeZone("Asia/Tokyo")
+
+        repository.setCountry(null)
+        repository.setTimeZone(null)
+
+        assertEquals(RegionPreferences(null, null), repository.region.first())
+    }
+
+    @Test
+    fun region_claveFueraDeCatalogo_devuelveValidacionSinCambiarNada() = runTest {
+        val repository = PreferencesRepositoryImpl(newDataStore(backgroundScope))
+        repository.setCountry("MX")
+        repository.setTimeZone("Asia/Tokyo")
+
+        val country = repository.setCountry("ZZ")
+        val zone = repository.setTimeZone("X/Y")
+
+        assertEquals(DomainResult.Failure(DomainError.Validation("INVALID_COUNTRY", "País no válido")), country)
+        assertEquals(DomainResult.Failure(DomainError.Validation("INVALID_TIMEZONE", "Zona horaria no válida")), zone)
+        assertEquals(RegionPreferences("MX", "Asia/Tokyo"), repository.region.first())
+    }
+
+    @Test
+    fun region_valorDesconocidoEnDisco_seLeeNullYNoSeBorra() = runTest {
+        val store = newDataStore(backgroundScope)
+        store.edit {
+            it[stringPreferencesKey("region_country_iso")] = "ZZ"
+            it[stringPreferencesKey("region_timezone_iana")] = "X/Y"
+        }
+
+        assertEquals(RegionPreferences(null, null), PreferencesRepositoryImpl(store).region.first())
+        val raw = store.data.first()
+        assertEquals("ZZ", raw[stringPreferencesKey("region_country_iso")])
+        assertEquals("X/Y", raw[stringPreferencesKey("region_timezone_iana")])
     }
 
     private fun newDataStore(scope: CoroutineScope): DataStore<Preferences> =

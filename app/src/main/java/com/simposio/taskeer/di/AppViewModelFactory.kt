@@ -69,6 +69,7 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
             SettingsViewModel(
                 container.preferencesRepository,
                 container.reminderReconciler::onEnabled,
+                SystemTimeZoneProvider::current,
             ) as T
         modelClass.isAssignableFrom(NotificationPermissionViewModel::class.java) ->
             NotificationPermissionViewModel(

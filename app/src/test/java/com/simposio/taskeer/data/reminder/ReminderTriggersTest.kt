@@ -14,6 +14,7 @@ import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalTime
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -29,10 +30,11 @@ class ReminderTriggersTest {
     private val deadline = MutableStateFlow(DeadlineReminderSettings(true, ReminderLead.ONE_HOUR))
     private val digest = MutableStateFlow(DigestSettings(true, setOf(DayOfWeek.MONDAY), LocalTime.of(9, 0)))
     private val pending = MutableStateFlow<List<Reminder>>(emptyList())
+    private val zone = MutableSharedFlow<Unit>()
     private val calls = mutableListOf<Set<ReminderMechanism>>()
 
     private fun kotlinx.coroutines.test.TestScope.startTriggers() {
-        val triggers = ReminderTriggers(candidates, deadline, digest, pending) { calls += it }
+        val triggers = ReminderTriggers(candidates, deadline, digest, pending, { calls += it }, zone)
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { triggers.run() }
     }
 
@@ -41,6 +43,15 @@ class ReminderTriggersTest {
         startTriggers()
 
         assertEquals(listOf(emptySet<ReminderMechanism>()), calls)
+    }
+
+    @Test
+    fun cambioDeZona_conciliaDigestSilenciado() = runTest {
+        startTriggers()
+
+        zone.emit(Unit)
+
+        assertEquals(listOf(emptySet(), setOf(ReminderMechanism.DIGEST)), calls)
     }
 
     @Test

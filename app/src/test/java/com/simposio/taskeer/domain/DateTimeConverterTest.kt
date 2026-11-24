@@ -41,4 +41,18 @@ class DateTimeConverterTest {
         assertEquals(LocalDateTime.of(2026, 10, 14, 1, 30), local)
         assertEquals(LocalDate.of(2026, 10, 14), local.toLocalDate())
     }
+
+    @Test
+    fun mismoInstante_horaLocalDistintaSegunZona() {
+        val utc = Instant.parse("2026-11-17T12:00:00Z")
+        var zone = ZoneId.of("America/Mexico_City")
+        val converter = DateTimeConverter { zone }
+
+        val mexico = converter.toLocalDateTime(utc)
+        zone = ZoneId.of("Asia/Tokyo")
+        val tokyo = converter.toLocalDateTime(utc)
+
+        assertEquals(LocalDateTime.of(2026, 11, 17, 6, 0), mexico)
+        assertEquals(LocalDateTime.of(2026, 11, 17, 21, 0), tokyo)
+    }
 }

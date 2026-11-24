@@ -17,6 +17,8 @@ import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.date.FirstDayOfWeekProvider
 import com.simposio.taskeer.domain.date.SystemFirstDayOfWeekProvider
 import com.simposio.taskeer.domain.date.TimeZoneProvider
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 class AppContainer(
     val preferencesRepository: PreferencesRepository,
@@ -33,6 +35,7 @@ class AppContainer(
     val notificationHistoryRepository: NotificationHistoryRepository,
     val calendarRepository: CalendarRepository,
     val dayWindowSource: DayWindowSource,
+    val zoneChanges: Flow<Unit> = emptyFlow(),
     val firstDayOfWeek: FirstDayOfWeekProvider = SystemFirstDayOfWeekProvider(),
     val calendarReadGranted: () -> Boolean = { false },
     val calendarWriteGranted: () -> Boolean = { false },

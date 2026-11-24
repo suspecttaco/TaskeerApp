@@ -23,6 +23,7 @@ class TaskeerApplication : Application() {
             digest = container.preferencesRepository.digest,
             pending = container.reminderRepository.observePending(),
             reconcile = container.reminderReconciler::reconcile,
+            zone = container.zoneChanges,
         )
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { triggers.run() }
     }
