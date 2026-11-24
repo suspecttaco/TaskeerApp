@@ -549,6 +549,54 @@ class UiPresentationRulesTest {
     }
 
     @Test
+    fun statePageUsaComponentesNativosYDecorativeIcon() {
+        val page = source("ui/components/StatePage.kt")
+
+        listOf("DecorativeIcon(", "heading()", "Button(").forEach { assertTrue("falta $it", page.contains(it)) }
+        assertTrue(!page.contains("Card("))
+    }
+
+    @Test
+    fun statePageUsaSoloTokensDeTema() {
+        val page = source("ui/components/StatePage.kt")
+
+        assertTrue(!page.contains("Color(0x"))
+        assertTrue(!Regex("""\d\.?\d*\.(sp|dp)\b""").containsMatchIn(page))
+        assertTrue(page.contains("verticalScroll("))
+    }
+
+    @Test
+    fun errorPageDelegaEnStatePage() {
+        val page = source("ui/components/ErrorPage.kt")
+
+        assertTrue(page.contains("StatePage("))
+        listOf("Column(", "Text(", "Button(").forEach { assertTrue("no debe tener $it", !page.contains(it)) }
+    }
+
+    @Test
+    fun errorPageUsaUnIconoDistintoPorTipo() {
+        val page = source("ui/components/ErrorPage.kt")
+        val icons = listOf("SearchOff", "Lock", "ErrorOutline", "CloudOff", "LockClock", "WifiOff")
+
+        icons.forEach { assertTrue("falta $it", page.contains("Icons.Filled.$it\n")) }
+    }
+
+    @Test
+    fun boardScreenUsaErrorPageSiFalta() {
+        assertTrue(source("ui/board/BoardScreen.kt").contains("ErrorPage(ErrorPageKind.NOT_FOUND"))
+    }
+
+    @Test
+    fun errorPageSoloSeUsaEnBoardScreen() {
+        val users = uiFiles()
+            .filterNot { it.relativeTo(sourcesRoot).path.startsWith("ui/components") }
+            .filter { Regex("(?<![A-Za-z])ErrorPage\\(").containsMatchIn(it.readText()) }
+            .map { it.relativeTo(sourcesRoot).path }
+
+        assertEquals(listOf("ui/board/BoardScreen.kt"), users)
+    }
+
+    @Test
     fun altaRapidaNoUsaDialogos() {
         quickAddFiles().forEach { file ->
             val text = file.readText()

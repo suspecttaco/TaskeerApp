@@ -43,6 +43,8 @@ import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.Column as BoardColumn
 import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.ui.components.ActionIcon
+import com.simposio.taskeer.ui.components.ErrorPage
+import com.simposio.taskeer.ui.components.ErrorPageKind
 import com.simposio.taskeer.ui.boards.BoardDialogs
 import com.simposio.taskeer.ui.boards.BoardsViewModel
 import com.simposio.taskeer.ui.tasks.rememberTaskEditorHost
@@ -58,6 +60,7 @@ fun BoardScreen(
     viewModelFactory: ViewModelProvider.Factory,
     onManageColumns: (String) -> Unit,
     onBoardDeleted: () -> Unit,
+    onBoardMissing: () -> Unit,
     onDelete: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -72,20 +75,26 @@ fun BoardScreen(
         if (boardsState.deletedBoardId == viewModel.boardId) onBoardDeleted()
     }
 
-    BoardContent(
-        state = state,
-        onMove = viewModel::moveTask,
-        onCreateTask = editorHost.openForCreate,
-        onEditTask = editorHost.openForEdit,
-        onToggleMyDay = viewModel::toggleMyDay,
-        onToggleCompleted = viewModel::toggleCompleted,
-        onManageColumns = { onManageColumns(viewModel.boardId) },
-        onAddColumn = viewModel::openNewColumn,
-        onNewColumnNameChange = viewModel::onNewColumnNameChange,
-        onSaveNewColumn = viewModel::saveNewColumn,
-        onDismissNewColumn = viewModel::dismissNewColumn,
-        modifier = modifier,
-    )
+    // Si se acaba de borrar desde aquí, actúa la redirección a Home y no se muestra la página.
+    val deletedHere = boardsState.deletedBoardId == viewModel.boardId
+    if (state.missing && !deletedHere) {
+        ErrorPage(ErrorPageKind.NOT_FOUND, onAction = onBoardMissing, modifier = modifier)
+    } else {
+        BoardContent(
+            state = state,
+            onMove = viewModel::moveTask,
+            onCreateTask = editorHost.openForCreate,
+            onEditTask = editorHost.openForEdit,
+            onToggleMyDay = viewModel::toggleMyDay,
+            onToggleCompleted = viewModel::toggleCompleted,
+            onManageColumns = { onManageColumns(viewModel.boardId) },
+            onAddColumn = viewModel::openNewColumn,
+            onNewColumnNameChange = viewModel::onNewColumnNameChange,
+            onSaveNewColumn = viewModel::saveNewColumn,
+            onDismissNewColumn = viewModel::dismissNewColumn,
+            modifier = modifier,
+        )
+    }
     BoardDialogs(boardsState, boardsViewModel)
 }
 
