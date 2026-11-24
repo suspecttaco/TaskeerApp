@@ -391,4 +391,19 @@
     <string name="board_rename_title">Renombrar tablero</string>
     <string name="board_delete_title">¿Eliminar «%1$s»?</string>
     <string name="board_delete_message">El tablero y sus tareas dejarán de verse.</string>
+    <string name="error_not_found_title">No encontrado</string>
+    <string name="error_not_found_message">Lo que buscas no existe o se eliminó</string>
+    <string name="error_no_permission_title">Sin permiso</string>
+    <string name="error_no_permission_message">No tienes permiso para ver esto</string>
+    <string name="error_unexpected_title">Algo salió mal</string>
+    <string name="error_unexpected_message">Ocurrió un error inesperado. Inténtalo de nuevo</string>
+    <string name="error_service_unavailable_title">Servicio no disponible</string>
+    <string name="error_service_unavailable_message">No podemos conectar con el servicio ahora. Inténtalo más tarde</string>
+    <string name="error_session_expired_title">Sesión expirada</string>
+    <string name="error_session_expired_message">Tu sesión terminó. Inicia sesión para continuar</string>
+    <string name="error_offline_title">Sin conexión</string>
+    <string name="error_offline_message">Comprueba tu conexión a internet e inténtalo de nuevo</string>
+    <string name="error_action_home">Ir al inicio</string>
+    <string name="error_action_retry">Reintentar</string>
+    <string name="error_action_sign_in">Iniciar sesión</string>
 </resources>
