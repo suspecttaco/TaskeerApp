@@ -220,6 +220,8 @@
     <string name="notifications_delete_all_title">Borrar todos los avisos</string>
     <string name="notifications_delete_all_cancel">Cancelar</string>
     <string name="notifications_task_gone">La tarea ya no existe</string>
+    <string name="notifications_snooze">Posponer</string>
+    <string name="notifications_snoozed_until">Pospuesto hasta %1$s</string>
     <plurals name="notifications_delete_all_message">
         <item quantity="one">Se borrará %1$d aviso (%2$d sin leer).</item>
         <item quantity="other">Se borrarán %1$d avisos (%2$d sin leer).</item>

@@ -22,7 +22,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -30,11 +32,17 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.simposio.taskeer.R
+import com.simposio.taskeer.domain.reminder.SnoozeOption
 import com.simposio.taskeer.ui.components.ActionIcon
 import com.simposio.taskeer.ui.components.AppDivider
 import com.simposio.taskeer.ui.permission.NotificationPermissionNotice
+import com.simposio.taskeer.ui.tasks.DueDatePickerDialog
+import com.simposio.taskeer.ui.tasks.DueTimePickerDialog
 import com.simposio.taskeer.ui.tasks.rememberTaskEditorHost
 import com.simposio.taskeer.ui.theme.Spacing
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 
 @Composable
 fun NotificationsScreen(
@@ -46,6 +54,8 @@ fun NotificationsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val editorHost = rememberTaskEditorHost(viewModelFactory, onDelete)
     val snackbarHostState = remember { SnackbarHostState() }
+    var customRow by remember { mutableStateOf<NotificationRowUi?>(null) }
+    var customDate by remember { mutableStateOf<LocalDate?>(null) }
     val taskGoneMessage = stringResource(R.string.notifications_task_gone)
 
     LaunchedEffect(viewModel) {
@@ -53,6 +63,7 @@ fun NotificationsScreen(
             when (event) {
                 is NotificationsEvent.OpenTask -> editorHost.openForEdit(event.taskId)
                 NotificationsEvent.ShowTaskGone -> snackbarHostState.showSnackbar(taskGoneMessage)
+                is NotificationsEvent.ShowError -> snackbarHostState.showSnackbar(event.message)
             }
         }
     }
@@ -69,9 +80,36 @@ fun NotificationsScreen(
             onMarkAllRead = viewModel::markAllRead,
             onDelete = viewModel::delete,
             onDeleteAll = viewModel::requestDeleteAll,
+            onSnooze = viewModel::snooze,
+            onSnoozeCustom = { customRow = it },
             permissionNotice = { NotificationPermissionNotice(viewModelFactory) },
             modifier = Modifier.padding(innerPadding),
         )
+    }
+
+    val pickingRow = customRow
+    if (pickingRow != null) {
+        val pickedDate = customDate
+        if (pickedDate == null) {
+            DueDatePickerDialog(
+                initialDate = null,
+                onDatePicked = { customDate = it },
+                onDismiss = { customRow = null },
+            )
+        } else {
+            DueTimePickerDialog(
+                initialTime = LocalTime.now().withSecond(0).withNano(0),
+                onTimePicked = { time ->
+                    viewModel.snoozeAt(pickingRow, LocalDateTime.of(pickedDate, time))
+                    customRow = null
+                    customDate = null
+                },
+                onDismiss = {
+                    customRow = null
+                    customDate = null
+                },
+            )
+        }
     }
 
     if (state.confirmDeleteAll) {
@@ -92,6 +130,8 @@ fun NotificationsContent(
     onMarkAllRead: () -> Unit,
     onDelete: (String) -> Unit,
     onDeleteAll: () -> Unit,
+    onSnooze: (NotificationRowUi, SnoozeOption) -> Unit,
+    onSnoozeCustom: (NotificationRowUi) -> Unit,
     permissionNotice: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -132,6 +172,8 @@ fun NotificationsContent(
                     onOpen = onOpen,
                     onMarkRead = onMarkRead,
                     onDelete = onDelete,
+                    onSnooze = onSnooze,
+                    onSnoozeCustom = onSnoozeCustom,
                 )
                 AppDivider()
             }
