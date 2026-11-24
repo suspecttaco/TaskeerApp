@@ -3,6 +3,7 @@ package com.simposio.taskeer.ui.board
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.simposio.taskeer.data.repository.BoardRepository
 import com.simposio.taskeer.data.repository.ColumnRepository
 import com.simposio.taskeer.data.repository.MyDayRepository
 import com.simposio.taskeer.data.repository.TaskRepository
@@ -19,12 +20,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 class BoardViewModel(
+    boardRepository: BoardRepository,
     private val columnRepository: ColumnRepository,
     private val taskRepository: TaskRepository,
     private val dateTimeConverter: DateTimeConverter,
@@ -41,13 +44,16 @@ class BoardViewModel(
     private val error = MutableStateFlow<DomainError?>(null)
     private val newColumn = MutableStateFlow(NewColumnUiState())
 
+    private val boardExists: Flow<Boolean?> =
+        boardRepository.observeBoards().map { boards -> boards.any { it.id == boardId } }
+
     val uiState: StateFlow<BoardUiState> = combine(
         columnRepository.observeColumns(boardId),
         taskRepository.observeTasks(boardId),
         myDayTaskIds,
         pendingMove,
-        combine(error, newColumn) { error, newColumn -> error to newColumn },
-    ) { columns, tasks, myDay, move, (error, newColumn) ->
+        combine(error, newColumn, boardExists) { error, newColumn, exists -> Triple(error, newColumn, exists) },
+    ) { columns, tasks, myDay, move, (error, newColumn, exists) ->
         val ordered = tasks.sortedWith(compareBy({ it.position }, { it.id }))
         val byColumn = ordered
             .mapNotNull { task -> task.columnId?.let { it to task } }
@@ -63,6 +69,7 @@ class BoardViewModel(
             },
             error = error,
             newColumn = newColumn,
+            missing = exists == false,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), BoardUiState())
 

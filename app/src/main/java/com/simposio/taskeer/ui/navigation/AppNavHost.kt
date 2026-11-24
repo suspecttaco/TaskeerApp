@@ -101,6 +101,7 @@ fun AppNavHost(
                     navController.navigate(AppDestination.boardColumnsRoute(boardId))
                 },
                 onBoardDeleted = navController::navigateHome,
+                onBoardMissing = navController::navigateHome,
                 onDelete = onDelete,
             )
         }

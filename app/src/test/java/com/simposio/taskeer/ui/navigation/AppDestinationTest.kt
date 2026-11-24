@@ -104,4 +104,9 @@ class AppDestinationTest {
             HomeSection.entries.map { it.destination },
         )
     }
+
+    @Test
+    fun noHayRutasDeErrores() {
+        assertTrue(AppDestination.entries.none { it.name.startsWith("ERROR") || it.route.startsWith("error") })
+    }
 }

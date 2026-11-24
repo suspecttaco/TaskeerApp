@@ -171,6 +171,7 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
 
         modelClass.isAssignableFrom(BoardViewModel::class.java) ->
             BoardViewModel(
+                container.boardRepository,
                 container.columnRepository,
                 container.taskRepository,
                 container.dateTimeConverter,

@@ -10,6 +10,7 @@ data class BoardUiState(
     val columns: List<BoardColumnUi> = emptyList(),
     val error: DomainError? = null,
     val newColumn: NewColumnUiState = NewColumnUiState(),
+    val missing: Boolean = false,
 )
 
 data class NewColumnUiState(

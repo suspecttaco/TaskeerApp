@@ -211,4 +211,18 @@ class ChromeRulesTest {
         assertTrue(MenuItem.DELETE_LIST in menu.withListCount(2).items)
         assertTrue(MenuItem.RENAME_LIST in menu.withListCount(1).items)
     }
+
+    @Test
+    fun menuDeTablero_sinNombre_noOfreceRenombrarNiBorrar() {
+        val menu = overflowMenuFor(AppDestination.BOARD).withBoardPresent(false)
+
+        assertEquals(emptyList<MenuItem>(), menu.items)
+    }
+
+    @Test
+    fun menuDeTablero_conNombre_noCambia() {
+        val menu = overflowMenuFor(AppDestination.BOARD)
+
+        assertEquals(menu, menu.withBoardPresent(true))
+    }
 }

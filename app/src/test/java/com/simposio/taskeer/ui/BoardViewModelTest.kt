@@ -25,6 +25,8 @@ import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.domain.model.TaskRepeat
 import com.simposio.taskeer.domain.task.successor
 import com.simposio.taskeer.domain.task.successorIdFor
+import com.simposio.taskeer.testing.FakeDestinationBoardRepository
+import com.simposio.taskeer.testing.testBoard
 import com.simposio.taskeer.ui.board.BoardViewModel
 import com.simposio.taskeer.ui.board.NewColumnUiState
 import java.time.Instant
@@ -547,6 +549,57 @@ class BoardViewModelTest {
         assertTrue(viewModel.uiState.value.columns.single().cards.single().inMyDay)
     }
 
+    @Test
+    fun tableroInexistente_marcaMissing() = runTest {
+        val boards = FakeDestinationBoardRepository(MutableStateFlow(listOf(testBoard("otro"))))
+        val viewModel = viewModel(MutableStateFlow(emptyList()), MutableStateFlow(emptyList()), boardRepository = boards)
+        collect(viewModel)
+
+        assertTrue(viewModel.uiState.value.missing)
+    }
+
+    @Test
+    fun tableroExistente_noMarcaMissing() = runTest {
+        val viewModel = viewModel(MutableStateFlow(emptyList()), MutableStateFlow(emptyList()))
+        collect(viewModel)
+
+        assertFalse(viewModel.uiState.value.missing)
+    }
+
+    @Test
+    fun antesDeLaPrimeraEmision_noMarcaMissing() = runTest {
+        val boards = FakeDestinationBoardRepository()
+        val pending = object : com.simposio.taskeer.data.repository.BoardRepository by boards {
+            override fun observeBoards(): Flow<List<com.simposio.taskeer.domain.model.Board>> = emptyFlow()
+        }
+        val handle = SavedStateHandle(mapOf(BoardViewModel.BOARD_ID_ARG to "tablero-1"))
+        val tasks = MutableStateFlow(emptyList<Task>())
+        val viewModel = BoardViewModel(
+            pending,
+            FakeColumnRepository(MutableStateFlow(emptyList())),
+            FakeTaskRepository(tasks),
+            madrid,
+            handle,
+            FakeMyDayRepository(),
+            now = { NOW },
+        )
+        collect(viewModel)
+
+        assertFalse(viewModel.uiState.value.missing)
+    }
+
+    @Test
+    fun tableroBorrado_marcaMissing() = runTest {
+        val boards = FakeDestinationBoardRepository(MutableStateFlow(listOf(testBoard("tablero-1"))))
+        val viewModel = viewModel(MutableStateFlow(emptyList()), MutableStateFlow(emptyList()), boardRepository = boards)
+        collect(viewModel)
+        assertFalse(viewModel.uiState.value.missing)
+
+        boards.boards.value = emptyList()
+
+        assertTrue(viewModel.uiState.value.missing)
+    }
+
     private fun TestScope.overdueOf(dueAt: Instant?, completedAt: Instant? = null): Boolean {
         val tasks = MutableStateFlow(listOf(task("a", "c1", 0, dueAt = dueAt, completedAt = completedAt)))
         val viewModel = viewModel(MutableStateFlow(listOf(column("c1", 0))), tasks)
@@ -565,13 +618,16 @@ class BoardViewModelTest {
         myDay: Flow<Set<String>>? = null,
         myDayRepository: FakeMyDayRepository = FakeMyDayRepository(),
         columnRepository: ColumnRepository = FakeColumnRepository(columns),
+        boardRepository: FakeDestinationBoardRepository = FakeDestinationBoardRepository(
+            MutableStateFlow(listOf(testBoard("tablero-1"))),
+        ),
         now: () -> Instant = { NOW },
     ): BoardViewModel {
         val handle = SavedStateHandle(mapOf(BoardViewModel.BOARD_ID_ARG to "tablero-1"))
         return if (myDay == null) {
-            BoardViewModel(columnRepository, repository, madrid, handle, myDayRepository, now = now)
+            BoardViewModel(boardRepository, columnRepository, repository, madrid, handle, myDayRepository, now = now)
         } else {
-            BoardViewModel(columnRepository, repository, madrid, handle, myDayRepository, myDay, now)
+            BoardViewModel(boardRepository, columnRepository, repository, madrid, handle, myDayRepository, myDay, now)
         }
     }
 
