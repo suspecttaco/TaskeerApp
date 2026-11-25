@@ -44,6 +44,7 @@ fun backStep(destination: AppDestination?, boardId: String?, hasPrevious: Boolea
         AppDestination.CALENDAR,
         AppDestination.LIST,
         AppDestination.BOARD,
+        AppDestination.SEARCH,
         -> AppDestination.HOME.route
         AppDestination.BOARD_COLUMNS -> boardId?.let(AppDestination::boardRoute) ?: return BackStep.None
     }

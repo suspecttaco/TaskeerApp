@@ -7,6 +7,7 @@ import com.simposio.taskeer.data.local.ReminderCandidateRow
 import com.simposio.taskeer.data.local.ReminderEntity
 import com.simposio.taskeer.data.local.ReminderTaskStateRow
 import com.simposio.taskeer.data.local.SubtaskEntity
+import com.simposio.taskeer.data.local.SearchTaskRow
 import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.TaskEntity
 import com.simposio.taskeer.data.reminder.ReminderReconciler
@@ -25,6 +26,7 @@ import com.simposio.taskeer.testing.FakeDayWindowSource
 import com.simposio.taskeer.testing.FakePreferencesRepository
 import com.simposio.taskeer.testing.FakeDestinationTaskRepository
 import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
+import com.simposio.taskeer.testing.FakeSearchRepository
 import com.simposio.taskeer.testing.FakeTaskListRepository
 import com.simposio.taskeer.testing.InMemoryCheckpointStore
 import com.simposio.taskeer.testing.RecordingNotifier
@@ -175,6 +177,7 @@ class AppContainerFactoryTest {
             notificationHistoryRepository = FakeNotificationHistoryRepository(),
             calendarRepository = FakeCalendarRepository(),
             dayWindowSource = FakeDayWindowSource(java.time.Instant.EPOCH, java.time.ZoneOffset.UTC),
+            searchRepository = FakeSearchRepository(),
         )
 
         val viewModel = AppViewModelFactory(container).create(SubtasksViewModel::class.java)
@@ -206,6 +209,7 @@ class AppContainerFactoryTest {
             notificationHistoryRepository = FakeNotificationHistoryRepository(),
             calendarRepository = FakeCalendarRepository(),
             dayWindowSource = FakeDayWindowSource(java.time.Instant.EPOCH, java.time.ZoneOffset.UTC),
+            searchRepository = FakeSearchRepository(),
         )
 
         val viewModel = AppViewModelFactory(container).create(MyDayViewModel::class.java)
@@ -235,6 +239,7 @@ class AppContainerFactoryTest {
             notificationHistoryRepository = FakeNotificationHistoryRepository(),
             calendarRepository = FakeCalendarRepository(),
             dayWindowSource = FakeDayWindowSource(java.time.Instant.EPOCH, java.time.ZoneOffset.UTC),
+            searchRepository = FakeSearchRepository(),
         )
 
         assertSame(planned, container.plannedRepository)
@@ -260,6 +265,7 @@ class AppContainerFactoryTest {
             notificationHistoryRepository = FakeNotificationHistoryRepository(),
             calendarRepository = FakeCalendarRepository(),
             dayWindowSource = FakeDayWindowSource(java.time.Instant.EPOCH, java.time.ZoneOffset.UTC),
+            searchRepository = FakeSearchRepository(),
         )
 
         val viewModel = AppViewModelFactory(container).create(RemindersViewModel::class.java)
@@ -284,6 +290,8 @@ class AppContainerFactoryTest {
     ) { _, method, _ -> error("${method.name} no se usa en este test") } as T
 
     private class FakeTaskDao : TaskDao() {
+        override fun observeSearchable(): Flow<List<SearchTaskRow>> = emptyFlow()
+
         override suspend fun findActiveByList(listId: String): List<TaskEntity> = error("no se usa")
 
         override suspend fun restoreSubtasksOfTask(taskId: String, deletedAt: Long, now: Long) = error("no se usa")

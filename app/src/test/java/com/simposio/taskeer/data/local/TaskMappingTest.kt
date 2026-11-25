@@ -299,6 +299,25 @@ class TaskMappingTest {
         assertNull(entity.toTask().repeat)
     }
 
+    @Test
+    fun searchTaskRow_mapeaContexto() {
+        val row = SearchTaskRow(
+            task = repeatingTask(null).toEntity(),
+            boardId = "tablero-1",
+            boardName = "Casa",
+            columnName = "Por hacer",
+            listName = null,
+        )
+
+        val searchable = row.toSearchableTask()
+
+        assertEquals("tarea-1", searchable.task.id)
+        assertEquals("tablero-1", searchable.boardId)
+        assertEquals("Casa", searchable.boardName)
+        assertEquals("Por hacer", searchable.columnName)
+        assertNull(searchable.listName)
+    }
+
     private fun repeatingTask(repeat: TaskRepeat?) = Task(
         columnId = "columna-1",
         title = "Tarea",

@@ -30,6 +30,7 @@ import com.simposio.taskeer.data.repository.PreferencesRepository
 import com.simposio.taskeer.data.repository.PreferencesRepositoryImpl
 import com.simposio.taskeer.data.repository.ReminderCheckpointStoreImpl
 import com.simposio.taskeer.data.repository.ReminderRepositoryImpl
+import com.simposio.taskeer.data.repository.SearchRepositoryImpl
 import com.simposio.taskeer.data.repository.SubtaskRepositoryImpl
 import com.simposio.taskeer.data.repository.TaskListRepository
 import com.simposio.taskeer.data.repository.TaskListRepositoryImpl
@@ -113,6 +114,12 @@ fun createAppContainer(context: Context): AppContainer {
             hasWrite = calendarWriteGranted,
         ),
         dayWindowSource = dayWindowSource,
+        searchRepository = SearchRepositoryImpl(
+            database.boardDao(),
+            database.columnDao(),
+            database.taskDao(),
+            database.taskListDao(),
+        ),
         zoneChanges = timeZoneProvider.changes,
         calendarReadGranted = calendarReadGranted,
         calendarWriteGranted = calendarWriteGranted,

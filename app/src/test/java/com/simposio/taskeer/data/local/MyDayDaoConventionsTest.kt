@@ -187,7 +187,7 @@ class MyDayDaoConventionsTest {
     }
 
     private fun constantSource(name: String): String {
-        val start = source.indexOf("private const val $name =")
+        val start = source.indexOf("const val $name =")
         assertTrue("falta la constante $name", start >= 0)
         return source.substring(start, source.indexOf("\n\n", start).takeIf { it > 0 } ?: source.length)
     }

@@ -28,7 +28,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -43,7 +43,6 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.ViewModelProvider
@@ -251,21 +250,29 @@ private fun HomeSection.icon(): ImageVector = when (this) {
 }
 
 @Composable
-fun HomeSearchField(modifier: Modifier = Modifier) {
-    val wip = stringResource(R.string.home_search_wip)
-    OutlinedTextField(
-        value = "",
-        onValueChange = {},
-        enabled = HomeLayout.SEARCH_ENABLED,
-        readOnly = true,
-        singleLine = true,
-        placeholder = { Text(stringResource(R.string.home_search_hint)) },
-        leadingIcon = { DecorativeIcon(Icons.Filled.Search) },
+fun HomeSearchField(onOpenSearch: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        onClick = onOpenSearch,
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = Spacing.MinTouchTarget)
-            .semantics { stateDescription = wip },
-    )
+            .semantics { role = Role.Button },
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = Spacing.ScreenPadding),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.InlineGap),
+        ) {
+            DecorativeIcon(Icons.Filled.Search, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                text = stringResource(R.string.home_search_hint),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 @Preview(showBackground = true, heightDp = 640)

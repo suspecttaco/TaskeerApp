@@ -40,11 +40,20 @@ class AppDestinationTest {
                 "LIST" to "list/{listId}",
                 "BOARD" to "board/{boardId}",
                 "BOARD_COLUMNS" to "board_columns/{boardId}",
+                "SEARCH" to "search",
                 "NOTIFICATIONS" to "notifications",
                 "SETTINGS" to "settings",
             ),
             AppDestination.entries.associate { it.name to it.route },
         )
+    }
+
+    @Test
+    fun search_tieneRutaYNoEsDeSeccion() {
+        assertEquals("search", AppDestination.SEARCH.route)
+        assertEquals(AppDestination.SEARCH, AppDestination.fromRoute("search"))
+        assertFalse(AppDestination.SEARCH.route.contains("{"))
+        assertNull(AppDestination.SEARCH.upRoute("b1"))
     }
 
     @Test

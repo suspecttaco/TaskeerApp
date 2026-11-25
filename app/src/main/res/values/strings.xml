@@ -241,7 +241,32 @@
     <string name="home_title">Home</string>
     <string name="home_button_description">Ir a Home</string>
     <string name="home_search_hint">Buscar</string>
-    <string name="home_search_wip">Próximamente (WIP)</string>
+    <string name="search_title">Buscar</string>
+    <string name="search_hint">Buscar tableros, listas, columnas y tareas</string>
+    <string name="search_clear">Borrar búsqueda</string>
+    <string name="search_idle_title">Busca en tus tableros, listas y tareas</string>
+    <string name="search_idle_message">Escribe para encontrar tableros, listas, columnas y tareas.</string>
+    <string name="search_empty_title">Sin resultados</string>
+    <string name="search_empty_message">No hay nada que coincida con «%1$s».</string>
+    <string name="search_group_boards">Tableros (%1$d)</string>
+    <string name="search_group_lists">Listas (%1$d)</string>
+    <string name="search_group_columns">Columnas (%1$d)</string>
+    <string name="search_group_tasks">Tareas (%1$d)</string>
+    <string name="search_task_in_board">%1$s › %2$s</string>
+    <string name="search_completed">Completada</string>
+    <string name="search_kind_board">Tablero</string>
+    <string name="search_kind_list">Lista</string>
+    <string name="search_kind_column">Columna</string>
+    <string name="search_kind_task">Tarea</string>
+    <string name="search_list_no_open_tasks">Sin tareas abiertas</string>
+    <plurals name="search_list_open_tasks">
+        <item quantity="one">%1$d tarea abierta</item>
+        <item quantity="other">%1$d tareas abiertas</item>
+    </plurals>
+    <plurals name="search_summary">
+        <item quantity="one">%1$d resultado</item>
+        <item quantity="other">%1$d resultados</item>
+    </plurals>
     <string name="home_own_lists">Listas propias</string>
     <string name="home_shared_space">Workspaces</string>
     <string name="home_new_list">Nueva lista</string>

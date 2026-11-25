@@ -10,6 +10,7 @@ import com.simposio.taskeer.data.repository.NotificationHistoryRepository
 import com.simposio.taskeer.data.repository.PlannedRepository
 import com.simposio.taskeer.data.repository.PreferencesRepository
 import com.simposio.taskeer.data.repository.ReminderRepository
+import com.simposio.taskeer.data.repository.SearchRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskListRepository
 import com.simposio.taskeer.data.repository.TaskRepository
@@ -35,6 +36,7 @@ class AppContainer(
     val notificationHistoryRepository: NotificationHistoryRepository,
     val calendarRepository: CalendarRepository,
     val dayWindowSource: DayWindowSource,
+    val searchRepository: SearchRepository,
     val zoneChanges: Flow<Unit> = emptyFlow(),
     val firstDayOfWeek: FirstDayOfWeekProvider = SystemFirstDayOfWeekProvider(),
     val calendarReadGranted: () -> Boolean = { false },

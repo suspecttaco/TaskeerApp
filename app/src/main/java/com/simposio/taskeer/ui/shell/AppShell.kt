@@ -217,6 +217,9 @@ fun AppShell(
                         clearEnabled = clearState.clearEnabled,
                         calendarsEnabled = calendarsReadable,
                         actions = TopBarActions(
+                            onOpenSearch = {
+                                navController.navigate(AppDestination.SEARCH.route) { launchSingleTop = true }
+                            },
                             onNotifications = {
                                 navController.navigate(AppDestination.NOTIFICATIONS.route) { launchSingleTop = true }
                             },
@@ -370,6 +373,7 @@ private fun AppDestination.title(listName: String?, boardName: String?): String 
     AppDestination.LIST -> listName.orEmpty()
     AppDestination.BOARD -> boardName ?: stringResource(R.string.board_title)
     AppDestination.BOARD_COLUMNS -> stringResource(R.string.columns_title)
+    AppDestination.SEARCH -> stringResource(R.string.search_title)
     AppDestination.NOTIFICATIONS -> stringResource(R.string.notifications_title)
     AppDestination.SETTINGS -> stringResource(R.string.menu_settings)
 }

@@ -20,6 +20,7 @@ import com.simposio.taskeer.ui.notifications.NotificationsViewModel
 import com.simposio.taskeer.ui.notifications.UnreadCounterViewModel
 import com.simposio.taskeer.ui.permission.NotificationPermissionViewModel
 import com.simposio.taskeer.ui.quickadd.QuickAddViewModel
+import com.simposio.taskeer.ui.search.SearchViewModel
 import com.simposio.taskeer.ui.settings.SettingsViewModel
 import com.simposio.taskeer.ui.shell.ClearCompletedViewModel
 import com.simposio.taskeer.ui.tasks.AssignToBoardViewModel
@@ -190,6 +191,9 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 rescheduler(),
                 settleMillis = ::currentSettleMillis,
             ) as T
+
+        modelClass.isAssignableFrom(SearchViewModel::class.java) ->
+            SearchViewModel(container.searchRepository, extras.createSavedStateHandle()) as T
 
         modelClass.isAssignableFrom(TasksViewModel::class.java) ->
             TasksViewModel(container.taskRepository, extras.createSavedStateHandle()) as T

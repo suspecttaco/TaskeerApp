@@ -9,8 +9,4 @@ enum class HomeSection(val destination: AppDestination) {
     CALENDAR(AppDestination.CALENDAR),
 }
 
-object HomeLayout {
-    const val SEARCH_ENABLED: Boolean = false
-}
-
 fun tileLabel(name: String, activeCount: Int): String = "$name, $activeCount"

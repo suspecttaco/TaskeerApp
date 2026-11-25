@@ -42,6 +42,13 @@ abstract class TaskDao {
     )
     abstract fun observeCountsByColumn(): Flow<List<ColumnCountRow>>
 
+    // Sin filtro de completedAt: la búsqueda incluye las completadas.
+    @Query(
+        "SELECT t.*, b.id AS boardId, c.name AS columnName, b.name AS boardName, l.name AS listName " +
+            FROM_TASKS + "WHERE " + VISIBLE_ANY + " ORDER BY t.id ASC",
+    )
+    abstract fun observeSearchable(): Flow<List<SearchTaskRow>>
+
     @Query("SELECT * FROM tasks WHERE id = :id")
     abstract suspend fun findById(id: String): TaskEntity?
 

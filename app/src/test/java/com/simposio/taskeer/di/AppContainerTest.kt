@@ -35,6 +35,7 @@ import com.simposio.taskeer.testing.FakeDayWindowSource
 import com.simposio.taskeer.testing.FakePreferencesRepository
 import com.simposio.taskeer.testing.FakeReminderRepository
 import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
+import com.simposio.taskeer.testing.FakeSearchRepository
 import com.simposio.taskeer.testing.FakeTaskListRepository
 import com.simposio.taskeer.testing.InMemoryCheckpointStore
 import com.simposio.taskeer.testing.RecordingNotifier
@@ -210,6 +211,7 @@ class AppContainerTest {
         notificationHistoryRepository = FakeNotificationHistoryRepository(),
         calendarRepository = calendarRepository,
         dayWindowSource = dayWindowSource,
+        searchRepository = FakeSearchRepository(),
         firstDayOfWeek = firstDayOfWeek,
         calendarReadGranted = calendarReadGranted,
         calendarWriteGranted = calendarWriteGranted,

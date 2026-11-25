@@ -252,13 +252,109 @@ class UiPresentationRulesTest {
     }
 
     @Test
-    fun homeBuscador_esDeshabilitado() {
-        val home = source("ui/home/HomeScreen.kt")
+    fun homeBuscador_abreLaBusqueda() {
+        val field = source("ui/home/HomeScreen.kt").substringAfter("fun HomeSearchField(").substringBefore("@Preview")
 
-        assertTrue(home.contains("enabled = HomeLayout.SEARCH_ENABLED"))
-        assertTrue(home.contains("readOnly = true"))
-        assertTrue(source("ui/home/HomeSection.kt").contains("const val SEARCH_ENABLED: Boolean = false"))
-        assertTrue(source("ui/shell/SectionTopBar.kt").contains("HomeSearchField()"))
+        assertTrue(field.contains("Surface("))
+        assertTrue(field.contains("onClick = onOpenSearch"))
+        assertTrue(!source("ui/home/HomeScreen.kt").contains("SEARCH_ENABLED"))
+        assertTrue(source("ui/shell/SectionTopBar.kt").contains("HomeSearchField(actions.onOpenSearch)"))
+        assertTrue(source("ui/shell/AppShell.kt").contains("AppDestination.SEARCH.route"))
+    }
+
+    @Test
+    fun homeBuscador_tieneRolDeBoton() {
+        val field = source("ui/home/HomeScreen.kt").substringAfter("fun HomeSearchField(").substringBefore("@Preview")
+
+        assertTrue(field.contains("role = Role.Button"))
+    }
+
+    @Test
+    fun searchField_usaOutlinedTextFieldYImeSearch() {
+        val screen = source("ui/search/SearchScreen.kt")
+
+        assertTrue(screen.contains("OutlinedTextField("))
+        assertTrue(screen.contains("singleLine = true"))
+        assertTrue(screen.contains("ImeAction.Search"))
+        assertTrue(screen.contains("focusRequester.requestFocus()"))
+        assertTrue(screen.contains("if (startedEmpty)"))
+    }
+
+    @Test
+    fun searchClear_tieneDescripcion() {
+        val screen = source("ui/search/SearchScreen.kt")
+
+        assertTrue(screen.contains("icon = Icons.Filled.Clear"))
+        assertTrue(screen.contains("contentDescription = stringResource(R.string.search_clear)"))
+    }
+
+    @Test
+    fun searchEstados_usanStatePage() {
+        val screen = source("ui/search/SearchScreen.kt")
+
+        assertTrue(screen.contains("StatePage("))
+        assertTrue(!screen.contains("ErrorPage("))
+        assertTrue(screen.contains("Icons.Filled.SearchOff"))
+    }
+
+    @Test
+    fun searchResultados_agrupaConEncabezadosHeading() {
+        val screen = source("ui/search/SearchScreen.kt")
+
+        assertTrue(screen.contains("LazyColumn("))
+        assertTrue(screen.contains("heading()"))
+        assertTrue(!screen.contains("stickyHeader"))
+        assertTrue(screen.contains("R.string.search_group_lists"))
+        val order = listOf("search_group_boards", "search_group_lists", "search_group_columns", "search_group_tasks")
+            .map { screen.indexOf("R.string.$it") }
+        assertEquals(order.sorted(), order)
+    }
+
+    @Test
+    fun searchListas_abrenLaPantallaDeLista() {
+        assertTrue(source("ui/navigation/AppNavHost.kt").substringAfter("AppDestination.SEARCH.route").contains("AppDestination.listRoute(listId)"))
+        val screen = source("ui/search/SearchScreen.kt")
+        assertTrue(screen.contains("onOpenList(target.listId)"))
+        assertTrue(screen.contains("Icons.Filled.Checklist"))
+    }
+
+    @Test
+    fun searchFilas_usanListItemNativo() {
+        val screen = source("ui/search/SearchScreen.kt")
+
+        assertTrue(screen.contains("ListItem("))
+        assertTrue(!screen.contains("Card("))
+        assertTrue(screen.contains("role = Role.Button"))
+        assertTrue(screen.contains("maxLines = 2"))
+        assertTrue(screen.contains("Spacing.MinTouchTarget"))
+    }
+
+    @Test
+    fun searchTarea_abreElEditorExistente() {
+        val screen = source("ui/search/SearchScreen.kt")
+
+        assertTrue(screen.contains("rememberTaskEditorHost("))
+        assertTrue(screen.contains("editorHost.openForEdit(target.taskId)"))
+    }
+
+    @Test
+    fun searchPantalla_respetaImeYBarrasDelSistema() {
+        val screen = source("ui/search/SearchScreen.kt")
+
+        assertTrue(screen.contains("imePadding()"))
+        assertTrue(screen.contains("navigationBarsPadding()"))
+        assertTrue(screen.contains("nestedScroll("))
+        assertTrue(screen.contains("keyboard?.hide()"))
+    }
+
+    @Test
+    fun searchLiveRegion_anunciaElTotal() {
+        val screen = source("ui/search/SearchScreen.kt")
+
+        assertTrue(screen.contains("liveRegion = LiveRegionMode.Polite"))
+        assertTrue(screen.contains("R.plurals.search_summary"))
+        val noResults = screen.substringAfter("SearchStatus.NoResults -> StatePage(").substringBefore("SearchStatus.Results ->")
+        assertTrue(noResults.contains("liveRegion = LiveRegionMode.Polite"))
     }
 
     @Test

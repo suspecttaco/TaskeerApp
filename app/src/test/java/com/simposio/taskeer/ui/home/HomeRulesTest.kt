@@ -2,6 +2,7 @@ package com.simposio.taskeer.ui.home
 
 import com.simposio.taskeer.ui.boards.BoardsUiState
 import com.simposio.taskeer.ui.lists.TaskListsUiState
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -10,8 +11,12 @@ import org.junit.Test
 class HomeRulesTest {
 
     @Test
-    fun searchField_estaMarcadoWip() {
-        assertFalse(HomeLayout.SEARCH_ENABLED)
+    fun searchEntry_ya_noEstaMarcadoWip() {
+        val home = sourceOf("ui/home/HomeSection.kt") + sourceOf("ui/home/HomeScreen.kt")
+        val strings = File(sourceRoot(), "../../../../res/values/strings.xml").readText()
+
+        assertFalse(home.contains("SEARCH_ENABLED"))
+        assertFalse(strings.contains("home_search_wip"))
     }
 
     @Test
@@ -26,5 +31,13 @@ class HomeRulesTest {
             .flatMap { it.declaredFields.map { field -> field.name.lowercase() } }
 
         assertTrue("el hub no expone indicadores de vacío: $indicators", indicators.none { "empty" in it })
+    }
+
+    private fun sourceOf(path: String): String = File(sourceRoot(), path).readText()
+
+    private fun sourceRoot(): File {
+        val relative = "app/src/main/java/com/simposio/taskeer"
+        val start = File(requireNotNull(System.getProperty("user.dir"))).absoluteFile
+        return generateSequence(start) { it.parentFile }.map { File(it, relative) }.first { it.isDirectory }
     }
 }
