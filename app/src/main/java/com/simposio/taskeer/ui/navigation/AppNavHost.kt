@@ -20,6 +20,7 @@ import com.simposio.taskeer.ui.lists.ListScreen
 import com.simposio.taskeer.ui.lists.ListViewModel
 import com.simposio.taskeer.ui.myday.MyDayScreen
 import com.simposio.taskeer.ui.notifications.NotificationsScreen
+import com.simposio.taskeer.ui.search.SearchScreen
 import com.simposio.taskeer.ui.settings.SettingsScreen
 import com.simposio.taskeer.ui.tasks.SwipeHintState
 import com.simposio.taskeer.ui.upcoming.UpcomingScreen
@@ -88,6 +89,18 @@ fun AppNavHost(
             )
         }
         composable(AppDestination.SETTINGS.route) { SettingsScreen(viewModelFactory) }
+        composable(AppDestination.SEARCH.route) {
+            SearchScreen(
+                viewModelFactory = viewModelFactory,
+                onOpenBoard = { boardId ->
+                    navController.navigate(AppDestination.boardRoute(boardId)) { launchSingleTop = true }
+                },
+                onOpenList = { listId ->
+                    navController.navigate(AppDestination.listRoute(listId)) { launchSingleTop = true }
+                },
+                onDelete = onDelete,
+            )
+        }
         composable(AppDestination.NOTIFICATIONS.route) { NotificationsScreen(viewModelFactory, onDelete) }
         composable(
             route = AppDestination.BOARD.route,

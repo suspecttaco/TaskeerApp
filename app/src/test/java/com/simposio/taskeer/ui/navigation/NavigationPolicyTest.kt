@@ -104,6 +104,16 @@ class NavigationPolicyTest {
     }
 
     @Test
+    fun backStep_desdeBusqueda_vuelveAHome() {
+        assertEquals(BackStep.Navigate("home"), backStep(AppDestination.SEARCH, null, hasPrevious = false))
+    }
+
+    @Test
+    fun backStep_desdeBusquedaConPila_hacePop() {
+        assertEquals(BackStep.Pop, backStep(AppDestination.SEARCH, null, hasPrevious = true))
+    }
+
+    @Test
     fun shouldOpenViewer_conExtra_true() {
         assertTrue(shouldOpenViewer(hasExtra = true, isRestored = false, launchedFromHistory = false))
     }

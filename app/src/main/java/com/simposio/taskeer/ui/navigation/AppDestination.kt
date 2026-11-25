@@ -9,6 +9,7 @@ enum class AppDestination(val route: String) {
     LIST("list/{listId}"),
     BOARD("board/{boardId}"),
     BOARD_COLUMNS("board_columns/{boardId}"),
+    SEARCH("search"),
     NOTIFICATIONS("notifications"),
     SETTINGS("settings"),
     ;

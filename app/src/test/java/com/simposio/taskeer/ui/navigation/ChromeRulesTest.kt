@@ -81,6 +81,19 @@ class ChromeRulesTest {
     }
 
     @Test
+    fun search_usaBarraDeDetalleSinHomeNiPildora() {
+        assertEquals(
+            Chrome(TopBarKind.DETAIL, showHomeButton = false, showPill = false),
+            chromeFor(AppDestination.SEARCH),
+        )
+    }
+
+    @Test
+    fun search_noTieneMenuDeTresPuntos() {
+        assertEquals(OverflowMenu(emptyList(), emptyList()), overflowMenuFor(AppDestination.SEARCH))
+    }
+
+    @Test
     fun chromeFor_cubreTodosLosDestinos() {
         val chromes = AppDestination.entries.map { chromeFor(it) }
 
