@@ -25,6 +25,7 @@ import com.simposio.taskeer.ui.navigation.TopBarKind
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 
 class TopBarActions(
+    val onOpenSearch: () -> Unit,
     val onNotifications: () -> Unit,
     val onSuggestions: () -> Unit,
     val onBack: () -> Unit,
@@ -60,7 +61,7 @@ fun ShellTopBar(
         },
         title = {
             if (kind == TopBarKind.HUB) {
-                HomeSearchField()
+                HomeSearchField(actions.onOpenSearch)
             } else {
                 Text(text = title, modifier = Modifier.semantics { heading() })
             }
@@ -133,7 +134,7 @@ private fun ShellTopBarPreview() {
             suggestionCount = 120,
             menu = OverflowMenu(emptyList(), emptyList()),
             clearEnabled = false,
-            actions = TopBarActions({}, {}, {}, {}),
+            actions = TopBarActions({}, {}, {}, {}, {}),
         )
     }
 }

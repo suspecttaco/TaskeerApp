@@ -217,6 +217,9 @@ fun AppShell(
                         clearEnabled = clearState.clearEnabled,
                         calendarsEnabled = calendarsReadable,
                         actions = TopBarActions(
+                            onOpenSearch = {
+                                navController.navigate(AppDestination.SEARCH.route) { launchSingleTop = true }
+                            },
                             onNotifications = {
                                 navController.navigate(AppDestination.NOTIFICATIONS.route) { launchSingleTop = true }
                             },
