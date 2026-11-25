@@ -12,6 +12,7 @@ import com.simposio.taskeer.data.local.ReminderTaskStateRow
 import com.simposio.taskeer.data.local.ReminderDao
 import com.simposio.taskeer.data.local.SubtaskDao
 import com.simposio.taskeer.data.local.SubtaskEntity
+import com.simposio.taskeer.data.local.SearchTaskRow
 import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.TaskEntity
 import com.simposio.taskeer.data.local.toReminder
@@ -2574,6 +2575,8 @@ class TaskRepositoryImplTest {
     }
 
     private class FakeTaskDao(val columnDao: FakeColumnDao) : TaskDao() {
+        override fun observeSearchable(): Flow<List<SearchTaskRow>> = emptyFlow()
+
         override suspend fun findActiveByList(listId: String): List<TaskEntity> =
             rows.value.values.filter { it.listId == listId && it.deletedAt == null }
 

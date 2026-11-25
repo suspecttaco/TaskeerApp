@@ -35,6 +35,23 @@ class TaskDaoConventionsTest {
     }
 
     @Test
+    fun observeSearchable_usaLaVisibilidadComun_yNoFiltraCompletadas() {
+        val query = querySource("observeSearchable")
+
+        assertEquals(Flow::class.java, method("observeSearchable").returnType)
+        assertTrue(query.contains("FROM_TASKS"))
+        assertTrue(query.contains("VISIBLE_ANY"))
+        assertFalse("las completadas se buscan", query.contains("completedAt"))
+    }
+
+    @Test
+    fun observeSearchable_noEscribeNiBorraFisicamente() {
+        val query = querySource("observeSearchable")
+
+        assertFalse(Regex("\\b(INSERT|UPDATE|DELETE)\\b").containsMatchIn(query))
+    }
+
+    @Test
     fun observeByBoard_ordenaPorPositionEstable() {
         assertTrue(
             "debe ordenar por position con desempate por id",
@@ -402,6 +419,8 @@ class TaskDaoConventionsTest {
 
     private class FakeTaskDao(private val columnDao: FakeColumnDao) : TaskDao() {
         override suspend fun findActiveByList(listId: String): List<TaskEntity> = error("no se usa")
+
+        override fun observeSearchable(): Flow<List<SearchTaskRow>> = emptyFlow()
 
         override suspend fun restoreSubtasksOfTask(taskId: String, deletedAt: Long, now: Long) = error("no se usa")
 

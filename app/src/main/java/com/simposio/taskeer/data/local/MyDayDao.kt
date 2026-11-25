@@ -59,12 +59,12 @@ abstract class MyDayDao {
     abstract fun observeOverdueCount(assigneeId: String, now: Long): Flow<Int>
 }
 
-private const val FROM_TASKS =
+internal const val FROM_TASKS =
     "FROM tasks t LEFT JOIN columns c ON t.columnId = c.id LEFT JOIN boards b ON c.boardId = b.id " +
         "LEFT JOIN task_lists l ON t.listId = l.id "
 
 // c.id/b.id IS NOT NULL: con LEFT JOIN, una columna inexistente pasaría el filtro de deletedAt.
-private const val VISIBLE_ANY =
+internal const val VISIBLE_ANY =
     "t.deletedAt IS NULL AND (t.columnId IS NULL OR " +
         "(c.id IS NOT NULL AND c.deletedAt IS NULL AND b.id IS NOT NULL AND b.deletedAt IS NULL))"
 

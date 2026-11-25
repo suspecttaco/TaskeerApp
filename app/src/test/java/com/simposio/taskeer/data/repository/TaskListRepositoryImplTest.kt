@@ -7,6 +7,8 @@ import com.simposio.taskeer.data.local.ReminderCandidateRow
 import com.simposio.taskeer.data.local.ReminderEntity
 import com.simposio.taskeer.data.local.ReminderTaskStateRow
 import com.simposio.taskeer.data.local.SubtaskEntity
+import com.simposio.taskeer.data.local.SearchTaskRow
+import kotlinx.coroutines.flow.emptyFlow
 import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.TaskEntity
 import com.simposio.taskeer.domain.list.SEEDED_TASK_LIST_ID
@@ -396,6 +398,8 @@ class TaskListRepositoryImplTest {
 
     // Solo el conteo por lista lo usa el repositorio de listas; el resto de la API del DAO no se toca.
     private class CountingTaskDao(private val store: FakeTaskStore) : TaskDao() {
+        override fun observeSearchable(): Flow<List<SearchTaskRow>> = emptyFlow()
+
         override suspend fun findActiveByList(listId: String): List<TaskEntity> = error("no se usa")
 
         override suspend fun restoreSubtasksOfTask(taskId: String, deletedAt: Long, now: Long) = error("no se usa")

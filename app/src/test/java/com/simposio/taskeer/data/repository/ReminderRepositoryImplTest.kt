@@ -8,6 +8,7 @@ import com.simposio.taskeer.data.local.ReminderDao
 import com.simposio.taskeer.data.local.ReminderEntity
 import com.simposio.taskeer.data.local.ReminderTaskStateRow
 import com.simposio.taskeer.data.local.SubtaskEntity
+import com.simposio.taskeer.data.local.SearchTaskRow
 import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.TaskEntity
 import com.simposio.taskeer.domain.model.DomainError
@@ -474,6 +475,8 @@ class ReminderRepositoryImplTest {
     }
 
     private class FakeTaskDao : TaskDao() {
+        override fun observeSearchable(): Flow<List<SearchTaskRow>> = emptyFlow()
+
         override suspend fun findActiveByList(listId: String): List<TaskEntity> = error("no se usa")
 
         override suspend fun restoreSubtasksOfTask(taskId: String, deletedAt: Long, now: Long) = error("no se usa")
