@@ -1,27 +1,27 @@
 package com.simposio.taskeer.domain.region
 
-import java.text.Normalizer
+import com.simposio.taskeer.domain.search.normalizeForSearch
 import java.time.ZoneOffset
 import java.util.Locale
 import kotlin.math.abs
 
-private val DIACRITICS = Regex("\\p{Mn}+")
-
-private fun normalize(text: String): String =
-    DIACRITICS.replace(Normalizer.normalize(text, Normalizer.Form.NFD), "").lowercase(Locale.ROOT)
-
 @JvmName("searchCountries")
 fun List<Country>.search(query: String): List<Country> {
-    val needle = normalize(query.trim())
+    val needle = normalizeForSearch(query.trim())
     if (needle.isEmpty()) return this
-    return filter { normalize(it.name).contains(needle) || normalize(it.isoCode).contains(needle) }
+    return filter {
+        normalizeForSearch(it.name).contains(needle) || normalizeForSearch(it.isoCode).contains(needle)
+    }
 }
 
 @JvmName("searchTimeZones")
 fun List<TimeZoneOption>.search(query: String): List<TimeZoneOption> {
-    val needle = normalize(query.trim())
+    val needle = normalizeForSearch(query.trim())
     if (needle.isEmpty()) return this
-    return filter { normalize(it.displayName).contains(needle) || normalize(it.ianaName).contains(needle) }
+    return filter {
+        normalizeForSearch(it.displayName).contains(needle) ||
+            normalizeForSearch(it.ianaName).contains(needle)
+    }
 }
 
 fun formatOffset(offset: ZoneOffset): String {
