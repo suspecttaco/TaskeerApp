@@ -38,6 +38,38 @@ class WorkspaceSecretsRulesTest {
     }
 
     @Test
+    fun invitaciones_sinLogsDeContenido() {
+        val files = listOf(
+            "data/remote/workspaces/RemoteWorkspaceInvitationsRepository.kt",
+            "data/remote/workspaces/RemoteMyInvitationsRepository.kt",
+            "data/remote/workspaces/InvitationsApiContract.kt",
+            "domain/workspace/Invitation.kt",
+            "domain/workspace/InvitationRules.kt",
+            "ui/workspaces/WorkspaceInvitationsViewModel.kt",
+            "ui/workspaces/WorkspaceInvitationsUiState.kt",
+            "ui/workspaces/WorkspaceInvitationsSection.kt",
+            "ui/workspaces/WorkspaceInvitationDialogs.kt",
+            "ui/workspaces/MyInvitationsViewModel.kt",
+            "ui/workspaces/MyInvitationsScreen.kt",
+        )
+        val logging = Regex("""\bLog\.[a-z]\(|\bprintln\(|\bprint\(|Timber\.|printStackTrace""")
+
+        val offenders = files.filter { logging.containsMatchIn(MainSources.kotlin(it)) }
+
+        assertTrue("correo, nombre de workspace y token son datos sensibles; sin logs: $offenders", offenders.isEmpty())
+    }
+
+    @Test
+    fun elRepositorioDeInvitacionesNoEscribeDatosEnMensajesDeError() {
+        listOf(
+            "data/remote/workspaces/RemoteWorkspaceInvitationsRepository.kt",
+            "data/remote/workspaces/RemoteMyInvitationsRepository.kt",
+        ).forEach {
+            assertTrue(it, !Regex("""DomainError\.\w+\([^)]*\$""").containsMatchIn(MainSources.kotlin(it)))
+        }
+    }
+
+    @Test
     fun miembro_noInterpolaDatosPersonalesEnSuTexto() {
         val toString = MainSources.kotlin("domain/workspace/WorkspaceMember.kt").substringAfter("override fun toString()")
             .substringBefore("data class MembersState")

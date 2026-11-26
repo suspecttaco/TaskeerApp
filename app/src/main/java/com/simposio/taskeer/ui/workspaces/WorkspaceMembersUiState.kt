@@ -11,18 +11,27 @@ data class MemberRowUi(
     val role: RoleLabel,
     val isSelf: Boolean,
     val actions: Set<MemberAction>,
-)
+) {
+    // Nombre, correo y userId son datos personales de terceros: no deben acabar en logs ni mensajes.
+    override fun toString(): String = "MemberRowUi(redactada, role=$role, isSelf=$isSelf)"
+}
 
 sealed interface MemberDialog {
     data object None : MemberDialog
 
-    data class ChangeRole(val userId: String, val name: String, val options: List<WorkspaceRole>) : MemberDialog
+    data class ChangeRole(val userId: String, val name: String, val options: List<WorkspaceRole>) : MemberDialog {
+        override fun toString(): String = "ChangeRole(redactado, options=$options)"
+    }
 
-    data class ConfirmRemove(val userId: String, val name: String) : MemberDialog
+    data class ConfirmRemove(val userId: String, val name: String) : MemberDialog {
+        override fun toString(): String = "ConfirmRemove(redactado)"
+    }
 
     data object ConfirmLeave : MemberDialog
 
-    data class ConfirmTransfer(val userId: String, val name: String) : MemberDialog
+    data class ConfirmTransfer(val userId: String, val name: String) : MemberDialog {
+        override fun toString(): String = "ConfirmTransfer(redactado)"
+    }
 }
 
 data class WorkspaceMembersUiState(

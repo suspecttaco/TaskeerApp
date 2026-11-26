@@ -59,8 +59,8 @@ class AppNavHostSourceTest {
     }
 
     @Test
-    fun losAccesosAVerificarCorreoVienenDeAjustesYDelLogin() {
-        assertEquals(2, Regex("navigate\\(AppDestination\\.VERIFY_EMAIL\\.route\\)").findAll(source).count())
+    fun losAccesosAVerificarCorreoVienenDeAjustesElLoginYLasInvitaciones() {
+        assertEquals(3, Regex("navigate\\(AppDestination\\.VERIFY_EMAIL\\.route\\)").findAll(source).count())
     }
 
     @Test

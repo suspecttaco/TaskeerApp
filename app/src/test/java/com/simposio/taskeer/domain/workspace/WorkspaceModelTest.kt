@@ -1,7 +1,9 @@
 package com.simposio.taskeer.domain.workspace
 
 import com.simposio.taskeer.testing.MainSources
+import com.simposio.taskeer.testing.invitation
 import com.simposio.taskeer.testing.member
+import com.simposio.taskeer.testing.myInvitation
 import com.simposio.taskeer.testing.uuid
 import com.simposio.taskeer.testing.workspace
 import org.junit.Assert.assertFalse
@@ -45,5 +47,34 @@ class WorkspaceModelTest {
         val text = member(1, name = "Secreto Nombre", email = "secreto@example.com").toString()
 
         assertFalse(text.contains("Secreto") || text.contains("secreto@") || text.contains(uuid(1)))
+    }
+
+    @Test
+    fun invitacion_sinDependenciasDeAndroid() {
+        val source = MainSources.kotlin("domain/workspace/Invitation.kt") + MainSources.kotlin("domain/workspace/InvitationRules.kt")
+        val imports = source.lines().filter { it.startsWith("import ") }
+
+        assertTrue(imports.none { it.startsWith("import android") || it.startsWith("import org.json") })
+        assertTrue(imports.none { it.startsWith("import com.simposio.taskeer.data") || it.startsWith("import com.simposio.taskeer.ui") })
+        assertTrue(imports.isNotEmpty())
+    }
+
+    @Test
+    fun invitacion_toString_noIncluyeDatosPersonales() {
+        val text = invitation(1, email = "secreto@example.com").toString()
+
+        assertFalse(text.contains("secreto@") || text.contains(uuid(501)) || text.contains(uuid(1)))
+    }
+
+    @Test
+    fun miInvitacion_toString_noIncluyeDatosPersonales() {
+        val text = myInvitation(1, workspaceName = "Equipo Secreto").toString()
+
+        assertFalse(text.contains("Secreto") || text.contains(uuid(601)) || text.contains(uuid(701)))
+    }
+
+    @Test
+    fun aceptacion_toString_noIncluyeElNombre() {
+        assertFalse(AcceptOutcome.Accepted("Equipo Secreto", alreadyMember = false).toString().contains("Secreto"))
     }
 }

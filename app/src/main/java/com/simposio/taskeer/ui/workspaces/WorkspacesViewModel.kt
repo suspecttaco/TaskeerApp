@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
 
 class WorkspacesViewModel(
     private val workspaces: WorkspaceRepository,
-    session: StateFlow<SessionState>,
+    private val session: StateFlow<SessionState>,
 ) : ViewModel() {
 
     private data class Transient(
@@ -40,8 +40,8 @@ class WorkspacesViewModel(
 
     val events: Flow<WorkspacesEvent> = eventChannel.receiveAsFlow()
 
-    val uiState: StateFlow<WorkspacesUiState> = combine(workspaces.state, transient) { state, local ->
-        state.toUi(local)
+    val uiState: StateFlow<WorkspacesUiState> = combine(workspaces.state, transient, session) { state, local, sessionState ->
+        state.toUi(local, WorkspacesScreenRules.showEntry(sessionState))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), WorkspacesUiState())
 
     init {
@@ -59,6 +59,11 @@ class WorkspacesViewModel(
     fun openMembers(id: String) {
         if (workspaces.state.value.items.none { it.id == id }) return
         eventChannel.trySend(WorkspacesEvent.OpenMembers(id))
+    }
+
+    fun openInvitations() {
+        if (!WorkspacesScreenRules.showEntry(session.value)) return
+        eventChannel.trySend(WorkspacesEvent.OpenInvitations)
     }
 
     fun refresh() {
@@ -167,7 +172,7 @@ class WorkspacesViewModel(
         transient.value = change(transient.value)
     }
 
-    private fun WorkspacesState.toUi(local: Transient): WorkspacesUiState {
+    private fun WorkspacesState.toUi(local: Transient, showInvitations: Boolean): WorkspacesUiState {
         val phase = when {
             loaded -> if (items.isEmpty()) WorkspacesPhase.EMPTY else WorkspacesPhase.LIST
             local.refreshing -> WorkspacesPhase.LOADING
@@ -182,6 +187,7 @@ class WorkspacesViewModel(
             dialog = local.dialog,
             submitting = local.submitting,
             dialogError = local.dialogError,
+            showInvitations = showInvitations,
         )
     }
 

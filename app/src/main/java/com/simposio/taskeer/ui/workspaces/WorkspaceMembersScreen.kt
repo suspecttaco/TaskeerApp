@@ -58,14 +58,27 @@ import kotlinx.coroutines.launch
 fun WorkspaceMembersScreen(
     viewModelFactory: ViewModelProvider.Factory,
     onLeave: () -> Unit,
+    onVerifyEmail: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: WorkspaceMembersViewModel = viewModel(factory = viewModelFactory)
+    val invitationsViewModel: WorkspaceInvitationsViewModel = viewModel(factory = viewModelFactory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val invitations by invitationsViewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val resources = LocalResources.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // Los dos ViewModels pueden pedir salir a la vez (sesión cerrada, workspace desaparecido): solo se sale una vez.
+    val leaveOnce = remember(onLeave) {
+        var left = false
+        {
+            if (!left) {
+                left = true
+                onLeave()
+            }
+        }
+    }
 
     LaunchedEffect(viewModel) { viewModel.onOpened() }
     LaunchedEffect(viewModel) {
@@ -75,7 +88,24 @@ fun WorkspaceMembersScreen(
                     announce(context, scope, snackbarHostState, event.message.text(resources), leaving = event.message == WorkspaceMemberErrorMessage.WorkspaceGone)
                 is MembersEvent.ShowMessage ->
                     announce(context, scope, snackbarHostState, event.notice.text(resources), leaving = event.notice is MembersNotice.Left)
-                MembersEvent.LeaveScreen -> onLeave()
+                MembersEvent.LeaveScreen -> leaveOnce()
+            }
+        }
+    }
+    LaunchedEffect(invitationsViewModel) {
+        invitationsViewModel.events.collect { event ->
+            when (event) {
+                is InvitationEvent.ShowError -> announce(
+                    context,
+                    scope,
+                    snackbarHostState,
+                    event.message.text(resources),
+                    leaving = event.message == WorkspaceInvitationErrorMessage.WorkspaceGone,
+                )
+                is InvitationEvent.ShowMessage ->
+                    announce(context, scope, snackbarHostState, event.notice.text(resources), leaving = false)
+                InvitationEvent.OpenVerifyEmail -> onVerifyEmail()
+                InvitationEvent.LeaveScreen -> leaveOnce()
             }
         }
     }
@@ -83,7 +113,14 @@ fun WorkspaceMembersScreen(
     WorkspaceMembersContent(
         state = state,
         snackbarHostState = snackbarHostState,
-        onRefresh = viewModel::refresh,
+        onRefresh = {
+            viewModel.refresh()
+            invitationsViewModel.refresh()
+        },
+        invitations = invitations,
+        onInvite = invitationsViewModel::openInvite,
+        onRevokeInvitation = invitationsViewModel::requestRevoke,
+        onRetryInvitations = invitationsViewModel::refresh,
         onChangeRole = viewModel::openChangeRole,
         onRemove = viewModel::requestRemove,
         onLeave = viewModel::requestLeave,
@@ -91,6 +128,7 @@ fun WorkspaceMembersScreen(
         modifier = modifier,
     )
     WorkspaceMemberDialogs(state, viewModel)
+    WorkspaceInvitationDialogs(invitations, invitationsViewModel)
 }
 
 // Si la pantalla se cierra a continuación, su Snackbar desaparecería con ella: el aviso va en un Toast.
@@ -118,6 +156,10 @@ fun WorkspaceMembersContent(
     onLeave: () -> Unit,
     onTransfer: (String) -> Unit,
     modifier: Modifier = Modifier,
+    invitations: WorkspaceInvitationsUiState = WorkspaceInvitationsUiState(),
+    onInvite: () -> Unit = {},
+    onRevokeInvitation: (String) -> Unit = {},
+    onRetryInvitations: () -> Unit = {},
 ) {
     Scaffold(
         modifier = modifier,
@@ -134,7 +176,10 @@ fun WorkspaceMembersContent(
                     action = StatePageAction(stringResource(R.string.workspace_members_retry), onRefresh),
                 )
                 MembersPhase.EMPTY, MembersPhase.LIST ->
-                    MembersList(state, onRefresh, onChangeRole, onRemove, onLeave, onTransfer)
+                    MembersList(
+                        state, invitations, onRefresh, onChangeRole, onRemove, onLeave, onTransfer,
+                        onInvite, onRevokeInvitation, onRetryInvitations,
+                    )
             }
         }
     }
@@ -152,11 +197,15 @@ private fun LoadingBody() {
 @Composable
 private fun MembersList(
     state: WorkspaceMembersUiState,
+    invitations: WorkspaceInvitationsUiState,
     onRefresh: () -> Unit,
     onChangeRole: (String) -> Unit,
     onRemove: (String) -> Unit,
     onLeave: () -> Unit,
     onTransfer: (String) -> Unit,
+    onInvite: () -> Unit,
+    onRevokeInvitation: (String) -> Unit,
+    onRetryInvitations: () -> Unit,
 ) {
     PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -177,6 +226,7 @@ private fun MembersList(
                 MemberRow(row, onChangeRole, onRemove, onLeave, onTransfer)
                 AppDivider()
             }
+            invitationsSection(invitations, onInvite, onRevokeInvitation, onRetryInvitations)
         }
     }
 }
