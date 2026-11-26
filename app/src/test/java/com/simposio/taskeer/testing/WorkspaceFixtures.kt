@@ -1,6 +1,7 @@
 package com.simposio.taskeer.testing
 
 import com.simposio.taskeer.domain.workspace.Workspace
+import com.simposio.taskeer.domain.workspace.WorkspaceMember
 import com.simposio.taskeer.domain.workspace.WorkspaceRole
 import java.time.Instant
 
@@ -23,3 +24,16 @@ fun workspace(
 )
 
 fun uuid(n: Int): String = "%08d-0000-4000-8000-000000000000".format(n)
+
+fun member(
+    n: Int,
+    role: WorkspaceRole = WorkspaceRole.EDITOR,
+    name: String = "Miembro $n",
+    email: String = "m$n@example.com",
+): WorkspaceMember = WorkspaceMember(
+    userId = uuid(n),
+    email = email,
+    displayName = name,
+    role = role,
+    createdAt = Instant.parse("2026-10-01T10:00:00Z"),
+)
