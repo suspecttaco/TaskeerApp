@@ -58,9 +58,11 @@ android {
 
     buildTypes {
         debug {
-            // 10.0.2.2 es el host de la máquina vista desde el emulador.
+            // Sin backend local por defecto: debug apunta a preproducción. Quien tenga uno propio
+            // lo sobrescribe con -Ptaskeer.apiBaseUrl; 10.0.2.2 (la máquina vista desde el emulador)
+            // sigue permitido en cleartext de debug.
             val apiBaseUrl = providers.gradleProperty("taskeer.apiBaseUrl")
-                .getOrElse("http://10.0.2.2:3100/api/v1/")
+                .getOrElse("https://backend-taskeerv3-preproduction.onrender.com/api/v1/")
             buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         }
         release {
