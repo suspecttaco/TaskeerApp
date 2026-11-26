@@ -21,6 +21,7 @@ import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.date.TimeZoneProvider
 import com.simposio.taskeer.domain.region.RegionPreferences
+import com.simposio.taskeer.testing.FakeAuthRepository
 import com.simposio.taskeer.testing.FakeCalendarRepository
 import com.simposio.taskeer.testing.FakeDayWindowSource
 import com.simposio.taskeer.testing.FakePreferencesRepository
@@ -178,6 +179,7 @@ class AppContainerFactoryTest {
             calendarRepository = FakeCalendarRepository(),
             dayWindowSource = FakeDayWindowSource(java.time.Instant.EPOCH, java.time.ZoneOffset.UTC),
             searchRepository = FakeSearchRepository(),
+            authRepository = FakeAuthRepository(),
         )
 
         val viewModel = AppViewModelFactory(container).create(SubtasksViewModel::class.java)
@@ -210,6 +212,7 @@ class AppContainerFactoryTest {
             calendarRepository = FakeCalendarRepository(),
             dayWindowSource = FakeDayWindowSource(java.time.Instant.EPOCH, java.time.ZoneOffset.UTC),
             searchRepository = FakeSearchRepository(),
+            authRepository = FakeAuthRepository(),
         )
 
         val viewModel = AppViewModelFactory(container).create(MyDayViewModel::class.java)
@@ -240,6 +243,7 @@ class AppContainerFactoryTest {
             calendarRepository = FakeCalendarRepository(),
             dayWindowSource = FakeDayWindowSource(java.time.Instant.EPOCH, java.time.ZoneOffset.UTC),
             searchRepository = FakeSearchRepository(),
+            authRepository = FakeAuthRepository(),
         )
 
         assertSame(planned, container.plannedRepository)
@@ -266,6 +270,7 @@ class AppContainerFactoryTest {
             calendarRepository = FakeCalendarRepository(),
             dayWindowSource = FakeDayWindowSource(java.time.Instant.EPOCH, java.time.ZoneOffset.UTC),
             searchRepository = FakeSearchRepository(),
+            authRepository = FakeAuthRepository(),
         )
 
         val viewModel = AppViewModelFactory(container).create(RemindersViewModel::class.java)
@@ -368,4 +373,24 @@ class AppContainerFactoryTest {
         completedAt = null,
         deletedAt = null,
     )
+
+    @Test
+    fun createAppContainer_construyeAuthRepositoryPorElPuenteDataAuth() {
+        val body = factorySource().substringAfter("fun createAppContainer(").substringBefore("// La lectura inicial")
+
+        assertTrue(factorySource().contains("import com.simposio.taskeer.data.auth.createAuthRepository"))
+        assertEquals(1, Regex("createAuthRepository\\(").findAll(body).count())
+        assertTrue(body.contains("CoroutineScope(SupervisorJob() + Dispatchers.Default)"))
+        assertTrue(!factorySource().contains("data.remote"))
+    }
+
+    @Test
+    fun createAppContainer_noHaceTrabajoDeRedNiBloqueanteParaAuth() {
+        val body = factorySource().substringAfter("fun createAppContainer(").substringBefore("// La lectura inicial")
+        val authLine = body.lines().first { it.contains("createAuthRepository(") }
+
+        assertTrue(!authLine.contains("runBlocking"))
+        assertTrue(!body.contains("resume("))
+        assertEquals(0, Regex("runBlocking").findAll(body).count())
+    }
 }

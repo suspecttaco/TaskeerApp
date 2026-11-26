@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.simposio.taskeer.ui.app.AppViewModel
+import com.simposio.taskeer.ui.auth.LoginViewModel
+import com.simposio.taskeer.ui.auth.SessionViewModel
 import com.simposio.taskeer.ui.components.settleMillis
 import com.simposio.taskeer.ui.board.BoardViewModel
 import com.simposio.taskeer.ui.calendar.CalendarViewModel
@@ -161,6 +163,11 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
             ) as T
         modelClass.isAssignableFrom(UnreadCounterViewModel::class.java) ->
             UnreadCounterViewModel(container.notificationHistoryRepository) as T
+
+        modelClass.isAssignableFrom(LoginViewModel::class.java) ->
+            LoginViewModel(container.authRepository) as T
+        modelClass.isAssignableFrom(SessionViewModel::class.java) ->
+            SessionViewModel(container.authRepository) as T
 
         else -> error("AppViewModelFactory no sabe construir ${modelClass.name}")
     }

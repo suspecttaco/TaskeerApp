@@ -1,5 +1,7 @@
 package com.simposio.taskeer.di
 
+import com.simposio.taskeer.ui.auth.SessionViewModel
+import com.simposio.taskeer.ui.auth.LoginViewModel
 import com.simposio.taskeer.data.reminder.ReminderReconciler
 import com.simposio.taskeer.data.repository.BoardRepository
 import com.simposio.taskeer.data.repository.ColumnRepository
@@ -9,6 +11,7 @@ import com.simposio.taskeer.data.repository.PreferencesRepository
 import com.simposio.taskeer.data.repository.ReminderRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskRepository
+import com.simposio.taskeer.testing.FakeAuthRepository
 import com.simposio.taskeer.testing.FakeCalendarRepository
 import com.simposio.taskeer.testing.FakeDayWindowSource
 import com.simposio.taskeer.testing.FakeDestinationTaskRepository
@@ -120,6 +123,7 @@ class AppViewModelFactoryTest {
         calendarRepository = FakeCalendarRepository(),
         dayWindowSource = FakeDayWindowSource(java.time.Instant.EPOCH, java.time.ZoneOffset.UTC),
         searchRepository = FakeSearchRepository(),
+        authRepository = FakeAuthRepository(),
     )
 
     private inline fun <reified T : Any> stub(): T = Proxy.newProxyInstance(
@@ -133,4 +137,18 @@ class AppViewModelFactoryTest {
     ) { _, method, _ ->
         if (method.returnType == Flow::class.java) emptyFlow<Any>() else error("${method.name} no se usa en este test")
     } as T
+
+    @Test
+    fun creaSessionViewModel() {
+        val factory = AppViewModelFactory(container())
+
+        assertEquals(SessionViewModel::class.java, factory.create(SessionViewModel::class.java).javaClass)
+    }
+
+    @Test
+    fun creaLoginViewModel() {
+        val factory = AppViewModelFactory(container())
+
+        assertEquals(LoginViewModel::class.java, factory.create(LoginViewModel::class.java).javaClass)
+    }
 }
