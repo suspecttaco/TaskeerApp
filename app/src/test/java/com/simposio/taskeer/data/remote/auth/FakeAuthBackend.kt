@@ -19,6 +19,14 @@ class FakeAuthBackend(private val b8: Boolean) : HttpTransport {
     var resendAlreadyVerified = false
     val rotating = FakeRotatingBackend(grace = true)
 
+    // Modelo de servidor: 10 códigos de un solo uso, regeneración que borra los anteriores y revocación de refresh.
+    var password = PASSWORD
+    var changeReturnsRefresh = true
+    val usedCodes = mutableSetOf<String>()
+    var recoveryCodes = REGISTER_CODES.toMutableList()
+    private val issuedRefreshTokens = mutableListOf<String>()
+    private var currentAccess = "access-login"
+
     override suspend fun send(request: HttpRequest): TransportResult {
         requests += request
         return when {
@@ -27,6 +35,9 @@ class FakeAuthBackend(private val b8: Boolean) : HttpTransport {
             request.url.endsWith("auth/register") -> register(request)
             request.url.contains("auth/verify-email") -> verifyEmail(request)
             request.url.endsWith("auth/resend-verification") -> resendVerification(request)
+            request.url.endsWith("auth/reset-password-with-code") -> resetPassword(request)
+            request.url.endsWith("auth/change-password") -> changePassword(request)
+            request.url.endsWith("auth/recovery-codes/regenerate") -> regenerateCodes(request)
             request.url.endsWith("auth/refresh") -> refresh(request)
             else -> response(404, errorBody("ROUTE_NOT_FOUND"))
         }
@@ -34,13 +45,15 @@ class FakeAuthBackend(private val b8: Boolean) : HttpTransport {
 
     private fun login(request: HttpRequest): TransportResult {
         val body = JSONObject(requireNotNull(request.body))
-        if (body.getString("email") != EMAIL || body.getString("password") != PASSWORD) {
+        if (body.getString("email") != EMAIL || body.getString("password") != password) {
             return response(401, errorBody("INVALID_CREDENTIALS"))
         }
         val user = JSONObject().put("email", EMAIL).put("displayName", "Ana")
         val payload = JSONObject().put("accessToken", "access-login").put("user", user)
         if (b8) {
             rotating.seed("access-login", "refresh-login")
+            currentAccess = "access-login"
+            issuedRefreshTokens += "refresh-login"
             payload.put("refreshToken", "refresh-login")
         }
         return response(200, payload.toString())
@@ -67,6 +80,45 @@ class FakeAuthBackend(private val b8: Boolean) : HttpTransport {
         if (resendAlreadyVerified) return response(200, JSONObject().put("alreadyVerified", true).toString())
         if (!verificationEnabled) return response(503, errorBody("EMAIL_VERIFICATION_DISABLED"))
         return response(200, JSONObject().put("alreadyVerified", false).toString())
+    }
+
+    private fun resetPassword(request: HttpRequest): TransportResult {
+        val body = JSONObject(requireNotNull(request.body))
+        val code = body.getString("code")
+        if (body.getString("email") != EMAIL || code !in recoveryCodes || code in usedCodes) {
+            return response(400, errorBody("INVALID_RECOVERY_CODE"))
+        }
+        usedCodes += code
+        password = body.getString("newPassword")
+        revokedRefreshTokens += issuedRefreshTokens
+        return response(200, JSONObject().put("reset", true).toString())
+    }
+
+    private fun changePassword(request: HttpRequest): TransportResult {
+        if (request.headers["Authorization"] != "Bearer $currentAccess") return response(401, errorBody("UNAUTHENTICATED"))
+        val body = JSONObject(requireNotNull(request.body))
+        if (body.getString("currentPassword") != password) return response(401, errorBody("INVALID_CREDENTIALS"))
+        password = body.getString("newPassword")
+        revokedRefreshTokens += issuedRefreshTokens
+        val user = JSONObject().put("email", EMAIL).put("displayName", "Ana").put("hasPassword", true)
+        val payload = JSONObject().put("accessToken", "access-change").put("user", user)
+        currentAccess = "access-change"
+        if (changeReturnsRefresh) {
+            rotating.seed("access-change", "refresh-change")
+            issuedRefreshTokens += "refresh-change"
+            payload.put("refreshToken", "refresh-change")
+        }
+        return response(200, payload.toString())
+    }
+
+    private fun regenerateCodes(request: HttpRequest): TransportResult {
+        if (request.headers["Authorization"] != "Bearer $currentAccess") return response(401, errorBody("UNAUTHENTICATED"))
+        if (JSONObject(requireNotNull(request.body)).getString("currentPassword") != password) {
+            return response(401, errorBody("INVALID_CREDENTIALS"))
+        }
+        usedCodes.clear()
+        recoveryCodes = List(10) { "NEW1-%04d".format(it) }.toMutableList()
+        return response(200, JSONObject().put("recoveryCodes", JSONArray(recoveryCodes)).toString())
     }
 
     private fun logout(request: HttpRequest): TransportResult {

@@ -16,6 +16,7 @@ object AuthRules {
     const val PASSWORD_TOO_LONG = "PASSWORD_TOO_LONG"
     const val MOBILE_CLIENT_NOT_SUPPORTED = "MOBILE_CLIENT_NOT_SUPPORTED"
     const val ALREADY_SIGNED_IN = "ALREADY_SIGNED_IN"
+    const val CODE_INVALID = "CODE_INVALID"
 
     private const val SECONDS_PER_MINUTE = 60L
     private const val MAX_LOCKOUT_SECONDS = 900L
@@ -48,6 +49,25 @@ object AuthRules {
             else -> null
         }
     }
+
+    fun validateCurrentPassword(current: CharArray): DomainError.Validation? = when {
+        current.isEmpty() -> DomainError.Validation(PASSWORD_REQUIRED, "Escribe tu contraseña actual")
+        current.size > PASSWORD_MAX -> DomainError.Validation(PASSWORD_TOO_LONG, "La contraseña es demasiado larga")
+        else -> null
+    }
+
+    fun validateNewPassword(newPassword: CharArray, confirmation: CharArray): DomainError.Validation? = when {
+        newPassword.size < PASSWORD_MIN || newPassword.size > PASSWORD_MAX ->
+            DomainError.Validation(PASSWORD_TOO_SHORT, "La contraseña debe tener entre 8 y 128 caracteres")
+        !passwordsMatch(newPassword, confirmation) ->
+            DomainError.Validation(PASSWORD_MISMATCH, "Las contraseñas no coinciden")
+        else -> null
+    }
+
+    fun validateChangePassword(current: CharArray, newPassword: CharArray, confirmation: CharArray): DomainError.Validation? =
+        validateCurrentPassword(current) ?: validateNewPassword(newPassword, confirmation)
+
+    fun isEmailShapeValid(email: String): Boolean = isEmailValid(email)
 
     fun passwordsMatch(password: CharArray, confirmation: CharArray): Boolean = password.contentEquals(confirmation)
 

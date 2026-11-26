@@ -182,4 +182,70 @@ class AuthApiContractTest {
         assertEquals(false, registerWith("""{"email":"a@b.co","emailVerifiedAt":null}""")?.emailVerified)
         assertNull(registerWith("""{"email":"a@b.co"}""")?.emailVerified)
     }
+
+    @Test
+    fun resetBody_llevaEmailCodeYNewPassword() {
+        val body = JSONObject(AuthApiContract.resetBody("ana@example.com", "ABCD-EF12", "nueva-clave".toCharArray()))
+
+        assertEquals("ana@example.com", body.getString("email"))
+        assertEquals("ABCD-EF12", body.getString("code"))
+        assertEquals("nueva-clave", body.getString("newPassword"))
+    }
+
+    @Test
+    fun changePasswordBody_llevaActualYNueva() {
+        val body = JSONObject(AuthApiContract.changePasswordBody("vieja".toCharArray(), "nueva-clave".toCharArray()))
+
+        assertEquals("vieja", body.getString("currentPassword"))
+        assertEquals("nueva-clave", body.getString("newPassword"))
+    }
+
+    @Test
+    fun regenerateBody_llevaSoloLaContrasenaActual() {
+        val body = JSONObject(AuthApiContract.regenerateBody("vieja".toCharArray()))
+
+        assertEquals("vieja", body.getString("currentPassword"))
+        assertEquals(1, body.length())
+    }
+
+    @Test
+    fun parseRecoveryCodes_conDiezCodigos_losDevuelve() {
+        val codes = List(10) { "ABCD-000$it" }
+
+        assertEquals(codes, AuthApiContract.parseRecoveryCodes(JSONObject().put("recoveryCodes", JSONArray(codes)).toString()))
+    }
+
+    @Test
+    fun parseRecoveryCodes_sinClaveOVacio_esListaVacia() {
+        assertEquals(emptyList<String>(), AuthApiContract.parseRecoveryCodes("""{}"""))
+        assertEquals(emptyList<String>(), AuthApiContract.parseRecoveryCodes("""{"recoveryCodes":[]}"""))
+    }
+
+    @Test
+    fun parseRecoveryCodes_ilegible_esNull() {
+        assertNull(AuthApiContract.parseRecoveryCodes("<html>"))
+    }
+
+    @Test
+    fun parseRecoveryCodes_descartaLoQueNoSonCadenas() {
+        assertEquals(listOf("AAAA-BBBB"), AuthApiContract.parseRecoveryCodes("""{"recoveryCodes":[7,null,"AAAA-BBBB"," "]}"""))
+    }
+
+    @Test
+    fun parseLogin_conHasPassword_losDistingue() {
+        fun hasPassword(user: String) = (AuthApiContract.parseLogin(
+            """{"accessToken":"a","refreshToken":"r","user":$user}""",
+        ) as AuthApiContract.LoginResponse.Tokens).account.hasPassword
+
+        assertEquals(false, hasPassword("""{"email":"a@b.co","hasPassword":false}"""))
+        assertEquals(true, hasPassword("""{"email":"a@b.co","hasPassword":true}"""))
+        assertNull(hasPassword("""{"email":"a@b.co"}"""))
+    }
+
+    @Test
+    fun parseRegister_conHasPassword_loConserva() {
+        val parsed = created("""{"user":{"email":"a@b.co","displayName":"Ana","hasPassword":true},"recoveryCodes":["AAAA-BBBB"]}""")
+
+        assertEquals(true, parsed.account?.hasPassword)
+    }
 }

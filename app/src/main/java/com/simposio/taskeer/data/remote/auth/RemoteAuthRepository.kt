@@ -11,11 +11,15 @@ import com.simposio.taskeer.data.remote.session.RenewOutcome
 import com.simposio.taskeer.data.repository.AuthRepository
 import com.simposio.taskeer.domain.auth.AccountSummary
 import com.simposio.taskeer.domain.auth.AuthRules
+import com.simposio.taskeer.domain.auth.ChangePasswordOutcome
 import com.simposio.taskeer.domain.auth.LoginOutcome
 import com.simposio.taskeer.domain.auth.LogoutOutcome
+import com.simposio.taskeer.domain.auth.RecoveryCodeInput
 import com.simposio.taskeer.domain.auth.RecoveryCodes
+import com.simposio.taskeer.domain.auth.RegenerateCodesOutcome
 import com.simposio.taskeer.domain.auth.RegisterOutcome
 import com.simposio.taskeer.domain.auth.ResendVerificationOutcome
+import com.simposio.taskeer.domain.auth.ResetPasswordOutcome
 import com.simposio.taskeer.domain.auth.SessionState
 import com.simposio.taskeer.domain.auth.VerificationInput
 import com.simposio.taskeer.domain.auth.VerifyEmailOutcome
@@ -155,6 +159,7 @@ class RemoteAuthRepository(
                                     email = parsed.account?.email?.takeIf { it.isNotBlank() } ?: sentEmail,
                                     displayName = parsed.account?.displayName?.takeIf { it.isNotBlank() } ?: sentName,
                                     emailVerified = parsed.account?.emailVerified,
+                                    hasPassword = parsed.account?.hasPassword,
                                 ),
                                 RecoveryCodes(parsed.codes),
                             )
@@ -207,6 +212,115 @@ class RemoteAuthRepository(
                     DomainError.Server("RESEND_UNREADABLE", UNREADABLE_MESSAGE),
                 )
             }
+        }
+    }
+
+    // No toma `authMutex` ni toca `AuthSession`: el reset es público y no inicia ni cierra sesión.
+    override suspend fun resetPassword(email: String, code: String, newPassword: CharArray): ResetPasswordOutcome {
+        try {
+            if (!AuthRules.isEmailShapeValid(email)) {
+                return ResetPasswordOutcome.Failed(DomainError.Validation(AuthRules.EMAIL_INVALID, "Escribe un correo válido"))
+            }
+            val normalizedCode = RecoveryCodeInput.normalize(code)
+                ?: return ResetPasswordOutcome.Failed(
+                    DomainError.Validation(AuthRules.CODE_INVALID, "El código tiene el formato XXXX-XXXX"),
+                )
+            if (newPassword.size < AuthRules.PASSWORD_MIN || newPassword.size > AuthRules.PASSWORD_MAX) {
+                return ResetPasswordOutcome.Failed(
+                    DomainError.Validation(AuthRules.PASSWORD_TOO_SHORT, "La contraseña debe tener entre 8 y 128 caracteres"),
+                )
+            }
+            val request = ApiRequest(
+                method = HttpMethod.POST,
+                path = AuthApiContract.RESET_PASSWORD_PATH,
+                jsonBody = AuthApiContract.resetBody(AuthRules.normalizedEmail(email), normalizedCode, newPassword),
+                auth = AuthMode.NONE,
+            )
+            // Cualquier 2xx es éxito: el servidor ya gastó el código y reintentar con él fallaría.
+            return when (val result = client.execute(request)) {
+                is ApiResult.Failure -> ResetPasswordOutcome.Failed(result.error, result.retryAfterSeconds)
+                is ApiResult.Success -> ResetPasswordOutcome.Reset
+            }
+        } finally {
+            newPassword.fill('\u0000')
+        }
+    }
+
+    override suspend fun changePassword(currentPassword: CharArray, newPassword: CharArray): ChangePasswordOutcome {
+        try {
+            AuthRules.validateCurrentPassword(currentPassword)?.let { return ChangePasswordOutcome.Failed(it) }
+            if (newPassword.size < AuthRules.PASSWORD_MIN || newPassword.size > AuthRules.PASSWORD_MAX) {
+                return ChangePasswordOutcome.Failed(
+                    DomainError.Validation(AuthRules.PASSWORD_TOO_SHORT, "La contraseña debe tener entre 8 y 128 caracteres"),
+                )
+            }
+            return authMutex.withLock {
+                if (state.value !is SessionState.SignedIn) {
+                    return@withLock ChangePasswordOutcome.Failed(
+                        DomainError.Unauthenticated(NOT_SIGNED_IN, "No hay una sesión iniciada"),
+                    )
+                }
+                val request = ApiRequest(
+                    method = HttpMethod.POST,
+                    path = AuthApiContract.CHANGE_PASSWORD_PATH,
+                    jsonBody = AuthApiContract.changePasswordBody(currentPassword, newPassword),
+                    auth = AuthMode.BEARER,
+                )
+                when (val result = client.execute(request)) {
+                    is ApiResult.Failure -> ChangePasswordOutcome.Failed(result.error, result.retryAfterSeconds)
+                    // Salir de la pantalla a mitad no debe dejar un refresh emitido por el servidor sin guardar.
+                    is ApiResult.Success -> withContext(NonCancellable) { completePasswordChange(result.response.body) }
+                }
+            }
+        } finally {
+            currentPassword.fill('\u0000')
+            newPassword.fill('\u0000')
+        }
+    }
+
+    private suspend fun completePasswordChange(body: String): ChangePasswordOutcome =
+        when (val parsed = AuthApiContract.parseLogin(body)) {
+            is AuthApiContract.LoginResponse.Tokens -> {
+                session.start(parsed.accessToken, parsed.refreshToken)
+                knownAccount = parsed.account
+                state.value = SessionState.SignedIn(parsed.account, offline = false)
+                ChangePasswordOutcome.Changed(parsed.account)
+            }
+            // El servidor ya revocó el refresh local: mantener SignedIn solo produciría un 401 confuso a los 15 min.
+            AuthApiContract.LoginResponse.NoRefreshToken, null -> {
+                logoutEpoch.incrementAndGet()
+                pendingRenewal.get()?.cancel()
+                session.endSession()
+                knownAccount = null
+                state.value = SessionState.SignedOut()
+                ChangePasswordOutcome.ChangedSignedOut
+            }
+        }
+
+    // No toma `authMutex`: regenerar no cambia la sesión.
+    override suspend fun regenerateRecoveryCodes(currentPassword: CharArray): RegenerateCodesOutcome {
+        try {
+            AuthRules.validateCurrentPassword(currentPassword)?.let { return RegenerateCodesOutcome.Failed(it) }
+            if (state.value !is SessionState.SignedIn) {
+                return RegenerateCodesOutcome.Failed(
+                    DomainError.Unauthenticated(NOT_SIGNED_IN, "No hay una sesión iniciada"),
+                )
+            }
+            val request = ApiRequest(
+                method = HttpMethod.POST,
+                path = AuthApiContract.REGENERATE_CODES_PATH,
+                jsonBody = AuthApiContract.regenerateBody(currentPassword),
+                auth = AuthMode.BEARER,
+            )
+            return when (val result = client.execute(request)) {
+                is ApiResult.Failure -> RegenerateCodesOutcome.Failed(result.error, result.retryAfterSeconds)
+                is ApiResult.Success -> AuthApiContract.parseRecoveryCodes(result.response.body)
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { RegenerateCodesOutcome.Regenerated(RecoveryCodes(it)) }
+                    ?: RegenerateCodesOutcome.RegeneratedWithoutCodes
+            }
+        } finally {
+            currentPassword.fill('\u0000')
         }
     }
 
