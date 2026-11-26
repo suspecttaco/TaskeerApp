@@ -70,4 +70,10 @@ class LoginScreenSourceTest {
     fun erroresSeAnuncianConLiveRegion() {
         assertTrue(screen.contains("liveRegion = LiveRegionMode.Polite"))
     }
+
+    @Test
+    fun hayAccesoATengoUnEnlace() {
+        assertEquals(1, Regex("R\\.string\\.verify_have_link").findAll(screen).count())
+        assertTrue(screen.contains("onHaveVerificationLink"))
+    }
 }

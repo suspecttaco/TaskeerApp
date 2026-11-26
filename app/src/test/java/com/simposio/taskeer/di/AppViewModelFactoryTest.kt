@@ -34,6 +34,8 @@ import com.simposio.taskeer.ui.tasks.TaskDeletionViewModel
 import com.simposio.taskeer.ui.tasks.TaskEditorViewModel
 import com.simposio.taskeer.ui.tasks.MoveToListViewModel
 import com.simposio.taskeer.ui.upcoming.UpcomingViewModel
+import com.simposio.taskeer.ui.verifyemail.ResendVerificationViewModel
+import com.simposio.taskeer.ui.verifyemail.VerifyEmailViewModel
 import java.lang.reflect.Proxy
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -161,6 +163,17 @@ class AppViewModelFactoryTest {
 
         assertTrue(
             factory.contains("RegisterViewModel(container.authRepository, extras.createSavedStateHandle())"),
+        )
+    }
+
+    @Test
+    fun creaVerifyEmailYResendViewModels() {
+        val factory = AppViewModelFactory(container())
+
+        assertEquals(VerifyEmailViewModel::class.java, factory.create(VerifyEmailViewModel::class.java).javaClass)
+        assertEquals(
+            ResendVerificationViewModel::class.java,
+            factory.create(ResendVerificationViewModel::class.java).javaClass,
         )
     }
 }

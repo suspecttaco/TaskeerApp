@@ -14,6 +14,7 @@ enum class AppDestination(val route: String) {
     SETTINGS("settings"),
     LOGIN("login"),
     REGISTER("register"),
+    VERIFY_EMAIL("verify-email"),
     ;
 
     fun upRoute(boardId: String): String? = when (this) {

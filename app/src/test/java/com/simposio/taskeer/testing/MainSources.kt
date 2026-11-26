@@ -18,5 +18,7 @@ object MainSources {
     fun kotlinFiles(relativeDirectory: String): List<File> =
         File(kotlinRoot, relativeDirectory).walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
 
+    fun manifest(): String = File(root, "AndroidManifest.xml").readText()
+
     fun strings(): String = File(root, "res/values/strings.xml").readText()
 }

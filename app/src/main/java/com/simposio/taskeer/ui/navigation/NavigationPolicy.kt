@@ -46,7 +46,7 @@ fun backStep(destination: AppDestination?, boardId: String?, hasPrevious: Boolea
         AppDestination.BOARD,
         AppDestination.SEARCH,
         -> AppDestination.HOME.route
-        AppDestination.LOGIN -> AppDestination.SETTINGS.route
+        AppDestination.LOGIN, AppDestination.VERIFY_EMAIL -> AppDestination.SETTINGS.route
         AppDestination.REGISTER -> AppDestination.LOGIN.route
         AppDestination.BOARD_COLUMNS -> boardId?.let(AppDestination::boardRoute) ?: return BackStep.None
     }

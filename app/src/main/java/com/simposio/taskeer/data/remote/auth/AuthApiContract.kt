@@ -11,6 +11,8 @@ internal object AuthApiContract {
     const val LOGIN_PATH = "auth/login"
     const val LOGOUT_PATH = "auth/logout"
     const val REGISTER_PATH = "auth/register"
+    const val VERIFY_EMAIL_PATH = "auth/verify-email"
+    const val RESEND_VERIFICATION_PATH = "auth/resend-verification"
 
     sealed interface LoginResponse {
         // El backend sin B8 responde 200 con el refresh solo en cookie.
@@ -59,6 +61,7 @@ internal object AuthApiContract {
                     account = AccountSummary(
                         email = user?.optString("email").orEmpty(),
                         displayName = user?.optString("displayName").orEmpty(),
+                        emailVerified = emailVerifiedOf(user),
                     ),
                 )
             }
@@ -74,12 +77,28 @@ internal object AuthApiContract {
         val email = user?.optString("email").orEmpty()
         val displayName = user?.optString("displayName").orEmpty()
         RegisterResponse.Created(
-            account = if (user == null || email.isBlank()) null else AccountSummary(email, displayName),
+            account = if (user == null || email.isBlank()) null else AccountSummary(email, displayName, emailVerifiedOf(user)),
             codes = codesOf(json.optJSONArray("recoveryCodes")),
         )
     } catch (_: JSONException) {
         RegisterResponse.Unreadable
     }
+
+    fun parseVerified(body: String): Boolean = try {
+        JSONObject(body).optBoolean("verified", false)
+    } catch (_: JSONException) {
+        false
+    }
+
+    fun parseAlreadyVerified(body: String): Boolean? = try {
+        JSONObject(body).takeIf { it.has("alreadyVerified") }?.optBoolean("alreadyVerified")
+    } catch (_: JSONException) {
+        null
+    }
+
+    // Ausente = desconocido; nulo explícito = sin verificar.
+    private fun emailVerifiedOf(user: JSONObject?): Boolean? =
+        if (user == null || !user.has("emailVerifiedAt")) null else !user.isNull("emailVerifiedAt")
 
     private fun codesOf(array: JSONArray?): List<String> {
         if (array == null) return emptyList()

@@ -16,17 +16,21 @@ import com.simposio.taskeer.ui.auth.SessionViewModel
 import com.simposio.taskeer.ui.components.AppDivider
 import com.simposio.taskeer.ui.permission.NotificationPermissionNotice
 import com.simposio.taskeer.ui.theme.Spacing
+import com.simposio.taskeer.ui.verifyemail.ResendVerificationViewModel
 
 @Composable
 fun SettingsScreen(
     viewModelFactory: ViewModelProvider.Factory,
     session: SessionViewModel,
     onSignIn: () -> Unit,
+    onHaveVerificationLink: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: SettingsViewModel = viewModel(factory = viewModelFactory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val sessionState by session.state.collectAsStateWithLifecycle()
+    val resendViewModel: ResendVerificationViewModel = viewModel(factory = viewModelFactory)
+    val resendState by resendViewModel.uiState.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier
@@ -37,10 +41,13 @@ fun SettingsScreen(
     ) {
         AccountSettingsSection(
             state = sessionState,
+            resend = resendState,
             actions = AccountSectionActions(
                 onSignIn = onSignIn,
                 onRetry = session::retryResume,
                 onSignOut = session::logout,
+                onResendVerification = resendViewModel::resend,
+                onHaveVerificationLink = onHaveVerificationLink,
             ),
         )
         AppDivider()

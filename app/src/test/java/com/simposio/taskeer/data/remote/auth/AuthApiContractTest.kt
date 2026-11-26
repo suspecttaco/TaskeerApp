@@ -127,4 +127,59 @@ class AuthApiContractTest {
 
         assertFalse(rendered.contains("AAAA"))
     }
+
+    @Test
+    fun parseVerified_conVerifiedTrue_esTrue() {
+        assertTrue(AuthApiContract.parseVerified("""{"verified":true}"""))
+    }
+
+    @Test
+    fun parseVerified_conVerifiedFalseOSinClave_esFalse() {
+        assertFalse(AuthApiContract.parseVerified("""{"verified":false}"""))
+        assertFalse(AuthApiContract.parseVerified("""{}"""))
+    }
+
+    @Test
+    fun parseVerified_jsonRoto_esFalse() {
+        assertFalse(AuthApiContract.parseVerified("<html>"))
+        assertFalse(AuthApiContract.parseVerified(""))
+    }
+
+    @Test
+    fun parseAlreadyVerified_distingueTrueFalseEIlegible() {
+        assertEquals(true, AuthApiContract.parseAlreadyVerified("""{"alreadyVerified":true}"""))
+        assertEquals(false, AuthApiContract.parseAlreadyVerified("""{"alreadyVerified":false}"""))
+        assertNull(AuthApiContract.parseAlreadyVerified("""{}"""))
+        assertNull(AuthApiContract.parseAlreadyVerified("<html>"))
+    }
+
+    private fun loginWith(user: String) =
+        AuthApiContract.parseLogin("""{"accessToken":"a","refreshToken":"r","user":$user}""")
+            as AuthApiContract.LoginResponse.Tokens
+
+    @Test
+    fun parseLogin_conEmailVerifiedAtPresente_esVerificado() {
+        assertEquals(true, loginWith("""{"email":"a@b.co","emailVerifiedAt":"2026-11-01T00:00:00Z"}""").account.emailVerified)
+    }
+
+    @Test
+    fun parseLogin_conEmailVerifiedAtNulo_noEstaVerificado() {
+        assertEquals(false, loginWith("""{"email":"a@b.co","emailVerifiedAt":null}""").account.emailVerified)
+    }
+
+    @Test
+    fun parseLogin_sinEmailVerifiedAt_esDesconocido() {
+        assertNull(loginWith("""{"email":"a@b.co"}""").account.emailVerified)
+    }
+
+    private fun registerWith(user: String) =
+        (AuthApiContract.parseRegister("""{"user":$user,"recoveryCodes":["A"]}""")
+            as AuthApiContract.RegisterResponse.Created).account
+
+    @Test
+    fun parseRegister_conEmailVerifiedAt_derivaElEstado() {
+        assertEquals(true, registerWith("""{"email":"a@b.co","emailVerifiedAt":"2026-11-01T00:00:00Z"}""")?.emailVerified)
+        assertEquals(false, registerWith("""{"email":"a@b.co","emailVerifiedAt":null}""")?.emailVerified)
+        assertNull(registerWith("""{"email":"a@b.co"}""")?.emailVerified)
+    }
 }

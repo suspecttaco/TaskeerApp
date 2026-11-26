@@ -49,4 +49,16 @@ class AppNavHostSourceTest {
         assertTrue(source.contains("startDestination = AppDestination.START.route"))
         assertFalse(source.contains("SessionState"))
     }
+
+    @Test
+    fun hayRutaVerifyEmailSinArgumentos() {
+        assertTrue(source.contains("composable(AppDestination.VERIFY_EMAIL.route)"))
+        assertTrue(source.contains("VerifyEmailScreen("))
+        assertFalse(AppDestination.VERIFY_EMAIL.route.contains("{"))
+    }
+
+    @Test
+    fun losAccesosAVerificarCorreoVienenDeAjustesYDelLogin() {
+        assertEquals(2, Regex("navigate\\(AppDestination\\.VERIFY_EMAIL\\.route\\)").findAll(source).count())
+    }
 }

@@ -416,6 +416,7 @@ private fun AppDestination.title(listName: String?, boardName: String?): String 
     AppDestination.SETTINGS -> stringResource(R.string.menu_settings)
     AppDestination.LOGIN -> stringResource(R.string.auth_login_title)
     AppDestination.REGISTER -> stringResource(R.string.register_title)
+    AppDestination.VERIFY_EMAIL -> stringResource(R.string.verify_title)
 }
 
 @Preview(showBackground = true)

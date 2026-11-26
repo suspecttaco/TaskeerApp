@@ -31,6 +31,7 @@ import com.simposio.taskeer.ui.search.SearchScreen
 import com.simposio.taskeer.ui.settings.SettingsScreen
 import com.simposio.taskeer.ui.tasks.SwipeHintState
 import com.simposio.taskeer.ui.upcoming.UpcomingScreen
+import com.simposio.taskeer.ui.verifyemail.VerifyEmailScreen
 import java.time.LocalDate
 
 @Composable
@@ -103,6 +104,9 @@ fun AppNavHost(
                 viewModelFactory = viewModelFactory,
                 session = session,
                 onSignIn = { navController.navigate(AppDestination.LOGIN.route) { launchSingleTop = true } },
+                onHaveVerificationLink = {
+                    navController.navigate(AppDestination.VERIFY_EMAIL.route) { launchSingleTop = true }
+                },
             )
         }
         composable(AppDestination.LOGIN.route) {
@@ -110,6 +114,9 @@ fun AppNavHost(
                 viewModelFactory = viewModelFactory,
                 onSignedIn = { navController.popBackStack() },
                 onCreateAccount = { navController.navigate(AppDestination.REGISTER.route) { launchSingleTop = true } },
+                onHaveVerificationLink = {
+                    navController.navigate(AppDestination.VERIFY_EMAIL.route) { launchSingleTop = true }
+                },
                 prefillEmail = pendingLoginEmail,
                 onPrefillConsumed = { pendingLoginEmail = null },
             )
@@ -125,6 +132,12 @@ fun AppNavHost(
                     }
                 },
                 onHaveAccount = { navController.popBackStack() },
+            )
+        }
+        composable(AppDestination.VERIFY_EMAIL.route) {
+            VerifyEmailScreen(
+                viewModelFactory = viewModelFactory,
+                onDone = { navController.popBackStack() },
             )
         }
         composable(AppDestination.SEARCH.route) {

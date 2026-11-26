@@ -14,6 +14,9 @@ class FakeAuthBackend(private val b8: Boolean) : HttpTransport {
     val requests = mutableListOf<HttpRequest>()
     val revokedRefreshTokens = mutableListOf<String>()
     val registeredEmails = mutableListOf<String>()
+    val validVerificationTokens = mutableSetOf<String>()
+    var verificationEnabled = true
+    var resendAlreadyVerified = false
     val rotating = FakeRotatingBackend(grace = true)
 
     override suspend fun send(request: HttpRequest): TransportResult {
@@ -22,6 +25,8 @@ class FakeAuthBackend(private val b8: Boolean) : HttpTransport {
             request.url.endsWith("auth/login") -> login(request)
             request.url.endsWith("auth/logout") -> logout(request)
             request.url.endsWith("auth/register") -> register(request)
+            request.url.contains("auth/verify-email") -> verifyEmail(request)
+            request.url.endsWith("auth/resend-verification") -> resendVerification(request)
             request.url.endsWith("auth/refresh") -> refresh(request)
             else -> response(404, errorBody("ROUTE_NOT_FOUND"))
         }
@@ -49,6 +54,19 @@ class FakeAuthBackend(private val b8: Boolean) : HttpTransport {
         val user = JSONObject().put("email", email).put("displayName", body.getString("displayName"))
         val codes = JSONArray(REGISTER_CODES)
         return response(201, JSONObject().put("user", user).put("recoveryCodes", codes).toString())
+    }
+
+    private fun verifyEmail(request: HttpRequest): TransportResult {
+        val token = request.url.substringAfter("token=", "")
+        if (!validVerificationTokens.remove(token)) return response(400, errorBody("INVALID_OR_EXPIRED_TOKEN"))
+        return response(200, JSONObject().put("verified", true).toString())
+    }
+
+    private fun resendVerification(request: HttpRequest): TransportResult {
+        if (request.headers["Authorization"] != "Bearer access-login") return response(401, errorBody("UNAUTHENTICATED"))
+        if (resendAlreadyVerified) return response(200, JSONObject().put("alreadyVerified", true).toString())
+        if (!verificationEnabled) return response(503, errorBody("EMAIL_VERIFICATION_DISABLED"))
+        return response(200, JSONObject().put("alreadyVerified", false).toString())
     }
 
     private fun logout(request: HttpRequest): TransportResult {

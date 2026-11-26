@@ -138,4 +138,10 @@ class NavigationPolicyTest {
         assertEquals(BackStep.Navigate("login"), backStep(AppDestination.REGISTER, null, hasPrevious = false))
         assertEquals(BackStep.Pop, backStep(AppDestination.REGISTER, null, hasPrevious = true))
     }
+
+    @Test
+    fun verifyEmail_caeASettings() {
+        assertEquals(BackStep.Navigate("settings"), backStep(AppDestination.VERIFY_EMAIL, null, hasPrevious = false))
+        assertEquals(BackStep.Pop, backStep(AppDestination.VERIFY_EMAIL, null, hasPrevious = true))
+    }
 }
