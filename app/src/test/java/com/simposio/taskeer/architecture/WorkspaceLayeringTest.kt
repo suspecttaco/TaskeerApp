@@ -42,6 +42,44 @@ class WorkspaceLayeringTest {
         assertTrue("los miembros viven solo en memoria: $violations", violations.isEmpty())
     }
 
+    private val invitationFiles = listOf(
+        "data/remote/workspaces/RemoteWorkspaceInvitationsRepository.kt",
+        "data/remote/workspaces/RemoteMyInvitationsRepository.kt",
+        "data/remote/workspaces/InvitationsApiContract.kt",
+        "data/repository/WorkspaceInvitationsRepository.kt",
+        "data/repository/MyInvitationsRepository.kt",
+        "domain/workspace/Invitation.kt",
+        "domain/workspace/InvitationRules.kt",
+    )
+
+    @Test
+    fun invitaciones_noUsanRoomNiDataStore() {
+        val violations = invitationFiles.flatMap { path ->
+            listOf("androidx.room", "androidx.datastore", "data.local", "SharedPreferences", "java.io.File")
+                .filter { MainSources.kotlin(path).contains(it) }
+                .map { "$path referencia $it" }
+        }
+
+        assertTrue("las invitaciones viven solo en memoria: $violations", violations.isEmpty())
+    }
+
+    @Test
+    fun contratoDeInvitacionesNoExponeTiposRemotos() {
+        listOf("data/repository/WorkspaceInvitationsRepository.kt", "data/repository/MyInvitationsRepository.kt").forEach {
+            val contract = MainSources.kotlin(it)
+            assertTrue(it, !contract.contains("data.remote") && !contract.contains("org.json") && !contract.contains("android."))
+        }
+    }
+
+    @Test
+    fun elManifiestoNoDeclaraEnlacesDeInvitacion() {
+        val manifest = MainSources.manifest()
+
+        assertTrue(!manifest.contains("android.intent.action.VIEW"))
+        assertTrue(!manifest.contains("autoVerify") && !manifest.contains("<data"))
+        assertTrue(!manifest.contains("BROWSABLE"))
+    }
+
     @Test
     fun elEsquemaDeRoomSigueEnLaVersion15() {
         val schemas = MainSources.kotlinRoot.resolve("../../../../../../schemas").canonicalFile.walkTopDown()
