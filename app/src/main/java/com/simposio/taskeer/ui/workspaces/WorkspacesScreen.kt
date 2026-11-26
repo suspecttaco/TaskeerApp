@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -54,6 +55,7 @@ fun WorkspacesScreen(
     viewModelFactory: ViewModelProvider.Factory,
     onLeave: () -> Unit,
     onOpenMembers: (String) -> Unit,
+    onOpenInvitations: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: WorkspacesViewModel = viewModel(factory = viewModelFactory)
@@ -67,6 +69,7 @@ fun WorkspacesScreen(
             when (event) {
                 is WorkspacesEvent.ShowError -> snackbarHostState.showSnackbar(event.message.text(resources))
                 is WorkspacesEvent.OpenMembers -> onOpenMembers(event.workspaceId)
+                WorkspacesEvent.OpenInvitations -> onOpenInvitations()
                 WorkspacesEvent.LeaveScreen -> onLeave()
             }
         }
@@ -80,6 +83,7 @@ fun WorkspacesScreen(
         onRename = viewModel::openRename,
         onDelete = viewModel::requestDelete,
         onOpen = viewModel::openMembers,
+        onOpenInvitations = viewModel::openInvitations,
         modifier = modifier,
     )
     WorkspaceDialogs(state, viewModel)
@@ -94,6 +98,7 @@ fun WorkspacesContent(
     onRename: (String) -> Unit,
     onDelete: (String) -> Unit,
     onOpen: (String) -> Unit,
+    onOpenInvitations: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -117,7 +122,7 @@ fun WorkspacesContent(
                     message = (state.error ?: WorkspaceErrorMessage.Generic).text(),
                     action = StatePageAction(stringResource(R.string.workspaces_retry), onRefresh),
                 )
-                WorkspacesPhase.EMPTY, WorkspacesPhase.LIST -> WorkspacesList(state, onRefresh, onRename, onDelete, onOpen)
+                WorkspacesPhase.EMPTY, WorkspacesPhase.LIST -> WorkspacesList(state, onRefresh, onRename, onDelete, onOpen, onOpenInvitations)
             }
         }
     }
@@ -139,9 +144,20 @@ private fun WorkspacesList(
     onRename: (String) -> Unit,
     onDelete: (String) -> Unit,
     onOpen: (String) -> Unit,
+    onOpenInvitations: () -> Unit,
 ) {
     PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
+            if (state.showInvitations) {
+                item {
+                    ListItem(
+                        modifier = Modifier.clickable(onClick = onOpenInvitations),
+                        leadingContent = { DecorativeIcon(Icons.Filled.Mail) },
+                        headlineContent = { Text(stringResource(R.string.workspace_invitations_inbox_row)) },
+                    )
+                    AppDivider()
+                }
+            }
             if (state.phase == WorkspacesPhase.EMPTY) {
                 item {
                     Text(
@@ -251,6 +267,7 @@ private fun WorkspacesContentPreview() {
                     WorkspaceRowUi("2", "Equipo de diseño", RoleLabel.OWNER, setOf(RowAction.RENAME, RowAction.DELETE)),
                     WorkspaceRowUi("3", "Marketing", RoleLabel.VIEWER, emptySet()),
                 ),
+                showInvitations = true,
             ),
             snackbarHostState = remember { SnackbarHostState() },
             onRefresh = {},
@@ -258,6 +275,7 @@ private fun WorkspacesContentPreview() {
             onRename = {},
             onDelete = {},
             onOpen = {},
+            onOpenInvitations = {},
         )
     }
 }

@@ -43,6 +43,7 @@ class AppDestinationTest {
                 "SEARCH" to "search",
                 "NOTIFICATIONS" to "notifications",
                 "WORKSPACES" to "workspaces",
+                "WORKSPACE_INVITATIONS" to "workspaces/invitations",
                 "WORKSPACE_MEMBERS" to "workspaces/{workspaceId}/members",
                 "SETTINGS" to "settings",
                 "LOGIN" to "login",
@@ -96,6 +97,13 @@ class AppDestinationTest {
     fun workspaceMembersRoute_llevaElWorkspace() {
         assertEquals("workspaces/abc/members", AppDestination.workspaceMembersRoute("abc"))
         assertEquals(AppDestination.WORKSPACE_MEMBERS, AppDestination.fromRoute("workspaces/{workspaceId}/members"))
+    }
+
+    @Test
+    fun workspaceInvitationsRoute_esEstatica() {
+        assertEquals("workspaces/invitations", AppDestination.WORKSPACE_INVITATIONS.route)
+        assertFalse(AppDestination.WORKSPACE_INVITATIONS.route.contains("{"))
+        assertEquals(AppDestination.WORKSPACE_INVITATIONS, AppDestination.fromRoute("workspaces/invitations"))
     }
 
     @Test

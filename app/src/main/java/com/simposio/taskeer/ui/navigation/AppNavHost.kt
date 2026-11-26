@@ -37,6 +37,7 @@ import com.simposio.taskeer.ui.settings.SettingsScreen
 import com.simposio.taskeer.ui.tasks.SwipeHintState
 import com.simposio.taskeer.ui.upcoming.UpcomingScreen
 import com.simposio.taskeer.ui.verifyemail.VerifyEmailScreen
+import com.simposio.taskeer.ui.workspaces.MyInvitationsScreen
 import com.simposio.taskeer.ui.workspaces.WorkspaceMembersScreen
 import com.simposio.taskeer.ui.workspaces.WorkspaceMembersViewModel
 import com.simposio.taskeer.ui.workspaces.WorkspacesScreen
@@ -214,6 +215,15 @@ fun AppNavHost(
                 onOpenMembers = { workspaceId ->
                     navController.navigate(AppDestination.workspaceMembersRoute(workspaceId)) { launchSingleTop = true }
                 },
+                onOpenInvitations = {
+                    navController.navigate(AppDestination.WORKSPACE_INVITATIONS.route) { launchSingleTop = true }
+                },
+            )
+        }
+        composable(AppDestination.WORKSPACE_INVITATIONS.route) {
+            MyInvitationsScreen(
+                viewModelFactory = viewModelFactory,
+                onLeave = { if (!navController.popBackStack()) navController.navigateHome() },
             )
         }
         composable(
@@ -225,6 +235,9 @@ fun AppNavHost(
             WorkspaceMembersScreen(
                 viewModelFactory = viewModelFactory,
                 onLeave = { if (!navController.popBackStack()) navController.navigateHome() },
+                onVerifyEmail = {
+                    navController.navigate(AppDestination.VERIFY_EMAIL.route) { launchSingleTop = true }
+                },
             )
         }
         composable(

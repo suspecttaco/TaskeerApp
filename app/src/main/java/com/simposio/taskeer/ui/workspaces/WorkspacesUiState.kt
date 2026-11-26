@@ -27,12 +27,15 @@ data class WorkspacesUiState(
     val dialog: WorkspaceDialog = WorkspaceDialog.None,
     val submitting: Boolean = false,
     val dialogError: WorkspaceErrorMessage? = null,
+    val showInvitations: Boolean = false,
 )
 
 sealed interface WorkspacesEvent {
     data class ShowError(val message: WorkspaceErrorMessage) : WorkspacesEvent
 
     data class OpenMembers(val workspaceId: String) : WorkspacesEvent
+
+    data object OpenInvitations : WorkspacesEvent
 
     data object LeaveScreen : WorkspacesEvent
 }

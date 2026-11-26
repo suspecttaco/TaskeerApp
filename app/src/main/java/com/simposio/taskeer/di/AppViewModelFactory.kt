@@ -41,6 +41,8 @@ import com.simposio.taskeer.ui.tasks.TasksViewModel
 import com.simposio.taskeer.ui.upcoming.UpcomingViewModel
 import com.simposio.taskeer.ui.verifyemail.ResendVerificationViewModel
 import com.simposio.taskeer.ui.verifyemail.VerifyEmailViewModel
+import com.simposio.taskeer.ui.workspaces.MyInvitationsViewModel
+import com.simposio.taskeer.ui.workspaces.WorkspaceInvitationsViewModel
 import com.simposio.taskeer.ui.workspaces.WorkspaceMembersViewModel
 import com.simposio.taskeer.ui.workspaces.WorkspacesViewModel
 import java.time.Instant
@@ -178,6 +180,12 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
             ) as T
         modelClass.isAssignableFrom(WorkspacesViewModel::class.java) ->
             WorkspacesViewModel(container.workspaceRepository, container.authRepository.sessionState) as T
+        modelClass.isAssignableFrom(MyInvitationsViewModel::class.java) ->
+            MyInvitationsViewModel(
+                container.myInvitationsRepository,
+                container.workspaceRepository,
+                container.authRepository.sessionState,
+            ) as T
         modelClass.isAssignableFrom(AccountNotificationsViewModel::class.java) ->
             AccountNotificationsViewModel(
                 container.notificationInboxRepository,
@@ -249,6 +257,15 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
         modelClass.isAssignableFrom(WorkspaceMembersViewModel::class.java) ->
             WorkspaceMembersViewModel(
                 extras.createSavedStateHandle(),
+                container.workspaceMembersRepository,
+                container.workspaceRepository,
+                container.authRepository.sessionState,
+            ) as T
+
+        modelClass.isAssignableFrom(WorkspaceInvitationsViewModel::class.java) ->
+            WorkspaceInvitationsViewModel(
+                extras.createSavedStateHandle(),
+                container.workspaceInvitationsRepository,
                 container.workspaceMembersRepository,
                 container.workspaceRepository,
                 container.authRepository.sessionState,

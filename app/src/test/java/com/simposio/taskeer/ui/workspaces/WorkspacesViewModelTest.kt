@@ -300,4 +300,34 @@ class WorkspacesViewModelTest {
 
         assertEquals(WorkspacesEvent.LeaveScreen, viewModel.firstEvent())
     }
+
+    @Test
+    fun tocarInvitaciones_emiteAbrirInvitaciones() = runTest {
+        val viewModel = viewModel()
+
+        viewModel.openInvitations()
+
+        assertEquals(WorkspacesEvent.OpenInvitations, viewModel.firstEvent())
+    }
+
+    @Test
+    fun tocarInvitaciones_sinSesion_noEmiteNada() = runTest {
+        session.value = SessionState.SignedOut()
+        val viewModel = viewModel()
+        assertEquals(WorkspacesEvent.LeaveScreen, viewModel.firstEvent())
+
+        viewModel.openInvitations()
+
+        assertNull(viewModel.firstEvent())
+    }
+
+    @Test
+    fun filaDeInvitaciones_soloConSesion() = runTest {
+        val viewModel = viewModel()
+        assertTrue(viewModel.uiState.value.showInvitations)
+
+        session.value = SessionState.SignedOut()
+
+        assertEquals(false, viewModel.uiState.value.showInvitations)
+    }
 }

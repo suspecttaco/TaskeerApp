@@ -47,7 +47,7 @@ fun backStep(destination: AppDestination?, boardId: String?, hasPrevious: Boolea
         AppDestination.SEARCH,
         AppDestination.WORKSPACES,
         -> AppDestination.HOME.route
-        AppDestination.WORKSPACE_MEMBERS -> AppDestination.WORKSPACES.route
+        AppDestination.WORKSPACE_MEMBERS, AppDestination.WORKSPACE_INVITATIONS -> AppDestination.WORKSPACES.route
         AppDestination.LOGIN, AppDestination.VERIFY_EMAIL -> AppDestination.SETTINGS.route
         AppDestination.REGISTER, AppDestination.RESET_PASSWORD -> AppDestination.LOGIN.route
         AppDestination.CHANGE_PASSWORD, AppDestination.REGENERATE_CODES -> AppDestination.SETTINGS.route

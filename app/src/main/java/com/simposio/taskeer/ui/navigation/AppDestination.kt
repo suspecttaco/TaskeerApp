@@ -12,6 +12,7 @@ enum class AppDestination(val route: String) {
     SEARCH("search"),
     NOTIFICATIONS("notifications"),
     WORKSPACES("workspaces"),
+    WORKSPACE_INVITATIONS("workspaces/invitations"),
     WORKSPACE_MEMBERS("workspaces/{workspaceId}/members"),
     SETTINGS("settings"),
     LOGIN("login"),

@@ -423,6 +423,7 @@ private fun AppDestination.title(listName: String?, boardName: String?, workspac
     AppDestination.SEARCH -> stringResource(R.string.search_title)
     AppDestination.NOTIFICATIONS -> stringResource(R.string.notifications_title)
     AppDestination.WORKSPACES -> stringResource(R.string.workspaces_title)
+    AppDestination.WORKSPACE_INVITATIONS -> stringResource(R.string.workspace_invitations_inbox_title)
     AppDestination.WORKSPACE_MEMBERS -> workspaceName ?: stringResource(R.string.workspace_members_title)
     AppDestination.SETTINGS -> stringResource(R.string.menu_settings)
     AppDestination.LOGIN -> stringResource(R.string.auth_login_title)

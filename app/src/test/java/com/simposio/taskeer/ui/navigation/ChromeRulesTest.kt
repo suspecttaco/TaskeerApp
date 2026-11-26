@@ -79,6 +79,7 @@ class ChromeRulesTest {
             AppDestination.BOARD_COLUMNS,
             AppDestination.NOTIFICATIONS,
             AppDestination.WORKSPACES,
+            AppDestination.WORKSPACE_INVITATIONS,
             AppDestination.WORKSPACE_MEMBERS,
             AppDestination.SETTINGS,
         ).forEach {
@@ -191,6 +192,7 @@ class ChromeRulesTest {
             AppDestination.BOARD_COLUMNS,
             AppDestination.NOTIFICATIONS,
             AppDestination.WORKSPACES,
+            AppDestination.WORKSPACE_INVITATIONS,
             AppDestination.WORKSPACE_MEMBERS,
             AppDestination.SETTINGS,
         ).forEach { assertEquals(OverflowMenu(emptyList(), emptyList()), overflowMenuFor(it)) }
