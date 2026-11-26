@@ -417,6 +417,9 @@ private fun AppDestination.title(listName: String?, boardName: String?): String 
     AppDestination.LOGIN -> stringResource(R.string.auth_login_title)
     AppDestination.REGISTER -> stringResource(R.string.register_title)
     AppDestination.VERIFY_EMAIL -> stringResource(R.string.verify_title)
+    AppDestination.RESET_PASSWORD -> stringResource(R.string.reset_title)
+    AppDestination.CHANGE_PASSWORD -> stringResource(R.string.chpw_title)
+    AppDestination.REGENERATE_CODES -> stringResource(R.string.regen_title)
 }
 
 @Preview(showBackground = true)

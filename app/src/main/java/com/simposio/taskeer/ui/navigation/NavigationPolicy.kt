@@ -47,7 +47,8 @@ fun backStep(destination: AppDestination?, boardId: String?, hasPrevious: Boolea
         AppDestination.SEARCH,
         -> AppDestination.HOME.route
         AppDestination.LOGIN, AppDestination.VERIFY_EMAIL -> AppDestination.SETTINGS.route
-        AppDestination.REGISTER -> AppDestination.LOGIN.route
+        AppDestination.REGISTER, AppDestination.RESET_PASSWORD -> AppDestination.LOGIN.route
+        AppDestination.CHANGE_PASSWORD, AppDestination.REGENERATE_CODES -> AppDestination.SETTINGS.route
         AppDestination.BOARD_COLUMNS -> boardId?.let(AppDestination::boardRoute) ?: return BackStep.None
     }
     return if (hasPrevious) BackStep.Pop else BackStep.Navigate(fallback)

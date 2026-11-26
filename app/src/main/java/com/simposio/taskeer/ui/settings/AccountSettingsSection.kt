@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
@@ -32,6 +33,7 @@ import com.simposio.taskeer.domain.auth.AccountSummary
 import com.simposio.taskeer.domain.auth.SessionState
 import com.simposio.taskeer.ui.auth.AccountAction
 import com.simposio.taskeer.ui.auth.AccountSectionModel
+import com.simposio.taskeer.ui.auth.AccountSecurityAction
 import com.simposio.taskeer.ui.auth.AccountStatus
 import com.simposio.taskeer.ui.auth.EmailVerification
 import com.simposio.taskeer.ui.auth.accountSectionFor
@@ -48,6 +50,8 @@ internal data class AccountSectionActions(
     val onSignOut: () -> Unit,
     val onResendVerification: () -> Unit,
     val onHaveVerificationLink: () -> Unit,
+    val onChangePassword: () -> Unit,
+    val onRegenerateCodes: () -> Unit,
 )
 
 @Composable
@@ -63,6 +67,7 @@ internal fun AccountSettingsSection(
         SectionHeader(text = stringResource(R.string.auth_account_title), icon = Icons.Filled.AccountCircle)
         AccountStatusRow(model = model, onSignIn = actions.onSignIn)
         model.verification?.let { VerificationRows(it, resend, actions) }
+        model.security.forEach { SecurityRow(it, actions) }
         if (model.actions.any { it != AccountAction.SIGN_IN }) {
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.InlineGap)) {
                 if (AccountAction.RETRY in model.actions) {
@@ -96,6 +101,19 @@ internal fun AccountSettingsSection(
             },
         )
     }
+}
+
+@Composable
+private fun SecurityRow(action: AccountSecurityAction, actions: AccountSectionActions) {
+    val (label, onClick) = when (action) {
+        AccountSecurityAction.CHANGE_PASSWORD -> R.string.chpw_settings_row to actions.onChangePassword
+        AccountSecurityAction.REGENERATE_CODES -> R.string.regen_settings_row to actions.onRegenerateCodes
+    }
+    ListItem(
+        headlineContent = { Text(stringResource(label)) },
+        trailingContent = { DecorativeIcon(Icons.Filled.ChevronRight) },
+        modifier = Modifier.heightIn(min = Spacing.MinTouchTarget).clickable(onClick = onClick),
+    )
 }
 
 @Composable
@@ -186,7 +204,7 @@ private fun AccountSettingsSectionPreview() {
         AccountSettingsSection(
             state = SessionState.SignedIn(AccountSummary("ana@example.com", "Ana", emailVerified = false), offline = true),
             resend = ResendVerificationUiState(),
-            actions = AccountSectionActions({}, {}, {}, {}, {}),
+            actions = AccountSectionActions({}, {}, {}, {}, {}, {}, {}),
         )
     }
 }

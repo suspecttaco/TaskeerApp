@@ -13,6 +13,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.simposio.taskeer.ui.alltasks.AllTasksScreen
+import com.simposio.taskeer.ui.accountsecurity.ChangePasswordScreen
+import com.simposio.taskeer.ui.accountsecurity.RegenerateCodesScreen
+import com.simposio.taskeer.ui.auth.LoginHandoff
+import com.simposio.taskeer.ui.auth.LoginNotice
 import com.simposio.taskeer.ui.auth.LoginScreen
 import com.simposio.taskeer.ui.auth.SessionViewModel
 import com.simposio.taskeer.ui.board.BoardScreen
@@ -26,6 +30,7 @@ import com.simposio.taskeer.ui.lists.ListScreen
 import com.simposio.taskeer.ui.lists.ListViewModel
 import com.simposio.taskeer.ui.myday.MyDayScreen
 import com.simposio.taskeer.ui.notifications.NotificationsScreen
+import com.simposio.taskeer.ui.passwordreset.ResetPasswordScreen
 import com.simposio.taskeer.ui.register.RegisterScreen
 import com.simposio.taskeer.ui.search.SearchScreen
 import com.simposio.taskeer.ui.settings.SettingsScreen
@@ -48,7 +53,7 @@ fun AppNavHost(
 ) {
     val animated = rememberAnimationsEnabled()
     // El correo no es secreto pero no se persiste: si se pierde al rotar, el usuario lo escribe.
-    var pendingLoginEmail by remember { mutableStateOf<String?>(null) }
+    var pendingLogin by remember { mutableStateOf<LoginHandoff?>(null) }
     NavHost(
         navController = navController,
         startDestination = AppDestination.START.route,
@@ -107,6 +112,12 @@ fun AppNavHost(
                 onHaveVerificationLink = {
                     navController.navigate(AppDestination.VERIFY_EMAIL.route) { launchSingleTop = true }
                 },
+                onChangePassword = {
+                    navController.navigate(AppDestination.CHANGE_PASSWORD.route) { launchSingleTop = true }
+                },
+                onRegenerateCodes = {
+                    navController.navigate(AppDestination.REGENERATE_CODES.route) { launchSingleTop = true }
+                },
             )
         }
         composable(AppDestination.LOGIN.route) {
@@ -117,21 +128,57 @@ fun AppNavHost(
                 onHaveVerificationLink = {
                     navController.navigate(AppDestination.VERIFY_EMAIL.route) { launchSingleTop = true }
                 },
-                prefillEmail = pendingLoginEmail,
-                onPrefillConsumed = { pendingLoginEmail = null },
+                onRecoverAccess = {
+                    navController.navigate(AppDestination.RESET_PASSWORD.route) { launchSingleTop = true }
+                },
+                prefill = pendingLogin,
+                onPrefillConsumed = { pendingLogin = null },
             )
         }
         composable(AppDestination.REGISTER.route) {
             RegisterScreen(
                 viewModelFactory = viewModelFactory,
                 onFinished = { email ->
-                    pendingLoginEmail = email
+                    pendingLogin = email?.let { LoginHandoff(it, LoginNotice.ACCOUNT_CREATED) }
                     navController.navigate(AppDestination.LOGIN.route) {
                         popUpTo(AppDestination.SETTINGS.route)
                         launchSingleTop = true
                     }
                 },
                 onHaveAccount = { navController.popBackStack() },
+            )
+        }
+        composable(AppDestination.RESET_PASSWORD.route) {
+            ResetPasswordScreen(
+                viewModelFactory = viewModelFactory,
+                onReset = { email ->
+                    pendingLogin = LoginHandoff(email, LoginNotice.PASSWORD_RESET)
+                    navController.popBackStack(AppDestination.LOGIN.route, inclusive = false)
+                },
+            )
+        }
+        composable(AppDestination.CHANGE_PASSWORD.route) {
+            ChangePasswordScreen(
+                viewModelFactory = viewModelFactory,
+                onDone = { navController.popBackStack() },
+                onSignIn = {
+                    navController.navigate(AppDestination.LOGIN.route) {
+                        popUpTo(AppDestination.SETTINGS.route)
+                        launchSingleTop = true
+                    }
+                },
+            )
+        }
+        composable(AppDestination.REGENERATE_CODES.route) {
+            RegenerateCodesScreen(
+                viewModelFactory = viewModelFactory,
+                onFinished = { navController.popBackStack() },
+                onSignIn = {
+                    navController.navigate(AppDestination.LOGIN.route) {
+                        popUpTo(AppDestination.SETTINGS.route)
+                        launchSingleTop = true
+                    }
+                },
             )
         }
         composable(AppDestination.VERIFY_EMAIL.route) {

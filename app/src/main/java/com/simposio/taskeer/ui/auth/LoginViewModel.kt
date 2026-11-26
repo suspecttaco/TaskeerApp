@@ -27,20 +27,20 @@ class LoginViewModel(private val auth: AuthRepository) : ViewModel() {
         }
     }
 
-    fun prefill(email: String) {
-        _uiState.update { it.copy(email = email, accountCreated = true) }
+    fun prefill(email: String, notice: LoginNotice = LoginNotice.ACCOUNT_CREATED) {
+        _uiState.update { it.copy(email = email, notice = notice) }
     }
 
     fun onEmailChange(value: String) {
-        _uiState.update { it.copy(email = value, error = null, retryMinutes = null, accountCreated = false) }
+        _uiState.update { it.copy(email = value, error = null, retryMinutes = null, notice = null) }
     }
 
     fun onPasswordEdited() {
         _uiState.update {
-            if (it.error == null && !it.accountCreated) {
+            if (it.error == null && it.notice == null) {
                 it
             } else {
-                it.copy(error = null, retryMinutes = null, accountCreated = false)
+                it.copy(error = null, retryMinutes = null, notice = null)
             }
         }
     }
@@ -60,12 +60,12 @@ class LoginViewModel(private val auth: AuthRepository) : ViewModel() {
             password.fill(ZERO)
             val failure = loginFailureFor(invalid) as LoginFailure.Inline
             _uiState.update {
-                it.copy(email = email, error = failure.error, retryMinutes = null, accountCreated = false)
+                it.copy(email = email, error = failure.error, retryMinutes = null, notice = null)
             }
             return
         }
         _uiState.update {
-            it.copy(email = email, error = null, retryMinutes = null, isSubmitting = true, accountCreated = false)
+            it.copy(email = email, error = null, retryMinutes = null, isSubmitting = true, notice = null)
         }
         viewModelScope.launch {
             try {

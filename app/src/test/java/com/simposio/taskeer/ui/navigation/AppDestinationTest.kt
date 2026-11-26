@@ -46,6 +46,9 @@ class AppDestinationTest {
                 "LOGIN" to "login",
                 "REGISTER" to "register",
                 "VERIFY_EMAIL" to "verify-email",
+                "RESET_PASSWORD" to "reset-password",
+                "CHANGE_PASSWORD" to "change-password",
+                "REGENERATE_CODES" to "regenerate-codes",
             ),
             AppDestination.entries.associate { it.name to it.route },
         )
@@ -138,5 +141,29 @@ class AppDestinationTest {
     fun verifyEmail_tieneRutaVerifyEmail() {
         assertEquals("verify-email", AppDestination.VERIFY_EMAIL.route)
         assertEquals(AppDestination.VERIFY_EMAIL, AppDestination.fromRoute("verify-email"))
+    }
+
+    @Test
+    fun resetPassword_tieneRutaResetPassword() {
+        assertEquals("reset-password", AppDestination.RESET_PASSWORD.route)
+        assertEquals(AppDestination.RESET_PASSWORD, AppDestination.fromRoute("reset-password"))
+    }
+
+    @Test
+    fun changePassword_tieneRutaChangePassword() {
+        assertEquals("change-password", AppDestination.CHANGE_PASSWORD.route)
+        assertEquals(AppDestination.CHANGE_PASSWORD, AppDestination.fromRoute("change-password"))
+    }
+
+    @Test
+    fun regenerateCodes_tieneRutaRegenerateCodes() {
+        assertEquals("regenerate-codes", AppDestination.REGENERATE_CODES.route)
+        assertEquals(AppDestination.REGENERATE_CODES, AppDestination.fromRoute("regenerate-codes"))
+    }
+
+    @Test
+    fun lasTresRutasDeSeguridad_noLlevanArgumentos() {
+        listOf(AppDestination.RESET_PASSWORD, AppDestination.CHANGE_PASSWORD, AppDestination.REGENERATE_CODES)
+            .forEach { assertFalse(it.route.contains("{")) }
     }
 }

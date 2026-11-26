@@ -232,11 +232,11 @@ class LoginViewModelTest {
     }
 
     @Test
-    fun prefill_fijaCorreoYAvisoDeCuentaCreada() = runTest {
+    fun prefill_conAvisoDeCuentaCreada_fijaCorreoYAviso() = runTest {
         viewModel.prefill("ana@example.com")
 
         assertEquals("ana@example.com", viewModel.uiState.value.email)
-        assertTrue(viewModel.uiState.value.accountCreated)
+        assertEquals(LoginNotice.ACCOUNT_CREATED, viewModel.uiState.value.notice)
     }
 
     @Test
@@ -244,12 +244,12 @@ class LoginViewModelTest {
         viewModel.prefill("ana@example.com")
         viewModel.onEmailChange("otra@example.com")
 
-        assertFalse(viewModel.uiState.value.accountCreated)
+        assertNull(viewModel.uiState.value.notice)
 
         viewModel.prefill("ana@example.com")
         viewModel.onPasswordEdited()
 
-        assertFalse(viewModel.uiState.value.accountCreated)
+        assertNull(viewModel.uiState.value.notice)
     }
 
     @Test
@@ -259,6 +259,23 @@ class LoginViewModelTest {
         viewModel.submit("ana@example.com", password())
         runCurrent()
 
-        assertFalse(viewModel.uiState.value.accountCreated)
+        assertNull(viewModel.uiState.value.notice)
+    }
+
+    @Test
+    fun prefill_conAvisoDeReset_fijaCorreoYAviso() = runTest {
+        viewModel.prefill("ana@example.com", LoginNotice.PASSWORD_RESET)
+
+        assertEquals("ana@example.com", viewModel.uiState.value.email)
+        assertEquals(LoginNotice.PASSWORD_RESET, viewModel.uiState.value.notice)
+    }
+
+    @Test
+    fun prefill_conAvisoDeReset_seApagaAlEditarLaContrasena() = runTest {
+        viewModel.prefill("ana@example.com", LoginNotice.PASSWORD_RESET)
+
+        viewModel.onPasswordEdited()
+
+        assertNull(viewModel.uiState.value.notice)
     }
 }

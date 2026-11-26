@@ -33,15 +33,16 @@ class AppNavHostSourceTest {
 
     @Test
     fun registroVuelveAlLoginConElCorreoPrecargado() {
-        assertTrue(source.contains("var pendingLoginEmail by remember { mutableStateOf<String?>(null) }"))
+        assertTrue(source.contains("var pendingLogin by remember { mutableStateOf<LoginHandoff?>(null) }"))
+        assertTrue(source.contains("LoginHandoff(it, LoginNotice.ACCOUNT_CREATED)"))
         assertFalse(source.contains("rememberSaveable"))
         assertTrue(source.contains("popUpTo(AppDestination.SETTINGS.route)"))
-        assertTrue(source.contains("prefillEmail = pendingLoginEmail"))
+        assertTrue(source.contains("prefill = pendingLogin"))
     }
 
     @Test
     fun elCorreoPrecargadoSeConsumeUnaVez() {
-        assertTrue(source.contains("onPrefillConsumed = { pendingLoginEmail = null }"))
+        assertTrue(source.contains("onPrefillConsumed = { pendingLogin = null }"))
     }
 
     @Test
@@ -60,5 +61,26 @@ class AppNavHostSourceTest {
     @Test
     fun losAccesosAVerificarCorreoVienenDeAjustesYDelLogin() {
         assertEquals(2, Regex("navigate\\(AppDestination\\.VERIFY_EMAIL\\.route\\)").findAll(source).count())
+    }
+
+    @Test
+    fun resetPassword_vuelveAlLoginConAviso() {
+        assertTrue(source.contains("composable(AppDestination.RESET_PASSWORD.route)"))
+        assertTrue(source.contains("ResetPasswordScreen("))
+        assertTrue(source.contains("LoginHandoff(email, LoginNotice.PASSWORD_RESET)"))
+        assertTrue(source.contains("navController.popBackStack(AppDestination.LOGIN.route, inclusive = false)"))
+        assertTrue(source.contains("navigate(AppDestination.RESET_PASSWORD.route)"))
+    }
+
+    @Test
+    fun hayRutasChangePasswordYRegenerateCodesSinArgumentos() {
+        assertTrue(source.contains("composable(AppDestination.CHANGE_PASSWORD.route)"))
+        assertTrue(source.contains("composable(AppDestination.REGENERATE_CODES.route)"))
+        assertTrue(source.contains("ChangePasswordScreen("))
+        assertTrue(source.contains("RegenerateCodesScreen("))
+        assertFalse(AppDestination.CHANGE_PASSWORD.route.contains("{"))
+        assertFalse(AppDestination.REGENERATE_CODES.route.contains("{"))
+        assertTrue(source.contains("navigate(AppDestination.CHANGE_PASSWORD.route)"))
+        assertTrue(source.contains("navigate(AppDestination.REGENERATE_CODES.route)"))
     }
 }

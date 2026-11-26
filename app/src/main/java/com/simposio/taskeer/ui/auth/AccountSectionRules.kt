@@ -8,11 +8,14 @@ enum class AccountAction { SIGN_IN, RETRY, SIGN_OUT }
 
 enum class EmailVerification { UNVERIFIED, VERIFIED }
 
+enum class AccountSecurityAction { CHANGE_PASSWORD, REGENERATE_CODES }
+
 data class AccountSectionModel(
     val status: AccountStatus,
     val email: String?,
     val actions: List<AccountAction>,
     val verification: EmailVerification? = null,
+    val security: List<AccountSecurityAction> = emptyList(),
 )
 
 fun accountSectionFor(state: SessionState): AccountSectionModel = when (state) {
@@ -26,6 +29,12 @@ fun accountSectionFor(state: SessionState): AccountSectionModel = when (state) {
             true -> EmailVerification.VERIFIED
             false -> EmailVerification.UNVERIFIED
             null -> null
+        },
+        // `hasPassword` desconocido no oculta nada: el servidor rechaza con NO_LOCAL_PASSWORD si no procede.
+        security = if (state.account?.hasPassword == false) {
+            emptyList()
+        } else {
+            listOf(AccountSecurityAction.CHANGE_PASSWORD, AccountSecurityAction.REGENERATE_CODES)
         },
     )
 }

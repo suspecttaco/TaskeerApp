@@ -76,4 +76,20 @@ class LoginScreenSourceTest {
         assertEquals(1, Regex("R\\.string\\.verify_have_link").findAll(screen).count())
         assertTrue(screen.contains("onHaveVerificationLink"))
     }
+
+    @Test
+    fun hayAccesoARecuperarConUnCodigo() {
+        assertEquals(1, Regex("R\\.string\\.reset_login_action").findAll(screen).count())
+        assertTrue(screen.contains("onRecoverAccess"))
+        assertEquals("Recuperar acceso con un código", Regex("name=\"reset_login_action\">(.*?)<").find(MainSources.strings())?.groupValues?.get(1))
+    }
+
+    @Test
+    fun avisoDeReset_seAnunciaConLiveRegion() {
+        val notice = screen.indexOf("R.string.reset_login_notice")
+
+        assertTrue(notice >= 0)
+        assertTrue(screen.contains("R.string.reset_login_notice_codes"))
+        assertTrue(screen.lowercase().contains("liveregion"))
+    }
 }
