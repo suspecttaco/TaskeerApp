@@ -1,6 +1,7 @@
 package com.simposio.taskeer.ui.auth
 
 import com.simposio.taskeer.testing.MainSources
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -26,12 +27,21 @@ class LoginScreenSourceTest {
     }
 
     @Test
-    fun noHayBotonDeGoogleNiEnlacesDeRegistro() {
+    fun noHayGoogleNiOlvidasteYSoloUnAccesoAlRegistro() {
         val strings = MainSources.strings().lines().filter { it.contains("name=\"auth_") }.joinToString("\n").lowercase()
 
-        listOf("google", "crear cuenta", "olvidaste", "registr").forEach {
+        listOf("google", "olvidaste", "registr").forEach {
             assertFalse("sobra $it", screen.lowercase().contains(it) || strings.contains(it))
         }
+        assertEquals(1, Regex("R\\.string\\.register_link_action").findAll(screen).count())
+    }
+
+    @Test
+    fun muestraElAvisoDeCuentaCreadaConLiveRegion() {
+        val notice = screen.indexOf("R.string.register_account_created_notice")
+
+        assertTrue(notice >= 0)
+        assertTrue(screen.substring(notice).contains("liveRegion = LiveRegionMode.Polite"))
     }
 
     @Test

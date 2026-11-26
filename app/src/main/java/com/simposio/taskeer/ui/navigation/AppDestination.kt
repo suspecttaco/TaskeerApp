@@ -13,6 +13,7 @@ enum class AppDestination(val route: String) {
     NOTIFICATIONS("notifications"),
     SETTINGS("settings"),
     LOGIN("login"),
+    REGISTER("register"),
     ;
 
     fun upRoute(boardId: String): String? = when (this) {

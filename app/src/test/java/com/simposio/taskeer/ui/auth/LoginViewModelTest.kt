@@ -230,4 +230,35 @@ class LoginViewModelTest {
 
         assertTrue(viewModel.uiState.value.signedIn)
     }
+
+    @Test
+    fun prefill_fijaCorreoYAvisoDeCuentaCreada() = runTest {
+        viewModel.prefill("ana@example.com")
+
+        assertEquals("ana@example.com", viewModel.uiState.value.email)
+        assertTrue(viewModel.uiState.value.accountCreated)
+    }
+
+    @Test
+    fun prefill_seApagaAlEditar() = runTest {
+        viewModel.prefill("ana@example.com")
+        viewModel.onEmailChange("otra@example.com")
+
+        assertFalse(viewModel.uiState.value.accountCreated)
+
+        viewModel.prefill("ana@example.com")
+        viewModel.onPasswordEdited()
+
+        assertFalse(viewModel.uiState.value.accountCreated)
+    }
+
+    @Test
+    fun prefill_seApagaAlEnviar() = runTest {
+        viewModel.prefill("ana@example.com")
+
+        viewModel.submit("ana@example.com", password())
+        runCurrent()
+
+        assertFalse(viewModel.uiState.value.accountCreated)
+    }
 }
