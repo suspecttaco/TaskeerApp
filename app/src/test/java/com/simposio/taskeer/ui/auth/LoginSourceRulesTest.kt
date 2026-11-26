@@ -1,6 +1,7 @@
 package com.simposio.taskeer.ui.auth
 
 import com.simposio.taskeer.testing.MainSources
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -9,9 +10,12 @@ class LoginSourceRulesTest {
     private val authSources = MainSources.kotlinFiles("ui/auth")
 
     @Test
-    fun loginNoUsaSavedStateHandle() {
+    fun soloElViewModelDeLoginUsaSavedStateHandleYSoloParaElIndicadorDeCodigos() {
         assertTrue(authSources.isNotEmpty())
-        assertTrue(authSources.none { it.readText().contains("SavedStateHandle") })
+        assertEquals(listOf("LoginViewModel.kt"), authSources.filter { it.readText().contains("SavedStateHandle") }.map { it.name })
+        val uses = MainSources.kotlin("ui/auth/LoginViewModel.kt").lines()
+            .filter { it.contains("savedState.") || it.contains("savedState[") }
+        assertTrue(uses.isNotEmpty() && uses.all { it.contains("KEY_CODES_PENDING") })
     }
 
     @Test

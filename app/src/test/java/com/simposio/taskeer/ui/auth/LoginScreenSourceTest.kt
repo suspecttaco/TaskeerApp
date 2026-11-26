@@ -27,13 +27,56 @@ class LoginScreenSourceTest {
     }
 
     @Test
-    fun noHayGoogleNiOlvidasteYSoloUnAccesoAlRegistro() {
+    fun noHayOlvidasteYSoloUnAccesoAlRegistro() {
         val strings = MainSources.strings().lines().filter { it.contains("name=\"auth_") }.joinToString("\n").lowercase()
 
-        listOf("google", "olvidaste", "registr").forEach {
+        listOf("olvidaste", "registr").forEach {
             assertFalse("sobra $it", screen.lowercase().contains(it) || strings.contains(it))
         }
         assertEquals(1, Regex("R\\.string\\.register_link_action").findAll(screen).count())
+    }
+
+    @Test
+    fun hayUnBotonContinuarConGoogle() {
+        assertEquals(1, Regex("R\\.string\\.google_continue_action").findAll(screen).count())
+        assertEquals(
+            "Continuar con Google",
+            Regex("name=\"google_continue_action\">(.*?)<").find(MainSources.strings())?.groupValues?.get(1),
+        )
+    }
+
+    @Test
+    fun elBotonDeGoogleEsUnOutlinedButtonNativo() {
+        val section = screen.substringAfter("private fun GoogleSignInSection").substringBefore("private fun loginErrorText")
+
+        assertTrue(section.contains("OutlinedButton("))
+        assertTrue(section.contains("heightIn(min = Spacing.MinTouchTarget)"))
+        assertTrue(section.contains("CircularProgressIndicator("))
+        assertTrue(section.contains("stateDescription"))
+        assertFalse(section.contains("painterResource") || section.contains("Image("))
+    }
+
+    @Test
+    fun elBotonSeOmiteSiGoogleNoEstaDisponible() {
+        assertTrue(screen.contains("if (state.googleAvailable) {\n            GoogleSignInSection(state, onGoogle)"))
+        assertTrue(screen.contains("enabled = state.canUseGoogle"))
+    }
+
+    @Test
+    fun lasContrasenasSigueSinRememberSaveable() {
+        assertFalse(screen.contains("rememberSaveable"))
+        assertFalse(MainSources.kotlin("ui/auth/GoogleCodesContent.kt").contains("rememberSaveable"))
+    }
+
+    @Test
+    fun laActivitySoloSePasaComoHost() {
+        assertTrue(screen.contains("LocalActivity.current"))
+        assertTrue(screen.contains("activity?.let(viewModel::signInWithGoogle)"))
+    }
+
+    @Test
+    fun noHayBotonDeGoogleEnElRegistro() {
+        assertFalse(MainSources.kotlin("ui/register/RegisterScreen.kt").lowercase().contains("google"))
     }
 
     @Test
@@ -75,6 +118,11 @@ class LoginScreenSourceTest {
     fun hayAccesoATengoUnEnlace() {
         assertEquals(1, Regex("R\\.string\\.verify_have_link").findAll(screen).count())
         assertTrue(screen.contains("onHaveVerificationLink"))
+    }
+
+    @Test
+    fun sigueHabiendoUnSoloAccesoARegistro() {
+        assertEquals(1, Regex("R\\.string\\.register_link_action").findAll(screen).count())
     }
 
     @Test

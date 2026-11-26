@@ -84,4 +84,16 @@ class LoginErrorRulesTest {
 
         assertTrue(strings.contains("name=\"auth_not_supported_message\">$clientText</string>"))
     }
+
+    @Test
+    fun noLocalPassword_muestraElAvisoDeGoogle() {
+        assertEquals(LoginError.NO_LOCAL_PASSWORD, inline(DomainError.Validation("NO_LOCAL_PASSWORD", "x")))
+        assertTrue(MainSources.strings().contains("""name="google_error_no_local_password">Esta cuenta no tiene contraseña. Entra con Google<"""))
+    }
+
+    @Test
+    fun invalidCredentials_siguiendoGenerico() {
+        assertEquals(LoginError.INVALID_CREDENTIALS, inline(DomainError.Unauthenticated("INVALID_CREDENTIALS", "x")))
+        assertEquals(LoginError.VALIDATION, inline(DomainError.Validation("OTRO", "x")))
+    }
 }
