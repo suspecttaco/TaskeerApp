@@ -27,6 +27,29 @@ class WorkspaceLocalIsolationTest {
     }
 
     @Test
+    fun miembros_noTocaRoom() {
+        val files = listOf(
+            "data/remote/workspaces/RemoteWorkspaceMembersRepository.kt",
+            "data/remote/workspaces/WorkspaceMembersApiContract.kt",
+            "domain/workspace/MemberRules.kt",
+            "ui/workspaces/WorkspaceMembersViewModel.kt",
+        ).map { it to MainSources.kotlin(it) }
+        val localRepositories = listOf(
+            "BoardRepository", "ColumnRepository", "TaskRepository", "TaskListRepository", "SubtaskRepository",
+            "ReminderRepository", "PreferencesRepository", "MyDayRepository", "PlannedRepository",
+        )
+
+        val violations = files.flatMap { (path, source) ->
+            source.lines().map { it.trim() }.filter { it.startsWith("import ") }.filter { line ->
+                line.contains("data.local") || line.contains("androidx.room") ||
+                    localRepositories.any { line.endsWith(".$it") || line.endsWith(".${it}Impl") }
+            }.map { "$path: $it" }
+        }
+
+        assertTrue("los miembros no deben tocar datos locales: $violations", violations.isEmpty())
+    }
+
+    @Test
     fun elContenedorNoCruzaWorkspacesConDatosLocales() {
         val viewModel = MainSources.kotlinFiles("ui/workspaces").joinToString("\n") { it.readText() }
 

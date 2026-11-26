@@ -24,6 +24,25 @@ class WorkspaceLayeringTest {
     }
 
     @Test
+    fun miembros_noUsanRoomNiDataStore() {
+        val files = listOf(
+            "data/remote/workspaces/RemoteWorkspaceMembersRepository.kt",
+            "data/remote/workspaces/WorkspaceMembersApiContract.kt",
+            "data/repository/WorkspaceMembersRepository.kt",
+            "domain/workspace/WorkspaceMember.kt",
+            "domain/workspace/MemberRules.kt",
+        )
+
+        val violations = files.flatMap { path ->
+            listOf("androidx.room", "androidx.datastore", "data.local", "SharedPreferences", "java.io.File")
+                .filter { MainSources.kotlin(path).contains(it) }
+                .map { "$path referencia $it" }
+        }
+
+        assertTrue("los miembros viven solo en memoria: $violations", violations.isEmpty())
+    }
+
+    @Test
     fun elEsquemaDeRoomSigueEnLaVersion15() {
         val schemas = MainSources.kotlinRoot.resolve("../../../../../../schemas").canonicalFile.walkTopDown()
             .filter { it.isFile && it.extension == "json" }.map(File::getName).toList()
@@ -35,6 +54,13 @@ class WorkspaceLayeringTest {
     @Test
     fun contratoNoExponeTiposRemotos() {
         val contract = MainSources.kotlin("data/repository/WorkspaceRepository.kt")
+
+        assertTrue(!contract.contains("data.remote") && !contract.contains("org.json") && !contract.contains("android."))
+    }
+
+    @Test
+    fun contratoDeMiembrosNoExponeTiposRemotos() {
+        val contract = MainSources.kotlin("data/repository/WorkspaceMembersRepository.kt")
 
         assertTrue(!contract.contains("data.remote") && !contract.contains("org.json") && !contract.contains("android."))
     }
