@@ -35,6 +35,8 @@ import com.simposio.taskeer.ui.tasks.TaskEditorViewModel
 import com.simposio.taskeer.ui.tasks.TaskRescheduler
 import com.simposio.taskeer.ui.tasks.TasksViewModel
 import com.simposio.taskeer.ui.upcoming.UpcomingViewModel
+import com.simposio.taskeer.ui.verifyemail.ResendVerificationViewModel
+import com.simposio.taskeer.ui.verifyemail.VerifyEmailViewModel
 import java.time.Instant
 
 class AppViewModelFactory(private val container: AppContainer) : ViewModelProvider.Factory {
@@ -169,6 +171,11 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
             LoginViewModel(container.authRepository) as T
         modelClass.isAssignableFrom(SessionViewModel::class.java) ->
             SessionViewModel(container.authRepository) as T
+
+        modelClass.isAssignableFrom(VerifyEmailViewModel::class.java) ->
+            VerifyEmailViewModel(container.authRepository) as T
+        modelClass.isAssignableFrom(ResendVerificationViewModel::class.java) ->
+            ResendVerificationViewModel(container.authRepository) as T
 
         else -> error("AppViewModelFactory no sabe construir ${modelClass.name}")
     }
