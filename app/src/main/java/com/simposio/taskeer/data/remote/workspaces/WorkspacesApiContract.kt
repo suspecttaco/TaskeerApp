@@ -13,10 +13,8 @@ import org.json.JSONObject
 internal object WorkspacesApiContract {
     const val LIST_PATH = "workspaces"
 
-    private val ID_PATTERN = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
-
     // El id se interpola en la ruta: solo se acepta un UUID para no colar segmentos de ruta.
-    fun isValidId(id: String): Boolean = ID_PATTERN.matches(id)
+    fun isValidId(id: String): Boolean = WorkspaceRules.isValidId(id)
 
     fun itemPath(id: String): String = "workspaces/$id"
 
