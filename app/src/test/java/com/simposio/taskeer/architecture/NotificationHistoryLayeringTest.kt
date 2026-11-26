@@ -47,8 +47,7 @@ class NotificationHistoryLayeringTest {
     }
 
     @Test
-    fun noExistenDataRemoteNiDataSync() {
-        assertFalse(File(sourcesRoot, "data/remote").exists())
+    fun noExisteDataSync() {
         assertFalse(File(sourcesRoot, "data/sync").exists())
     }
 
@@ -96,9 +95,11 @@ class NotificationHistoryLayeringTest {
             "implementation(libs.androidx.lifecycle.viewmodel.ktx)",
             "implementation(libs.androidx.navigation.compose)",
             "implementation(libs.androidx.room.runtime)",
+            "implementation(libs.okhttp)",
             "ksp(libs.androidx.room.compiler)",
             "coreLibraryDesugaring(libs.desugar.jdk.libs)",
             "testImplementation(libs.androidx.datastore.preferences.core)",
+            "testImplementation(libs.json)",
             "testImplementation(libs.junit)",
             "testImplementation(libs.kotlinx.coroutines.test)",
             "androidTestImplementation(platform(libs.androidx.compose.bom))",

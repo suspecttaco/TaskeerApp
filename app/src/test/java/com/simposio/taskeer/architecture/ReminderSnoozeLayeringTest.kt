@@ -56,8 +56,7 @@ class ReminderSnoozeLayeringTest {
     }
 
     @Test
-    fun noExistenDataRemoteNiDataSync() {
-        assertFalse(File(sourcesRoot, "data/remote").exists())
+    fun noExisteDataSync() {
         assertFalse(File(sourcesRoot, "data/sync").exists())
     }
 
