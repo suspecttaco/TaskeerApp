@@ -43,6 +43,7 @@ class AppDestinationTest {
                 "SEARCH" to "search",
                 "NOTIFICATIONS" to "notifications",
                 "SETTINGS" to "settings",
+                "LOGIN" to "login",
             ),
             AppDestination.entries.associate { it.name to it.route },
         )
@@ -117,5 +118,11 @@ class AppDestinationTest {
     @Test
     fun noHayRutasDeErrores() {
         assertTrue(AppDestination.entries.none { it.name.startsWith("ERROR") || it.route.startsWith("error") })
+    }
+
+    @Test
+    fun login_tieneRutaLogin() {
+        assertEquals("login", AppDestination.LOGIN.route)
+        assertEquals(AppDestination.LOGIN, AppDestination.fromRoute("login"))
     }
 }

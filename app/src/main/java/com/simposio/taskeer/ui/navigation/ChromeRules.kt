@@ -28,6 +28,7 @@ fun chromeFor(destination: AppDestination): Chrome = when (destination) {
     AppDestination.BOARD_COLUMNS,
     AppDestination.NOTIFICATIONS,
     AppDestination.SETTINGS,
+    AppDestination.LOGIN,
     AppDestination.SEARCH,
     -> Chrome(TopBarKind.DETAIL, showHomeButton = false, showPill = false)
 }
@@ -66,6 +67,7 @@ fun overflowMenuFor(destination: AppDestination): OverflowMenu = when (destinati
     AppDestination.BOARD_COLUMNS,
     AppDestination.NOTIFICATIONS,
     AppDestination.SETTINGS,
+    AppDestination.LOGIN,
     AppDestination.SEARCH,
     -> OverflowMenu(emptyList(), emptyList())
 }

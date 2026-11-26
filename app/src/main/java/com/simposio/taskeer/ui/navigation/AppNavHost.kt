@@ -9,6 +9,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.simposio.taskeer.ui.alltasks.AllTasksScreen
+import com.simposio.taskeer.ui.auth.LoginScreen
+import com.simposio.taskeer.ui.auth.SessionViewModel
 import com.simposio.taskeer.ui.board.BoardScreen
 import com.simposio.taskeer.ui.board.BoardViewModel
 import com.simposio.taskeer.ui.calendar.CalendarScreen
@@ -35,6 +37,7 @@ fun AppNavHost(
     onDelete: (String) -> Unit,
     suggestionCount: Int,
     onOpenSuggestions: () -> Unit,
+    session: SessionViewModel,
     modifier: Modifier = Modifier,
 ) {
     val animated = rememberAnimationsEnabled()
@@ -88,7 +91,16 @@ fun AppNavHost(
                 onDelete = onDelete,
             )
         }
-        composable(AppDestination.SETTINGS.route) { SettingsScreen(viewModelFactory) }
+        composable(AppDestination.SETTINGS.route) {
+            SettingsScreen(
+                viewModelFactory = viewModelFactory,
+                session = session,
+                onSignIn = { navController.navigate(AppDestination.LOGIN.route) { launchSingleTop = true } },
+            )
+        }
+        composable(AppDestination.LOGIN.route) {
+            LoginScreen(viewModelFactory = viewModelFactory, onSignedIn = { navController.popBackStack() })
+        }
         composable(AppDestination.SEARCH.route) {
             SearchScreen(
                 viewModelFactory = viewModelFactory,

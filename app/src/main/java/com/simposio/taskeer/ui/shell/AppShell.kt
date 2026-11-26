@@ -35,6 +35,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.simposio.taskeer.R
+import com.simposio.taskeer.domain.auth.SessionState
+import com.simposio.taskeer.ui.auth.SessionMessage
+import com.simposio.taskeer.ui.auth.SessionViewModel
 import com.simposio.taskeer.domain.myday.shouldAutoOpenSuggestions
 import com.simposio.taskeer.ui.board.BoardViewModel
 import com.simposio.taskeer.ui.calendar.CalendarViewModel
@@ -106,6 +109,13 @@ fun AppShell(
     val eventEditor: EventEditorViewModel = viewModel(factory = viewModelFactory)
     val eventState by eventEditor.uiState.collectAsStateWithLifecycle()
     val eventAddedText = stringResource(R.string.event_added)
+    val session: SessionViewModel = viewModel(factory = viewModelFactory)
+    val sessionState by session.state.collectAsStateWithLifecycle()
+    val sessionExpired = (sessionState as? SessionState.SignedOut)?.expired == true
+    val sessionExpiredText = stringResource(R.string.auth_session_expired)
+    val signInLabel = stringResource(R.string.auth_login_action)
+    val loggedOutText = stringResource(R.string.auth_logged_out)
+    val loggedOutOfflineText = stringResource(R.string.auth_logged_out_server_unreachable)
     val scope = rememberCoroutineScope()
 
     // Los ViewModels de lista y tablero comparten dueño con su pantalla (la entrada de navegación).
@@ -174,6 +184,30 @@ fun AppShell(
     }
     LaunchedEffect(destination) {
         if (destination != AppDestination.CALENDAR) eventEditor.dismiss()
+    }
+    // El aviso se confirma antes de mostrarse para que no reaparezca al rotar ni al volver al primer plano.
+    LaunchedEffect(sessionExpired) {
+        if (!sessionExpired) return@LaunchedEffect
+        session.acknowledgeExpiration()
+        scope.launch {
+            val result = snackbarHost.showSnackbar(
+                message = sessionExpiredText,
+                actionLabel = signInLabel,
+                duration = SnackbarDuration.Long,
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                navController.navigate(AppDestination.LOGIN.route) { launchSingleTop = true }
+            }
+        }
+    }
+    LaunchedEffect(session) {
+        session.messages.collect { message ->
+            val text = when (message) {
+                SessionMessage.LOGGED_OUT -> loggedOutText
+                SessionMessage.LOGGED_OUT_SERVER_UNREACHABLE -> loggedOutOfflineText
+            }
+            snackbarHost.showSnackbar(message = text, duration = SnackbarDuration.Short)
+        }
     }
     // El avance de la fecha y el aviso salen del shell porque la hoja y el Calendario son hermanos, no padre e hijo.
     LaunchedEffect(eventState.createdDate) {
@@ -257,6 +291,7 @@ fun AppShell(
                         onDelete = deletion::delete,
                         suggestionCount = suggestionsBadge.count,
                         onOpenSuggestions = { suggestionsOpen = true },
+                        session = session,
                         modifier = Modifier
                             .fillMaxSize()
                             .navigationBarsPadding()
@@ -376,6 +411,7 @@ private fun AppDestination.title(listName: String?, boardName: String?): String 
     AppDestination.SEARCH -> stringResource(R.string.search_title)
     AppDestination.NOTIFICATIONS -> stringResource(R.string.notifications_title)
     AppDestination.SETTINGS -> stringResource(R.string.menu_settings)
+    AppDestination.LOGIN -> stringResource(R.string.auth_login_title)
 }
 
 @Preview(showBackground = true)

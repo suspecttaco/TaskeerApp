@@ -12,14 +12,21 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.simposio.taskeer.ui.auth.SessionViewModel
 import com.simposio.taskeer.ui.components.AppDivider
 import com.simposio.taskeer.ui.permission.NotificationPermissionNotice
 import com.simposio.taskeer.ui.theme.Spacing
 
 @Composable
-fun SettingsScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifier = Modifier) {
+fun SettingsScreen(
+    viewModelFactory: ViewModelProvider.Factory,
+    session: SessionViewModel,
+    onSignIn: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val viewModel: SettingsViewModel = viewModel(factory = viewModelFactory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val sessionState by session.state.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier
@@ -28,6 +35,15 @@ fun SettingsScreen(viewModelFactory: ViewModelProvider.Factory, modifier: Modifi
             .padding(Spacing.ScreenPadding),
         verticalArrangement = Arrangement.spacedBy(Spacing.SectionGap),
     ) {
+        AccountSettingsSection(
+            state = sessionState,
+            actions = AccountSectionActions(
+                onSignIn = onSignIn,
+                onRetry = session::retryResume,
+                onSignOut = session::logout,
+            ),
+        )
+        AppDivider()
         ThemeSettingsSection(
             themeMode = state.themeMode,
             dynamicColor = state.dynamicColor,
