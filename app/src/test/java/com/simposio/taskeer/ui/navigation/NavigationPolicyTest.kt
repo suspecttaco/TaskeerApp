@@ -144,4 +144,22 @@ class NavigationPolicyTest {
         assertEquals(BackStep.Navigate("settings"), backStep(AppDestination.VERIFY_EMAIL, null, hasPrevious = false))
         assertEquals(BackStep.Pop, backStep(AppDestination.VERIFY_EMAIL, null, hasPrevious = true))
     }
+
+    @Test
+    fun resetPassword_caeALogin() {
+        assertEquals(BackStep.Navigate("login"), backStep(AppDestination.RESET_PASSWORD, null, hasPrevious = false))
+        assertEquals(BackStep.Pop, backStep(AppDestination.RESET_PASSWORD, null, hasPrevious = true))
+    }
+
+    @Test
+    fun changePassword_caeASettings() {
+        assertEquals(BackStep.Navigate("settings"), backStep(AppDestination.CHANGE_PASSWORD, null, hasPrevious = false))
+        assertEquals(BackStep.Pop, backStep(AppDestination.CHANGE_PASSWORD, null, hasPrevious = true))
+    }
+
+    @Test
+    fun regenerateCodes_caeASettings() {
+        assertEquals(BackStep.Navigate("settings"), backStep(AppDestination.REGENERATE_CODES, null, hasPrevious = false))
+        assertEquals(BackStep.Pop, backStep(AppDestination.REGENERATE_CODES, null, hasPrevious = true))
+    }
 }

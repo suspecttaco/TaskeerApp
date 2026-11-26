@@ -1,9 +1,12 @@
 package com.simposio.taskeer.data.repository
 
+import com.simposio.taskeer.domain.auth.ChangePasswordOutcome
 import com.simposio.taskeer.domain.auth.LoginOutcome
 import com.simposio.taskeer.domain.auth.LogoutOutcome
+import com.simposio.taskeer.domain.auth.RegenerateCodesOutcome
 import com.simposio.taskeer.domain.auth.RegisterOutcome
 import com.simposio.taskeer.domain.auth.ResendVerificationOutcome
+import com.simposio.taskeer.domain.auth.ResetPasswordOutcome
 import com.simposio.taskeer.domain.auth.SessionState
 import com.simposio.taskeer.domain.auth.VerifyEmailOutcome
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +27,15 @@ interface AuthRepository {
 
     // Requiere `SignedIn`; sin sesión no hace petición.
     suspend fun resendVerification(): ResendVerificationOutcome
+
+    // Público: no toca la sesión. Rellena `newPassword` de ceros en todos los caminos. Un código por llamada, sin reintentos.
+    suspend fun resetPassword(email: String, code: String, newPassword: CharArray): ResetPasswordOutcome
+
+    // Requiere `SignedIn` (sin sesión no hay petición). Rellena ambas contraseñas de ceros. Con éxito sustituye la sesión.
+    suspend fun changePassword(currentPassword: CharArray, newPassword: CharArray): ChangePasswordOutcome
+
+    // Requiere `SignedIn` (sin sesión no hay petición). Rellena `currentPassword` de ceros.
+    suspend fun regenerateRecoveryCodes(currentPassword: CharArray): RegenerateCodesOutcome
 
     suspend fun logout(): LogoutOutcome
 

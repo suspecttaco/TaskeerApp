@@ -15,6 +15,9 @@ enum class AppDestination(val route: String) {
     LOGIN("login"),
     REGISTER("register"),
     VERIFY_EMAIL("verify-email"),
+    RESET_PASSWORD("reset-password"),
+    CHANGE_PASSWORD("change-password"),
+    REGENERATE_CODES("regenerate-codes"),
     ;
 
     fun upRoute(boardId: String): String? = when (this) {

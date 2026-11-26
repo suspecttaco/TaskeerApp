@@ -13,6 +13,9 @@ internal object AuthApiContract {
     const val REGISTER_PATH = "auth/register"
     const val VERIFY_EMAIL_PATH = "auth/verify-email"
     const val RESEND_VERIFICATION_PATH = "auth/resend-verification"
+    const val RESET_PASSWORD_PATH = "auth/reset-password-with-code"
+    const val CHANGE_PASSWORD_PATH = "auth/change-password"
+    const val REGENERATE_CODES_PATH = "auth/recovery-codes/regenerate"
 
     sealed interface LoginResponse {
         // El backend sin B8 responde 200 con el refresh solo en cookie.
@@ -41,6 +44,15 @@ internal object AuthApiContract {
     fun registerBody(displayName: String, email: String, password: CharArray): String =
         JSONObject().put("email", email).put("password", String(password)).put("displayName", displayName).toString()
 
+    fun resetBody(email: String, code: String, newPassword: CharArray): String =
+        JSONObject().put("email", email).put("code", code).put("newPassword", String(newPassword)).toString()
+
+    fun changePasswordBody(current: CharArray, new: CharArray): String =
+        JSONObject().put("currentPassword", String(current)).put("newPassword", String(new)).toString()
+
+    fun regenerateBody(current: CharArray): String =
+        JSONObject().put("currentPassword", String(current)).toString()
+
     fun logoutBody(refreshToken: String): String =
         JSONObject().put("refreshToken", refreshToken).toString()
 
@@ -62,6 +74,7 @@ internal object AuthApiContract {
                         email = user?.optString("email").orEmpty(),
                         displayName = user?.optString("displayName").orEmpty(),
                         emailVerified = emailVerifiedOf(user),
+                        hasPassword = hasPasswordOf(user),
                     ),
                 )
             }
@@ -77,11 +90,18 @@ internal object AuthApiContract {
         val email = user?.optString("email").orEmpty()
         val displayName = user?.optString("displayName").orEmpty()
         RegisterResponse.Created(
-            account = if (user == null || email.isBlank()) null else AccountSummary(email, displayName, emailVerifiedOf(user)),
+            account = if (user == null || email.isBlank()) null else AccountSummary(email, displayName, emailVerifiedOf(user), hasPasswordOf(user)),
             codes = codesOf(json.optJSONArray("recoveryCodes")),
         )
     } catch (_: JSONException) {
         RegisterResponse.Unreadable
+    }
+
+    // null = ilegible; lista vacía = respuesta legible sin códigos.
+    fun parseRecoveryCodes(body: String): List<String>? = try {
+        JSONObject(body).let { codesOf(it.optJSONArray("recoveryCodes")) }
+    } catch (_: JSONException) {
+        null
     }
 
     fun parseVerified(body: String): Boolean = try {
@@ -99,6 +119,9 @@ internal object AuthApiContract {
     // Ausente = desconocido; nulo explícito = sin verificar.
     private fun emailVerifiedOf(user: JSONObject?): Boolean? =
         if (user == null || !user.has("emailVerifiedAt")) null else !user.isNull("emailVerifiedAt")
+
+    private fun hasPasswordOf(user: JSONObject?): Boolean? =
+        if (user == null || user.isNull("hasPassword") || !user.has("hasPassword")) null else user.optBoolean("hasPassword")
 
     private fun codesOf(array: JSONArray?): List<String> {
         if (array == null) return emptyList()

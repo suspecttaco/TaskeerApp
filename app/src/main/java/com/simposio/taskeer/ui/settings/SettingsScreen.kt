@@ -24,6 +24,8 @@ fun SettingsScreen(
     session: SessionViewModel,
     onSignIn: () -> Unit,
     onHaveVerificationLink: () -> Unit,
+    onChangePassword: () -> Unit,
+    onRegenerateCodes: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: SettingsViewModel = viewModel(factory = viewModelFactory)
@@ -48,6 +50,8 @@ fun SettingsScreen(
                 onSignOut = session::logout,
                 onResendVerification = resendViewModel::resend,
                 onHaveVerificationLink = onHaveVerificationLink,
+                onChangePassword = onChangePassword,
+                onRegenerateCodes = onRegenerateCodes,
             ),
         )
         AppDivider()

@@ -1,5 +1,8 @@
 package com.simposio.taskeer.data.remote.auth
 
+import com.simposio.taskeer.domain.auth.ResetPasswordOutcome
+import com.simposio.taskeer.domain.auth.RegenerateCodesOutcome
+import com.simposio.taskeer.domain.auth.ChangePasswordOutcome
 import com.simposio.taskeer.data.remote.ApiErrorMapper
 import com.simposio.taskeer.data.remote.FakeHttpTransport
 import com.simposio.taskeer.data.remote.FakeSessionRefresher
@@ -1191,5 +1194,508 @@ class RemoteAuthRepositoryTest {
         assertEquals("EMAIL_VERIFICATION_DISABLED", failedResend(repository.resendVerification()).error.code)
         backend.resendAlreadyVerified = true
         assertEquals(ResendVerificationOutcome.AlreadyVerified, repository.resendVerification())
+    }
+
+    private val resetUrl = "https://api.test/api/v1/auth/reset-password-with-code"
+    private val changeUrl = "https://api.test/api/v1/auth/change-password"
+    private val regenerateUrl = "https://api.test/api/v1/auth/recovery-codes/regenerate"
+
+    private fun failedReset(outcome: ResetPasswordOutcome) = outcome as ResetPasswordOutcome.Failed
+
+    private fun failedChange(outcome: ChangePasswordOutcome) = outcome as ChangePasswordOutcome.Failed
+
+    private fun failedRegenerate(outcome: RegenerateCodesOutcome) = outcome as RegenerateCodesOutcome.Failed
+
+    private val resetOk = """{"reset":true}"""
+
+    private fun changeJson(refresh: String? = "r2", access: String = "a2"): String {
+        val json = JSONObject().put("accessToken", access)
+            .put("user", JSONObject().put("email", "ana@example.com").put("displayName", "Ana").put("hasPassword", true))
+        if (refresh != null) json.put("refreshToken", refresh)
+        return json.toString()
+    }
+
+    private fun codesJson(count: Int = 10) =
+        JSONObject().put("recoveryCodes", JSONArray(List(count) { "NEW1-%04d".format(it) })).toString()
+
+    @Test
+    fun resetPassword_exitoso_hacePostSinAuthorizationConElJsonEsperado() = runTest {
+        transport.enqueue(response(200, resetOk))
+
+        val outcome = repository().resetPassword("  ana@example.com ", "abcd-ef12", password("nueva-clave"))
+
+        val request = transport.requests.single()
+        assertEquals(ResetPasswordOutcome.Reset, outcome)
+        assertEquals(HttpMethod.POST, request.method)
+        assertEquals(resetUrl, request.url)
+        assertNull(request.headers["Authorization"])
+        assertEquals("mobile", request.headers["X-Client"])
+        val body = JSONObject(requireNotNull(request.body))
+        assertEquals("ana@example.com", body.getString("email"))
+        assertEquals("ABCD-EF12", body.getString("code"))
+        assertEquals("nueva-clave", body.getString("newPassword"))
+    }
+
+    @Test
+    fun resetPassword_conDatosInvalidos_noHacePeticion() = runTest {
+        val repository = repository()
+
+        val badEmail = failedReset(repository.resetPassword("sin-arroba", "ABCD-EF12", password("nueva-clave")))
+        val badCode = failedReset(repository.resetPassword("ana@example.com", "ABC", password("nueva-clave")))
+        val badPassword = failedReset(repository.resetPassword("ana@example.com", "ABCD-EF12", password("corta")))
+
+        assertEquals("EMAIL_INVALID", badEmail.error.code)
+        assertEquals("CODE_INVALID", badCode.error.code)
+        assertEquals("PASSWORD_TOO_SHORT", badPassword.error.code)
+        assertTrue(transport.requests.isEmpty())
+    }
+
+    @Test
+    fun resetPassword_con400_esValidationYNoCambiaNada() = runTest {
+        transport.enqueue(response(400, errorBody("INVALID_RECOVERY_CODE")))
+        val repository = repository()
+
+        val outcome = failedReset(repository.resetPassword("ana@example.com", "ABCD-EF12", password("nueva-clave")))
+
+        assertTrue(outcome.error is DomainError.Validation)
+        assertEquals("INVALID_RECOVERY_CODE", outcome.error.code)
+        assertEquals(SessionState.SignedOut(), repository.sessionState.value)
+        assertNull(store.value)
+    }
+
+    @Test
+    fun resetPassword_cuerpoIlegible_esReset() = runTest {
+        transport.enqueue(response(200, "<html>"))
+
+        assertEquals(ResetPasswordOutcome.Reset, repository().resetPassword("ana@example.com", "ABCD-EF12", password("nueva-clave")))
+    }
+
+    @Test
+    fun resetPassword_haceUnaSolaPeticionPorLlamada() = runTest {
+        transport.enqueue(response(400, errorBody("INVALID_RECOVERY_CODE")))
+
+        repository().resetPassword("ana@example.com", "ABCD-EF12", password("nueva-clave"))
+
+        assertEquals(1, transport.requests.size)
+    }
+
+    @Test
+    fun resetPassword_noCambiaSesionNiAlmacen() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(200, resetOk))
+
+        repository.resetPassword("ana@example.com", "ABCD-EF12", password("nueva-clave"))
+
+        assertEquals(SessionState.SignedIn(account, offline = false), repository.sessionState.value)
+        assertEquals("r1", store.value)
+        assertEquals("a1", session.currentAccessToken())
+    }
+
+    @Test
+    fun resetPassword_con429_devuelveRateLimitedConRetryAfter() = runTest {
+        transport.enqueue(response(429, errorBody("TOO_MANY_REQUESTS"), mapOf("retry-after" to "300")))
+
+        val outcome = failedReset(repository().resetPassword("ana@example.com", "ABCD-EF12", password("nueva-clave")))
+
+        assertTrue(outcome.error is DomainError.RateLimited)
+        assertEquals(300L, outcome.retryAfterSeconds)
+    }
+
+    @Test
+    fun resetPassword_sinRed_devuelveNetwork() = runTest {
+        transport.enqueue(failure(TransportFailureKind.UNREACHABLE))
+
+        val outcome = failedReset(repository().resetPassword("ana@example.com", "ABCD-EF12", password("nueva-clave")))
+
+        assertTrue(outcome.error is DomainError.Network)
+    }
+
+    @Test
+    fun resetPassword_con500_devuelveServer() = runTest {
+        transport.enqueue(response(500, errorBody("INTERNAL")))
+
+        val outcome = failedReset(repository().resetPassword("ana@example.com", "ABCD-EF12", password("nueva-clave")))
+
+        assertTrue(outcome.error is DomainError.Server)
+    }
+
+    @Test
+    fun resetPassword_rellenaDeCerosLaContrasena() = runTest {
+        val ok = password("nueva-clave")
+        val invalid = password("corta")
+        val failing = password("nueva-clave")
+        transport.enqueue(response(200, resetOk))
+        transport.enqueue(response(400, errorBody("INVALID_RECOVERY_CODE")))
+        val repository = repository()
+
+        repository.resetPassword("ana@example.com", "ABCD-EF12", ok)
+        repository.resetPassword("ana@example.com", "ABCD-EF12", invalid)
+        repository.resetPassword("ana@example.com", "ABCD-EF12", failing)
+
+        assertTrue(ok.all { it == '\u0000' })
+        assertTrue(invalid.all { it == '\u0000' })
+        assertTrue(failing.all { it == '\u0000' })
+    }
+
+    private fun TestScope.backendRepository(backend: FakeAuthBackend): RemoteAuthRepository {
+        val auth = AuthSession(store, HttpSessionRefresher(backend, TEST_CONFIG))
+        return repository(auth, RealApiClient(backend, auth, TEST_CONFIG))
+    }
+
+    @Test
+    fun resetPassword_conCodigoValido_soloEseQuedaUsadoYLosOtros9Siguen() = runTest {
+        val backend = FakeAuthBackend(b8 = true)
+        val repository = backendRepository(backend)
+
+        val outcome = repository.resetPassword(FakeAuthBackend.EMAIL, "abcd-0003", password("nueva-clave"))
+
+        assertEquals(ResetPasswordOutcome.Reset, outcome)
+        assertEquals(setOf("ABCD-0003"), backend.usedCodes)
+        assertEquals(9, backend.recoveryCodes.count { it !in backend.usedCodes })
+        assertEquals(
+            ResetPasswordOutcome.Reset,
+            repository.resetPassword(FakeAuthBackend.EMAIL, "ABCD-0004", password("otra-clave-1")),
+        )
+    }
+
+    @Test
+    fun resetPassword_conCorreoInexistenteOCodigoInvalido_respondeIgual() = runTest {
+        val backend = FakeAuthBackend(b8 = true)
+        val repository = backendRepository(backend)
+        repository.resetPassword(FakeAuthBackend.EMAIL, "ABCD-0001", password("nueva-clave"))
+
+        val unknownEmail = failedReset(repository.resetPassword("otra@example.com", "ABCD-0002", password("nueva-clave")))
+        val unknownCode = failedReset(repository.resetPassword(FakeAuthBackend.EMAIL, "ZZZZ-9999", password("nueva-clave")))
+        val usedCode = failedReset(repository.resetPassword(FakeAuthBackend.EMAIL, "ABCD-0001", password("nueva-clave")))
+
+        assertEquals(unknownEmail, unknownCode)
+        assertEquals(unknownCode, usedCode)
+        assertEquals("INVALID_RECOVERY_CODE", unknownEmail.error.code)
+    }
+
+    @Test
+    fun resetPassword_revocaLosRefreshDelUsuario() = runTest {
+        val backend = FakeAuthBackend(b8 = true)
+        val repository = backendRepository(backend)
+        repository.login(FakeAuthBackend.EMAIL, password(FakeAuthBackend.PASSWORD))
+
+        repository.resetPassword(FakeAuthBackend.EMAIL, "ABCD-0000", password("nueva-clave"))
+        repository.resume()
+        backend.rotating.expireAccess("access-login")
+        val auth = AuthSession(store, HttpSessionRefresher(backend, TEST_CONFIG))
+
+        assertTrue(auth.renew(null) is com.simposio.taskeer.data.remote.session.RenewOutcome.SessionExpired)
+    }
+
+    @Test
+    fun changePassword_conSesion_hacePostConAuthorizationYElJsonEsperado() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(200, changeJson()))
+
+        repository.changePassword(password("vieja-clave"), password("nueva-clave"))
+
+        val request = transport.requests.last()
+        assertEquals(HttpMethod.POST, request.method)
+        assertEquals(changeUrl, request.url)
+        assertEquals("Bearer a1", request.headers["Authorization"])
+        val body = JSONObject(requireNotNull(request.body))
+        assertEquals("vieja-clave", body.getString("currentPassword"))
+        assertEquals("nueva-clave", body.getString("newPassword"))
+    }
+
+    @Test
+    fun changePassword_sinSesion_noHacePeticion() = runTest {
+        val outcome = failedChange(repository().changePassword(password("vieja-clave"), password("nueva-clave")))
+
+        assertEquals("NOT_SIGNED_IN", outcome.error.code)
+        assertTrue(outcome.error is DomainError.Unauthenticated)
+        assertTrue(transport.requests.isEmpty())
+    }
+
+    @Test
+    fun changePassword_exitoso_guardaElParNuevoYPublicaLaCuenta() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(200, changeJson(refresh = "r2", access = "a2")))
+
+        val outcome = repository.changePassword(password("vieja-clave"), password("nueva-clave"))
+
+        val expected = AccountSummary("ana@example.com", "Ana", hasPassword = true)
+        assertEquals(ChangePasswordOutcome.Changed(expected), outcome)
+        assertEquals("a2", session.currentAccessToken())
+        assertEquals("r2", store.value)
+        assertEquals(SessionState.SignedIn(expected, offline = false), repository.sessionState.value)
+    }
+
+    @Test
+    fun changePassword_sinRefreshToken_cierraLaSesionLocalYDevuelveChangedSignedOut() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(200, changeJson(refresh = null)))
+
+        val outcome = repository.changePassword(password("vieja-clave"), password("nueva-clave"))
+
+        assertEquals(ChangePasswordOutcome.ChangedSignedOut, outcome)
+        assertNull(store.value)
+        assertEquals(SessionState.SignedOut(), repository.sessionState.value)
+        assertEquals(1, transport.requests.count { it.url == changeUrl })
+        assertTrue(transport.requests.none { it.url.endsWith("auth/logout") })
+    }
+
+    @Test
+    fun changePassword_cuerpoIlegible_cierraLaSesionLocal() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(200, "<html>"))
+
+        val outcome = repository.changePassword(password("vieja-clave"), password("nueva-clave"))
+
+        assertEquals(ChangePasswordOutcome.ChangedSignedOut, outcome)
+        assertNull(store.value)
+        assertEquals(SessionState.SignedOut(), repository.sessionState.value)
+    }
+
+    @Test
+    fun changePassword_con401InvalidCredentials_noCierraLaSesionNiRenueva() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(401, errorBody("INVALID_CREDENTIALS")))
+
+        val outcome = failedChange(repository.changePassword(password("mal-clave-1"), password("nueva-clave")))
+
+        assertEquals("INVALID_CREDENTIALS", outcome.error.code)
+        assertTrue(refresher.receivedTokens.isEmpty())
+        assertEquals(SessionState.SignedIn(account, offline = false), repository.sessionState.value)
+        assertEquals("r1", store.value)
+    }
+
+    @Test
+    fun changePassword_con401Unauthenticated_devuelveUnauthenticated() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(401, errorBody("UNAUTHENTICATED")))
+        refresher.enqueue(RefreshOutcome.Rejected(DomainError.Unauthenticated("INVALID_REFRESH_TOKEN", "x")))
+
+        val outcome = failedChange(repository.changePassword(password("vieja-clave"), password("nueva-clave")))
+
+        assertTrue(outcome.error is DomainError.Unauthenticated)
+    }
+
+    @Test
+    fun changePassword_con400NoLocalPassword_devuelveValidationConElCodigo() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(400, errorBody("NO_LOCAL_PASSWORD")))
+
+        val outcome = failedChange(repository.changePassword(password("vieja-clave"), password("nueva-clave")))
+
+        assertTrue(outcome.error is DomainError.Validation)
+        assertEquals("NO_LOCAL_PASSWORD", outcome.error.code)
+    }
+
+    @Test
+    fun changePassword_con409_conservaElCodigoConcurrentPasswordChange() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(409, errorBody("CONCURRENT_PASSWORD_CHANGE")))
+
+        val outcome = failedChange(repository.changePassword(password("vieja-clave"), password("nueva-clave")))
+
+        assertEquals("CONCURRENT_PASSWORD_CHANGE", outcome.error.code)
+        assertEquals(SessionState.SignedIn(account, offline = false), repository.sessionState.value)
+    }
+
+    @Test
+    fun changePassword_con429_devuelveRateLimitedConRetryAfter() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(429, errorBody("TOO_MANY_REQUESTS"), mapOf("retry-after" to "120")))
+
+        val outcome = failedChange(repository.changePassword(password("vieja-clave"), password("nueva-clave")))
+
+        assertTrue(outcome.error is DomainError.RateLimited)
+        assertEquals(120L, outcome.retryAfterSeconds)
+    }
+
+    @Test
+    fun changePassword_rellenaDeCerosAmbasContrasenas() = runTest {
+        val repository = repository()
+        val current = password("vieja-clave")
+        val new = password("nueva-clave")
+
+        repository.changePassword(current, new)
+
+        assertTrue(current.all { it == '\u0000' })
+        assertTrue(new.all { it == '\u0000' })
+    }
+
+    @Test
+    fun changePassword_noExponeSecretosEnToStringNiErrores() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(401, errorBody("INVALID_CREDENTIALS")))
+
+        val outcome = repository.changePassword(password("vieja-secreta"), password("nueva-secreta"))
+
+        assertFalse(outcome.toString().contains("secreta"))
+        assertFalse(transport.requests.last().toString().contains("secreta"))
+    }
+
+    @Test
+    fun regenerate_conSesion_hacePostConAuthorizationYContrasena() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(200, codesJson()))
+
+        repository.regenerateRecoveryCodes(password("vieja-clave"))
+
+        val request = transport.requests.last()
+        assertEquals(HttpMethod.POST, request.method)
+        assertEquals(regenerateUrl, request.url)
+        assertEquals("Bearer a1", request.headers["Authorization"])
+        assertEquals("vieja-clave", JSONObject(requireNotNull(request.body)).getString("currentPassword"))
+    }
+
+    @Test
+    fun regenerate_sinSesion_noHacePeticion() = runTest {
+        val outcome = failedRegenerate(repository().regenerateRecoveryCodes(password("vieja-clave")))
+
+        assertEquals("NOT_SIGNED_IN", outcome.error.code)
+        assertTrue(transport.requests.isEmpty())
+    }
+
+    @Test
+    fun regenerate_sinContrasena_noHacePeticion() = runTest {
+        val repository = repository()
+        repository.signIn()
+        val before = transport.requests.size
+
+        val outcome = failedRegenerate(repository.regenerateRecoveryCodes(charArrayOf()))
+
+        assertEquals("PASSWORD_REQUIRED", outcome.error.code)
+        assertEquals(before, transport.requests.size)
+    }
+
+    @Test
+    fun regenerate_exitoso_devuelve10Codigos() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(200, codesJson()))
+
+        val outcome = repository.regenerateRecoveryCodes(password("vieja-clave")) as RegenerateCodesOutcome.Regenerated
+
+        assertEquals(10, outcome.codes.count)
+        assertEquals("NEW1-0000", outcome.codes.values.first())
+    }
+
+    @Test
+    fun regenerate_sinCodigos_esRegeneratedWithoutCodes() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(200, codesJson(count = 0)))
+        transport.enqueue(response(200, "<html>"))
+
+        assertEquals(RegenerateCodesOutcome.RegeneratedWithoutCodes, repository.regenerateRecoveryCodes(password("vieja-clave")))
+        assertEquals(RegenerateCodesOutcome.RegeneratedWithoutCodes, repository.regenerateRecoveryCodes(password("vieja-clave")))
+    }
+
+    @Test
+    fun regenerate_con401InvalidCredentials_noCierraLaSesion() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(401, errorBody("INVALID_CREDENTIALS")))
+
+        val outcome = failedRegenerate(repository.regenerateRecoveryCodes(password("mal-clave-1")))
+
+        assertEquals("INVALID_CREDENTIALS", outcome.error.code)
+        assertEquals(SessionState.SignedIn(account, offline = false), repository.sessionState.value)
+        assertTrue(refresher.receivedTokens.isEmpty())
+    }
+
+    @Test
+    fun regenerate_con400NoLocalPassword_devuelveElCodigo() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(400, errorBody("NO_LOCAL_PASSWORD")))
+
+        assertEquals("NO_LOCAL_PASSWORD", failedRegenerate(repository.regenerateRecoveryCodes(password("vieja-clave"))).error.code)
+    }
+
+    @Test
+    fun regenerate_con429_devuelveRateLimitedConRetryAfter() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(429, errorBody("TOO_MANY_REQUESTS"), mapOf("retry-after" to "60")))
+
+        val outcome = failedRegenerate(repository.regenerateRecoveryCodes(password("vieja-clave")))
+
+        assertTrue(outcome.error is DomainError.RateLimited)
+        assertEquals(60L, outcome.retryAfterSeconds)
+    }
+
+    @Test
+    fun regenerate_rellenaDeCerosLaContrasena() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(200, codesJson()))
+        val ok = password("vieja-clave")
+        val noSession = password("vieja-clave")
+
+        repository.regenerateRecoveryCodes(ok)
+        repository().regenerateRecoveryCodes(noSession)
+
+        assertTrue(ok.all { it == '\u0000' })
+        assertTrue(noSession.all { it == '\u0000' })
+    }
+
+    @Test
+    fun regenerate_conElServidor_invalidaTodosLosCodigosViejos() = runTest {
+        val backend = FakeAuthBackend(b8 = true)
+        val repository = backendRepository(backend)
+        repository.login(FakeAuthBackend.EMAIL, password(FakeAuthBackend.PASSWORD))
+        repository.resetPassword(FakeAuthBackend.EMAIL, "ABCD-0000", password("nueva-clave"))
+        repository.login(FakeAuthBackend.EMAIL, password("nueva-clave"))
+
+        val outcome = repository.regenerateRecoveryCodes(password("nueva-clave"))
+
+        assertTrue(outcome is RegenerateCodesOutcome.Regenerated)
+        val old = failedReset(repository.resetPassword(FakeAuthBackend.EMAIL, "ABCD-0005", password("otra-clave-1")))
+        assertEquals("INVALID_RECOVERY_CODE", old.error.code)
+        val oldUsed = failedReset(repository.resetPassword(FakeAuthBackend.EMAIL, "ABCD-0000", password("otra-clave-1")))
+        assertEquals("INVALID_RECOVERY_CODE", oldUsed.error.code)
+        assertEquals(
+            ResetPasswordOutcome.Reset,
+            repository.resetPassword(FakeAuthBackend.EMAIL, "NEW1-0002", password("otra-clave-1")),
+        )
+    }
+
+    @Test
+    fun changePassword_conElServidor_sustituyeLaSesionYRevocaLaAnterior() = runTest {
+        val backend = FakeAuthBackend(b8 = true)
+        val repository = backendRepository(backend)
+        repository.login(FakeAuthBackend.EMAIL, password(FakeAuthBackend.PASSWORD))
+
+        val outcome = repository.changePassword(password(FakeAuthBackend.PASSWORD), password("nueva-clave"))
+
+        assertTrue(outcome is ChangePasswordOutcome.Changed)
+        assertEquals("refresh-change", store.value)
+        assertTrue("refresh-login" in backend.revokedRefreshTokens)
+        assertEquals("nueva-clave", backend.password)
+    }
+
+    @Test
+    fun changePassword_conElServidorSinRefreshEnElCuerpo_dejaLaSesionCerrada() = runTest {
+        val backend = FakeAuthBackend(b8 = true)
+        backend.changeReturnsRefresh = false
+        val repository = backendRepository(backend)
+        repository.login(FakeAuthBackend.EMAIL, password(FakeAuthBackend.PASSWORD))
+
+        val outcome = repository.changePassword(password(FakeAuthBackend.PASSWORD), password("nueva-clave"))
+
+        assertEquals(ChangePasswordOutcome.ChangedSignedOut, outcome)
+        assertNull(store.value)
+        assertEquals(SessionState.SignedOut(), repository.sessionState.value)
     }
 }

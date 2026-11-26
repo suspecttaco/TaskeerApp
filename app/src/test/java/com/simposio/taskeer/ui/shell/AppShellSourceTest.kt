@@ -44,4 +44,11 @@ class AppShellSourceTest {
     fun tituloDeVerificarCorreo() {
         assertTrue(source.contains("AppDestination.VERIFY_EMAIL -> stringResource(R.string.verify_title)"))
     }
+
+    @Test
+    fun titulosDeLasTresPantallas() {
+        assertTrue(source.contains("AppDestination.RESET_PASSWORD -> stringResource(R.string.reset_title)"))
+        assertTrue(source.contains("AppDestination.CHANGE_PASSWORD -> stringResource(R.string.chpw_title)"))
+        assertTrue(source.contains("AppDestination.REGENERATE_CODES -> stringResource(R.string.regen_title)"))
+    }
 }

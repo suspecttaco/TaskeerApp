@@ -2,11 +2,14 @@ package com.simposio.taskeer.testing
 
 import com.simposio.taskeer.data.repository.AuthRepository
 import com.simposio.taskeer.domain.auth.AccountSummary
+import com.simposio.taskeer.domain.auth.ChangePasswordOutcome
 import com.simposio.taskeer.domain.auth.LoginOutcome
 import com.simposio.taskeer.domain.auth.LogoutOutcome
 import com.simposio.taskeer.domain.auth.RecoveryCodes
+import com.simposio.taskeer.domain.auth.RegenerateCodesOutcome
 import com.simposio.taskeer.domain.auth.RegisterOutcome
 import com.simposio.taskeer.domain.auth.ResendVerificationOutcome
+import com.simposio.taskeer.domain.auth.ResetPasswordOutcome
 import com.simposio.taskeer.domain.auth.SessionState
 import com.simposio.taskeer.domain.auth.VerifyEmailOutcome
 import kotlinx.coroutines.CompletableDeferred
@@ -36,6 +39,23 @@ class FakeAuthRepository(initial: SessionState = SessionState.SignedOut()) : Aut
     var resendResult: ResendVerificationOutcome = ResendVerificationOutcome.Sent
     var resendGate: CompletableDeferred<Unit>? = null
     var resendCalls = 0
+    var resetResult: ResetPasswordOutcome = ResetPasswordOutcome.Reset
+    var resetGate: CompletableDeferred<Unit>? = null
+    var resetCalls = 0
+    var lastCodeSent: String? = null
+    val resetEmails = mutableListOf<String>()
+    var lastResetPassword: CharArray? = null
+    var changeResult: ChangePasswordOutcome = ChangePasswordOutcome.Changed(AccountSummary("ana@example.com", "Ana"))
+    var changeGate: CompletableDeferred<Unit>? = null
+    var changeCalls = 0
+    var lastChangeCurrent: CharArray? = null
+    var lastChangeNew: CharArray? = null
+    var regenerateResult: RegenerateCodesOutcome = RegenerateCodesOutcome.Regenerated(
+        RecoveryCodes(List(RecoveryCodes.EXPECTED_COUNT) { "NEW1-%04d".format(it) }),
+    )
+    var regenerateGate: CompletableDeferred<Unit>? = null
+    var regenerateCalls = 0
+    var lastRegenerateCurrent: CharArray? = null
     var loginGate: CompletableDeferred<Unit>? = null
     var logoutGate: CompletableDeferred<Unit>? = null
     var resumeCalls = 0
@@ -78,6 +98,30 @@ class FakeAuthRepository(initial: SessionState = SessionState.SignedOut()) : Aut
         resendCalls++
         resendGate?.await()
         return resendResult
+    }
+
+    override suspend fun resetPassword(email: String, code: String, newPassword: CharArray): ResetPasswordOutcome {
+        resetCalls++
+        resetEmails += email
+        lastCodeSent = code
+        lastResetPassword = newPassword
+        resetGate?.await()
+        return resetResult
+    }
+
+    override suspend fun changePassword(currentPassword: CharArray, newPassword: CharArray): ChangePasswordOutcome {
+        changeCalls++
+        lastChangeCurrent = currentPassword
+        lastChangeNew = newPassword
+        changeGate?.await()
+        return changeResult
+    }
+
+    override suspend fun regenerateRecoveryCodes(currentPassword: CharArray): RegenerateCodesOutcome {
+        regenerateCalls++
+        lastRegenerateCurrent = currentPassword
+        regenerateGate?.await()
+        return regenerateResult
     }
 
     override suspend fun logout(): LogoutOutcome {

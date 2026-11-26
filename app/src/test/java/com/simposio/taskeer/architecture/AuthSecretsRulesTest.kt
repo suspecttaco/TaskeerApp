@@ -16,7 +16,10 @@ import org.junit.Test
 
 class AuthSecretsRulesTest {
 
-    private val authDirectories = listOf("ui/auth", "data/remote/auth", "data/auth", "domain/auth", "ui/register")
+    private val authDirectories = listOf(
+        "ui/auth", "data/remote/auth", "data/auth", "domain/auth", "ui/register",
+        "ui/passwordreset", "ui/accountsecurity",
+    )
 
     @Test
     fun authNoUsaLogNiPrintln() {
@@ -64,6 +67,7 @@ class AuthSecretsRulesTest {
                 .filterNot { Modifier.isStatic(it.modifiers) }
                 .filter { it.name.contains("token", ignoreCase = true) || it.name.contains("password", ignoreCase = true) }
                 .filterNot { type == LoginUiState::class.java && it.name == "passwordResetCount" }
+                .filterNot { type == AccountSummary::class.java && it.name == "hasPassword" && it.type == java.lang.Boolean::class.javaObjectType }
                 .map { "${type.simpleName}.${it.name}" }
         }
 

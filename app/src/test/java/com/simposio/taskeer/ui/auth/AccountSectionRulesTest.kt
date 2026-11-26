@@ -77,4 +77,32 @@ class AccountSectionRulesTest {
         assertNull(accountSectionFor(SessionState.SignedOut()).verification)
         assertNull(accountSectionFor(SessionState.Resuming).verification)
     }
+
+    private val both = listOf(AccountSecurityAction.CHANGE_PASSWORD, AccountSecurityAction.REGENERATE_CODES)
+
+    private fun securityOf(hasPassword: Boolean?, offline: Boolean = false) = accountSectionFor(
+        SessionState.SignedIn(AccountSummary("ana@example.com", "Ana", hasPassword = hasPassword), offline),
+    ).security
+
+    @Test
+    fun seguridad_conSesionYHasPasswordTrue_muestraLasDosFilas() {
+        assertEquals(both, securityOf(true))
+    }
+
+    @Test
+    fun seguridad_conHasPasswordDesconocido_muestraLasDosFilas() {
+        assertEquals(both, securityOf(null))
+        assertEquals(both, accountSectionFor(SessionState.SignedIn(null, offline = false)).security)
+    }
+
+    @Test
+    fun seguridad_conHasPasswordFalse_lasOculta() {
+        assertEquals(emptyList<AccountSecurityAction>(), securityOf(false))
+    }
+
+    @Test
+    fun seguridad_sinSesion_noHayFilas() {
+        assertEquals(emptyList<AccountSecurityAction>(), accountSectionFor(SessionState.SignedOut()).security)
+        assertEquals(emptyList<AccountSecurityAction>(), accountSectionFor(SessionState.Resuming).security)
+    }
 }

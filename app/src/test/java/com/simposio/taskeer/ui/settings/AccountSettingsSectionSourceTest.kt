@@ -35,4 +35,17 @@ class AccountSettingsSectionSourceTest {
     fun noGuardaEstadoDeVerificacionEnSaveable() {
         assertFalse(source.contains("rememberSaveable"))
     }
+
+    @Test
+    fun seguridad_muestraFilasClicablesConAreaMinimaDeToque() {
+        listOf(
+            "R.string.chpw_settings_row",
+            "R.string.regen_settings_row",
+            "model.security.forEach",
+            "Spacing.MinTouchTarget",
+            "clickable(onClick = onClick)",
+            "actions.onChangePassword",
+            "actions.onRegenerateCodes",
+        ).forEach { assertTrue("falta $it", source.contains(it)) }
+    }
 }

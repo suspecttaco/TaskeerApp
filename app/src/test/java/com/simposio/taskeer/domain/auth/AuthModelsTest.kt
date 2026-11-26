@@ -56,4 +56,31 @@ class AuthModelsTest {
     fun accountSummary_sinEmailVerified_esNulo() {
         assertEquals(null, AccountSummary("ana@example.com", "Ana").emailVerified)
     }
+
+    @Test
+    fun toString_deOutcomesDeReset_noIncluyeSecretos() {
+        val rendered = listOf(
+            ResetPasswordOutcome.Reset.toString(),
+            ResetPasswordOutcome.Failed(DomainError.Validation("INVALID_RECOVERY_CODE", "x")).toString(),
+            ChangePasswordOutcome.Changed(AccountSummary("ana@example.com", "Ana")).toString(),
+            ChangePasswordOutcome.ChangedSignedOut.toString(),
+            ChangePasswordOutcome.Failed(DomainError.Network("X", "y")).toString(),
+        ).joinToString("\n").lowercase()
+
+        assertFalse(rendered.contains("newpassword"))
+        assertFalse(rendered.contains("currentpassword"))
+    }
+
+    @Test
+    fun toString_deRegenerated_noIncluyeLosCodigos() {
+        val rendered = RegenerateCodesOutcome.Regenerated(RecoveryCodes(listOf("CTPQ-Q479", "ABCD-EFGH"))).toString()
+
+        assertFalse(rendered.contains("CTPQ"))
+        assertTrue(rendered.contains("RecoveryCodes(count=2)"))
+    }
+
+    @Test
+    fun accountSummary_sinHasPassword_esNulo() {
+        assertEquals(null, AccountSummary("ana@example.com", "Ana").hasPassword)
+    }
 }

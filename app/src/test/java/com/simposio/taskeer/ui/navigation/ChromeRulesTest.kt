@@ -280,4 +280,42 @@ class ChromeRulesTest {
     fun verifyEmail_noTieneMenu() {
         assertEquals(OverflowMenu(emptyList(), emptyList()), overflowMenuFor(AppDestination.VERIFY_EMAIL))
     }
+
+    private val securityRoutes = listOf(
+        AppDestination.RESET_PASSWORD,
+        AppDestination.CHANGE_PASSWORD,
+        AppDestination.REGENERATE_CODES,
+    )
+
+    @Test
+    fun resetPassword_esDetalleSinHomeNiPildora() {
+        val chrome = chromeFor(AppDestination.RESET_PASSWORD)
+
+        assertEquals(TopBarKind.DETAIL, chrome.topBar)
+        assertFalse(chrome.showHomeButton)
+        assertFalse(chrome.showPill)
+    }
+
+    @Test
+    fun changePassword_esDetalleSinHomeNiPildora() {
+        val chrome = chromeFor(AppDestination.CHANGE_PASSWORD)
+
+        assertEquals(TopBarKind.DETAIL, chrome.topBar)
+        assertFalse(chrome.showHomeButton)
+        assertFalse(chrome.showPill)
+    }
+
+    @Test
+    fun regenerateCodes_esDetalleSinHomeNiPildora() {
+        val chrome = chromeFor(AppDestination.REGENERATE_CODES)
+
+        assertEquals(TopBarKind.DETAIL, chrome.topBar)
+        assertFalse(chrome.showHomeButton)
+        assertFalse(chrome.showPill)
+    }
+
+    @Test
+    fun tresRutas_noTienenMenu() {
+        securityRoutes.forEach { assertEquals(OverflowMenu(emptyList(), emptyList()), overflowMenuFor(it)) }
+    }
 }

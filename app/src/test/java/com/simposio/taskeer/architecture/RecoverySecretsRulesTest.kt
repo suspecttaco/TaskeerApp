@@ -13,7 +13,7 @@ import org.junit.Test
 
 class RecoverySecretsRulesTest {
 
-    private val codeDirectories = listOf("ui/register", "data/remote/auth", "domain/auth")
+    private val codeDirectories = listOf("ui/register", "ui/accountsecurity", "data/remote/auth", "domain/auth")
     private val persistenceOrLogs = Regex(
         "SavedStateHandle|rememberSaveable|\\bBundle\\b|datastore|SharedPreferences|androidx\\.room|\\bLog\\b|println",
         RegexOption.IGNORE_CASE,
@@ -32,7 +32,7 @@ class RecoverySecretsRulesTest {
 
     @Test
     fun soloSeGuardaCodesPendingEnSavedStateHandle() {
-        val offenders = MainSources.kotlinFiles("ui/register")
+        val offenders = (MainSources.kotlinFiles("ui/register") + MainSources.kotlinFiles("ui/accountsecurity"))
             .flatMap { file -> file.readLines().map { file.name to it.trim() } }
             .filter { (_, line) -> line.contains("savedState.") || line.contains("savedState[") }
             .filterNot { (_, line) -> line.contains("KEY_CODES_PENDING") }

@@ -60,8 +60,9 @@ fun LoginScreen(
     onSignedIn: () -> Unit,
     onCreateAccount: () -> Unit,
     onHaveVerificationLink: () -> Unit,
+    onRecoverAccess: () -> Unit,
     modifier: Modifier = Modifier,
-    prefillEmail: String? = null,
+    prefill: LoginHandoff? = null,
     onPrefillConsumed: () -> Unit = {},
 ) {
     val viewModel: LoginViewModel = viewModel(factory = viewModelFactory)
@@ -72,9 +73,9 @@ fun LoginScreen(
     LaunchedEffect(state.signedIn) {
         if (state.signedIn) onSignedIn()
     }
-    LaunchedEffect(prefillEmail) {
-        if (prefillEmail != null) {
-            viewModel.prefill(prefillEmail)
+    LaunchedEffect(prefill) {
+        if (prefill != null) {
+            viewModel.prefill(prefill.email, prefill.notice)
             onPrefillConsumed()
         }
     }
@@ -109,6 +110,7 @@ fun LoginScreen(
         onSubmit = submit,
         onCreateAccount = onCreateAccount,
         onHaveVerificationLink = onHaveVerificationLink,
+        onRecoverAccess = onRecoverAccess,
         modifier = modifier,
     )
 }
@@ -121,6 +123,7 @@ private fun LoginForm(
     onSubmit: () -> Unit,
     onCreateAccount: () -> Unit,
     onHaveVerificationLink: () -> Unit,
+    onRecoverAccess: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var passwordVisible by remember { mutableStateOf(false) }
@@ -168,12 +171,27 @@ private fun LoginForm(
                 )
             },
         )
-        if (state.accountCreated) {
-            Text(
-                text = stringResource(R.string.register_account_created_notice),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-            )
+        state.notice?.let { notice ->
+            Column(modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
+                when (notice) {
+                    LoginNotice.ACCOUNT_CREATED ->
+                        Text(
+                            text = stringResource(R.string.register_account_created_notice),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    LoginNotice.PASSWORD_RESET -> {
+                        Text(
+                            text = stringResource(R.string.reset_login_notice),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = stringResource(R.string.reset_login_notice_codes),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
         }
         state.error?.let { error ->
             Text(
@@ -200,6 +218,10 @@ private fun LoginForm(
             onClick = onCreateAccount,
             modifier = Modifier.fillMaxWidth().heightIn(min = Spacing.MinTouchTarget),
         ) { Text(stringResource(R.string.register_link_action)) }
+        TextButton(
+            onClick = onRecoverAccess,
+            modifier = Modifier.fillMaxWidth().heightIn(min = Spacing.MinTouchTarget),
+        ) { Text(stringResource(R.string.reset_login_action)) }
         TextButton(
             onClick = onHaveVerificationLink,
             modifier = Modifier.fillMaxWidth().heightIn(min = Spacing.MinTouchTarget),

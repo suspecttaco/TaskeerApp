@@ -180,4 +180,41 @@ class AuthRulesTest {
     fun passwordsMatch_distintaLongitud_esFalse() {
         assertFalse(AuthRules.passwordsMatch("secreta1".toCharArray(), "secreta".toCharArray()))
     }
+
+    @Test
+    fun validateNewPassword_menosDe8_esPasswordTooShort() {
+        val error = AuthRules.validateNewPassword("1234567".toCharArray(), "1234567".toCharArray())
+
+        assertEquals(AuthRules.PASSWORD_TOO_SHORT, error?.code)
+    }
+
+    @Test
+    fun validateNewPassword_masDe128_esPasswordTooShort() {
+        val long = "a".repeat(129).toCharArray()
+
+        assertEquals(AuthRules.PASSWORD_TOO_SHORT, AuthRules.validateNewPassword(long, long.copyOf())?.code)
+    }
+
+    @Test
+    fun validateNewPassword_noCoincide_esPasswordMismatch() {
+        val error = AuthRules.validateNewPassword("12345678".toCharArray(), "12345679".toCharArray())
+
+        assertEquals(AuthRules.PASSWORD_MISMATCH, error?.code)
+    }
+
+    @Test
+    fun validateNewPassword_noRecortaEspacios() {
+        assertNull(AuthRules.validateNewPassword("  abcd  ".toCharArray(), "  abcd  ".toCharArray()))
+        assertEquals(
+            AuthRules.PASSWORD_MISMATCH,
+            AuthRules.validateNewPassword("  abcd  ".toCharArray(), "abcd".padEnd(8, 'x').toCharArray())?.code,
+        )
+    }
+
+    @Test
+    fun validateChangePassword_actualVacia_esPasswordRequired() {
+        val error = AuthRules.validateChangePassword(charArrayOf(), "12345678".toCharArray(), "12345678".toCharArray())
+
+        assertEquals(AuthRules.PASSWORD_REQUIRED, error?.code)
+    }
 }

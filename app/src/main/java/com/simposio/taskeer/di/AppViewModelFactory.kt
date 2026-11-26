@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.CreationExtras
+import com.simposio.taskeer.ui.accountsecurity.ChangePasswordViewModel
+import com.simposio.taskeer.ui.accountsecurity.RegenerateCodesViewModel
 import com.simposio.taskeer.ui.app.AppViewModel
 import com.simposio.taskeer.ui.auth.LoginViewModel
 import com.simposio.taskeer.ui.auth.SessionViewModel
@@ -20,6 +22,7 @@ import com.simposio.taskeer.ui.myday.MyDayViewModel
 import com.simposio.taskeer.ui.myday.MySuggestionsViewModel
 import com.simposio.taskeer.ui.notifications.NotificationsViewModel
 import com.simposio.taskeer.ui.notifications.UnreadCounterViewModel
+import com.simposio.taskeer.ui.passwordreset.ResetPasswordViewModel
 import com.simposio.taskeer.ui.permission.NotificationPermissionViewModel
 import com.simposio.taskeer.ui.quickadd.QuickAddViewModel
 import com.simposio.taskeer.ui.register.RegisterViewModel
@@ -177,6 +180,11 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
         modelClass.isAssignableFrom(ResendVerificationViewModel::class.java) ->
             ResendVerificationViewModel(container.authRepository) as T
 
+        modelClass.isAssignableFrom(ResetPasswordViewModel::class.java) ->
+            ResetPasswordViewModel(container.authRepository) as T
+        modelClass.isAssignableFrom(ChangePasswordViewModel::class.java) ->
+            ChangePasswordViewModel(container.authRepository) as T
+
         else -> error("AppViewModelFactory no sabe construir ${modelClass.name}")
     }
 
@@ -209,6 +217,8 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
 
         modelClass.isAssignableFrom(RegisterViewModel::class.java) ->
             RegisterViewModel(container.authRepository, extras.createSavedStateHandle()) as T
+        modelClass.isAssignableFrom(RegenerateCodesViewModel::class.java) ->
+            RegenerateCodesViewModel(container.authRepository, extras.createSavedStateHandle()) as T
         modelClass.isAssignableFrom(SearchViewModel::class.java) ->
             SearchViewModel(container.searchRepository, extras.createSavedStateHandle()) as T
 
