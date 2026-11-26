@@ -42,6 +42,7 @@ class AppDestinationTest {
                 "BOARD_COLUMNS" to "board_columns/{boardId}",
                 "SEARCH" to "search",
                 "NOTIFICATIONS" to "notifications",
+                "WORKSPACES" to "workspaces",
                 "SETTINGS" to "settings",
                 "LOGIN" to "login",
                 "REGISTER" to "register",
@@ -63,10 +64,10 @@ class AppDestinationTest {
     }
 
     @Test
-    fun inboxWorkspacesYPlannedYaNoExisten() {
+    fun inboxYPlannedYaNoExisten() {
         val names = AppDestination.entries.map { it.name }
 
-        assertTrue(names.none { it == "INBOX" || it == "WORKSPACES" || it == "PLANNED" })
+        assertTrue(names.none { it == "INBOX" || it == "PLANNED" })
         assertTrue(AppDestination.Companion::class.java.declaredMethods.none { it.name.contains("topLevel") })
     }
 

@@ -75,7 +75,12 @@ class ChromeRulesTest {
 
     @Test
     fun utilidades_noMuestranCromoFlotante() {
-        listOf(AppDestination.BOARD_COLUMNS, AppDestination.NOTIFICATIONS, AppDestination.SETTINGS).forEach {
+        listOf(
+            AppDestination.BOARD_COLUMNS,
+            AppDestination.NOTIFICATIONS,
+            AppDestination.WORKSPACES,
+            AppDestination.SETTINGS,
+        ).forEach {
             assertEquals(Chrome(TopBarKind.DETAIL, showHomeButton = false, showPill = false), chromeFor(it))
         }
     }
@@ -184,6 +189,7 @@ class ChromeRulesTest {
             AppDestination.HOME,
             AppDestination.BOARD_COLUMNS,
             AppDestination.NOTIFICATIONS,
+            AppDestination.WORKSPACES,
             AppDestination.SETTINGS,
         ).forEach { assertEquals(OverflowMenu(emptyList(), emptyList()), overflowMenuFor(it)) }
     }

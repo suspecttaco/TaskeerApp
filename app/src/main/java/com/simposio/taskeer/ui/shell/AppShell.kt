@@ -413,6 +413,7 @@ private fun AppDestination.title(listName: String?, boardName: String?): String 
     AppDestination.BOARD_COLUMNS -> stringResource(R.string.columns_title)
     AppDestination.SEARCH -> stringResource(R.string.search_title)
     AppDestination.NOTIFICATIONS -> stringResource(R.string.notifications_title)
+    AppDestination.WORKSPACES -> stringResource(R.string.workspaces_title)
     AppDestination.SETTINGS -> stringResource(R.string.menu_settings)
     AppDestination.LOGIN -> stringResource(R.string.auth_login_title)
     AppDestination.REGISTER -> stringResource(R.string.register_title)
