@@ -34,6 +34,8 @@ import com.simposio.taskeer.ui.tasks.TaskDeletionViewModel
 import com.simposio.taskeer.ui.tasks.TaskEditorViewModel
 import com.simposio.taskeer.ui.tasks.MoveToListViewModel
 import com.simposio.taskeer.ui.upcoming.UpcomingViewModel
+import com.simposio.taskeer.ui.accountsecurity.ChangePasswordViewModel
+import com.simposio.taskeer.ui.passwordreset.ResetPasswordViewModel
 import com.simposio.taskeer.ui.verifyemail.ResendVerificationViewModel
 import com.simposio.taskeer.ui.verifyemail.VerifyEmailViewModel
 import java.lang.reflect.Proxy
@@ -175,5 +177,21 @@ class AppViewModelFactoryTest {
             ResendVerificationViewModel::class.java,
             factory.create(ResendVerificationViewModel::class.java).javaClass,
         )
+    }
+
+    @Test
+    fun creaResetPasswordViewModel() {
+        val factory = AppViewModelFactory(container())
+
+        assertEquals(ResetPasswordViewModel::class.java, factory.create(ResetPasswordViewModel::class.java).javaClass)
+    }
+
+    @Test
+    fun creaChangePasswordYRegenerateCodesViewModels() {
+        val factory = AppViewModelFactory(container())
+        val source = MainSources.kotlin("di/AppViewModelFactory.kt")
+
+        assertEquals(ChangePasswordViewModel::class.java, factory.create(ChangePasswordViewModel::class.java).javaClass)
+        assertTrue(source.contains("RegenerateCodesViewModel(container.authRepository, extras.createSavedStateHandle())"))
     }
 }
