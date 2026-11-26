@@ -56,6 +56,11 @@ class WorkspacesViewModel(
         refresh()
     }
 
+    fun openMembers(id: String) {
+        if (workspaces.state.value.items.none { it.id == id }) return
+        eventChannel.trySend(WorkspacesEvent.OpenMembers(id))
+    }
+
     fun refresh() {
         if (transient.value.refreshing) return
         update { it.copy(refreshing = true, error = null) }

@@ -68,6 +68,7 @@ import com.simposio.taskeer.ui.tasks.SwipeHintState
 import com.simposio.taskeer.ui.tasks.TaskDeletionViewModel
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
+import com.simposio.taskeer.ui.workspaces.WorkspaceMembersViewModel
 import kotlinx.coroutines.launch
 
 @Composable
@@ -138,6 +139,12 @@ fun AppShell(
     } else {
         null
     }
+    val membersViewModel: WorkspaceMembersViewModel? =
+        if (destination == AppDestination.WORKSPACE_MEMBERS && entry != null) {
+            viewModel(viewModelStoreOwner = entry, factory = viewModelFactory)
+        } else {
+            null
+        }
     val calendarViewModel: CalendarViewModel? = if (destination == AppDestination.CALENDAR && entry != null) {
         viewModel(viewModelStoreOwner = entry, factory = viewModelFactory)
     } else {
@@ -148,6 +155,8 @@ fun AppShell(
     val listCount = listsViewModel?.uiState?.collectAsStateWithLifecycle()?.value?.lists?.size ?: 0
     val boardName = boardsViewModel?.uiState?.collectAsStateWithLifecycle()?.value
         ?.boards?.firstOrNull { it.id == boardId }?.name
+
+    val workspaceName = membersViewModel?.uiState?.collectAsStateWithLifecycle()?.value?.title?.takeIf { it.isNotEmpty() }
 
     SuggestionsAutoOpen(
         suggestions = suggestions,
@@ -225,7 +234,7 @@ fun AppShell(
     }
 
     val menu: OverflowMenu = overflowMenuFor(destination).withListCount(listCount).withBoardPresent(boardName != null)
-    val title = destination.title(listName, boardName)
+    val title = destination.title(listName, boardName, workspaceName)
     val back = backStep(destination, boardId, hasPrevious = navController.previousBackStackEntry != null)
 
     val snackbarClearance = if (destination == AppDestination.HOME) Spacing.HubBarClearance else Spacing.ChromeClearance
@@ -402,7 +411,7 @@ private fun SuggestionsAutoOpen(
 }
 
 @Composable
-private fun AppDestination.title(listName: String?, boardName: String?): String = when (this) {
+private fun AppDestination.title(listName: String?, boardName: String?, workspaceName: String?): String = when (this) {
     AppDestination.MY_DAY -> stringResource(R.string.section_my_day)
     AppDestination.HOME -> stringResource(R.string.home_title)
     AppDestination.UPCOMING_7_DAYS -> stringResource(R.string.section_upcoming)
@@ -414,6 +423,7 @@ private fun AppDestination.title(listName: String?, boardName: String?): String 
     AppDestination.SEARCH -> stringResource(R.string.search_title)
     AppDestination.NOTIFICATIONS -> stringResource(R.string.notifications_title)
     AppDestination.WORKSPACES -> stringResource(R.string.workspaces_title)
+    AppDestination.WORKSPACE_MEMBERS -> workspaceName ?: stringResource(R.string.workspace_members_title)
     AppDestination.SETTINGS -> stringResource(R.string.menu_settings)
     AppDestination.LOGIN -> stringResource(R.string.auth_login_title)
     AppDestination.REGISTER -> stringResource(R.string.register_title)

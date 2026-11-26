@@ -37,6 +37,8 @@ import com.simposio.taskeer.ui.settings.SettingsScreen
 import com.simposio.taskeer.ui.tasks.SwipeHintState
 import com.simposio.taskeer.ui.upcoming.UpcomingScreen
 import com.simposio.taskeer.ui.verifyemail.VerifyEmailScreen
+import com.simposio.taskeer.ui.workspaces.WorkspaceMembersScreen
+import com.simposio.taskeer.ui.workspaces.WorkspaceMembersViewModel
 import com.simposio.taskeer.ui.workspaces.WorkspacesScreen
 import java.time.LocalDate
 
@@ -207,6 +209,20 @@ fun AppNavHost(
         composable(AppDestination.NOTIFICATIONS.route) { NotificationsScreen(viewModelFactory, onDelete) }
         composable(AppDestination.WORKSPACES.route) {
             WorkspacesScreen(
+                viewModelFactory = viewModelFactory,
+                onLeave = { if (!navController.popBackStack()) navController.navigateHome() },
+                onOpenMembers = { workspaceId ->
+                    navController.navigate(AppDestination.workspaceMembersRoute(workspaceId)) { launchSingleTop = true }
+                },
+            )
+        }
+        composable(
+            route = AppDestination.WORKSPACE_MEMBERS.route,
+            arguments = listOf(
+                navArgument(WorkspaceMembersViewModel.WORKSPACE_ID_ARG) { type = NavType.StringType },
+            ),
+        ) {
+            WorkspaceMembersScreen(
                 viewModelFactory = viewModelFactory,
                 onLeave = { if (!navController.popBackStack()) navController.navigateHome() },
             )
