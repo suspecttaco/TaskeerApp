@@ -12,6 +12,8 @@ import com.simposio.taskeer.data.repository.AuthRepository
 import com.simposio.taskeer.domain.auth.AccountSummary
 import com.simposio.taskeer.domain.auth.AuthRules
 import com.simposio.taskeer.domain.auth.ChangePasswordOutcome
+import com.simposio.taskeer.domain.auth.GoogleCredential
+import com.simposio.taskeer.domain.auth.GoogleSignInOutcome
 import com.simposio.taskeer.domain.auth.LoginOutcome
 import com.simposio.taskeer.domain.auth.LogoutOutcome
 import com.simposio.taskeer.domain.auth.RecoveryCodeInput
@@ -122,10 +124,48 @@ class RemoteAuthRepository(
             )
             // Salir de la pantalla a mitad no debe dejar un refresh emitido por el servidor sin guardar.
             is AuthApiContract.LoginResponse.Tokens -> withContext(NonCancellable) {
-                session.start(parsed.accessToken, parsed.refreshToken)
-                knownAccount = parsed.account
-                state.value = SessionState.SignedIn(parsed.account, offline = false)
+                startSession(parsed.accessToken, parsed.refreshToken, parsed.account)
                 LoginOutcome.SignedIn(parsed.account)
+            }
+        }
+
+    private suspend fun startSession(accessToken: String, refreshToken: String, account: AccountSummary) {
+        session.start(accessToken, refreshToken)
+        knownAccount = account
+        state.value = SessionState.SignedIn(account, offline = false)
+    }
+
+    override suspend fun signInWithGoogle(credential: GoogleCredential): GoogleSignInOutcome =
+        authMutex.withLock {
+            if (state.value is SessionState.SignedIn) {
+                return@withLock GoogleSignInOutcome.Failed(
+                    DomainError.Validation(AuthRules.ALREADY_SIGNED_IN, "Ya hay una sesión iniciada"),
+                )
+            }
+            val request = ApiRequest(
+                method = HttpMethod.POST,
+                path = AuthApiContract.GOOGLE_PATH,
+                jsonBody = AuthApiContract.googleBody(credential.idToken, credential.rawNonce),
+                auth = AuthMode.NONE,
+            )
+            when (val result = client.execute(request)) {
+                is ApiResult.Failure -> GoogleSignInOutcome.Failed(result.error, result.retryAfterSeconds)
+                is ApiResult.Success -> completeGoogleSignIn(result.response.body)
+            }
+        }
+
+    private suspend fun completeGoogleSignIn(body: String): GoogleSignInOutcome =
+        when (val parsed = AuthApiContract.parseGoogle(body)) {
+            AuthApiContract.GoogleResponse.Unreadable -> GoogleSignInOutcome.Failed(
+                DomainError.Server("INVALID_LOGIN_RESPONSE", "Respuesta de inicio de sesión no válida del servidor"),
+            )
+            AuthApiContract.GoogleResponse.NoRefreshToken -> GoogleSignInOutcome.Failed(
+                DomainError.Forbidden(AuthRules.MOBILE_CLIENT_NOT_SUPPORTED, ApiErrorMapper.MOBILE_CLIENT_MESSAGE),
+            )
+            // Salir de la pantalla a mitad no debe dejar un refresh emitido por el servidor sin guardar.
+            is AuthApiContract.GoogleResponse.Tokens -> withContext(NonCancellable) {
+                startSession(parsed.accessToken, parsed.refreshToken, parsed.account)
+                GoogleSignInOutcome.SignedIn(parsed.account, parsed.codes.takeIf { it.isNotEmpty() }?.let(::RecoveryCodes))
             }
         }
 

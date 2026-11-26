@@ -248,4 +248,71 @@ class AuthApiContractTest {
 
         assertEquals(true, parsed.account?.hasPassword)
     }
+
+    @Test
+    fun googleBody_llevaIdTokenYNonce() {
+        val body = JSONObject(AuthApiContract.googleBody("tok", "non"))
+
+        assertEquals("tok", body.getString("idToken"))
+        assertEquals("non", body.getString("nonce"))
+        assertEquals(2, body.length())
+    }
+
+    @Test
+    fun googlePath_esLaRutaProvisionalDelEndpointMovil() {
+        assertEquals("auth/google/mobile", AuthApiContract.GOOGLE_PATH)
+    }
+
+    @Test
+    fun parseGoogle_conTokensYUsuario() {
+        val parsed = AuthApiContract.parseGoogle(
+            """{"accessToken":"a1","refreshToken":"r1","user":{"email":"ana@example.com","displayName":"Ana"}}""",
+        ) as AuthApiContract.GoogleResponse.Tokens
+
+        assertEquals("a1", parsed.accessToken)
+        assertEquals("r1", parsed.refreshToken)
+        assertEquals(AccountSummary("ana@example.com", "Ana"), parsed.account)
+        assertTrue(parsed.codes.isEmpty())
+    }
+
+    @Test
+    fun parseGoogle_conRecoveryCodes() {
+        val parsed = AuthApiContract.parseGoogle(
+            """{"accessToken":"a1","refreshToken":"r1","user":{"email":"a@b.c"},"recoveryCodes":[" AAAA-0001 ","AAAA-0002",7]}""",
+        ) as AuthApiContract.GoogleResponse.Tokens
+
+        assertEquals(listOf("AAAA-0001", "AAAA-0002"), parsed.codes)
+    }
+
+    @Test
+    fun parseGoogle_sinRefreshToken_esNoRefreshToken() {
+        val parsed = AuthApiContract.parseGoogle("""{"accessToken":"a1","user":{"email":"a@b.c"}}""")
+
+        assertEquals(AuthApiContract.GoogleResponse.NoRefreshToken, parsed)
+    }
+
+    @Test
+    fun parseGoogle_cuerpoIlegible_esUnreadable() {
+        assertEquals(AuthApiContract.GoogleResponse.Unreadable, AuthApiContract.parseGoogle("no es json"))
+        assertEquals(AuthApiContract.GoogleResponse.Unreadable, AuthApiContract.parseGoogle("{}"))
+    }
+
+    @Test
+    fun parseGoogle_conHasPasswordFalse() {
+        val parsed = AuthApiContract.parseGoogle(
+            """{"accessToken":"a1","refreshToken":"r1","user":{"email":"a@b.c","hasPassword":false}}""",
+        ) as AuthApiContract.GoogleResponse.Tokens
+
+        assertEquals(false, parsed.account.hasPassword)
+    }
+
+    @Test
+    fun parseGoogle_toStringNoIncluyeTokensNiCodigos() {
+        val parsed = AuthApiContract.parseGoogle(
+            """{"accessToken":"acc-secreto","refreshToken":"ref-secreto","user":{"email":"a@b.c"},"recoveryCodes":["ZZZZ-9999"]}""",
+        )
+
+        assertFalse(parsed.toString().contains("secreto"))
+        assertFalse(parsed.toString().contains("ZZZZ"))
+    }
 }

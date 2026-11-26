@@ -16,6 +16,7 @@ internal object AuthApiContract {
     const val RESET_PASSWORD_PATH = "auth/reset-password-with-code"
     const val CHANGE_PASSWORD_PATH = "auth/change-password"
     const val REGENERATE_CODES_PATH = "auth/recovery-codes/regenerate"
+    const val GOOGLE_PATH = "auth/google/mobile"
 
     sealed interface LoginResponse {
         // El backend sin B8 responde 200 con el refresh solo en cookie.
@@ -30,6 +31,21 @@ internal object AuthApiContract {
         }
     }
 
+    sealed interface GoogleResponse {
+        data object NoRefreshToken : GoogleResponse
+
+        data object Unreadable : GoogleResponse
+
+        class Tokens(
+            val accessToken: String,
+            val refreshToken: String,
+            val account: AccountSummary,
+            val codes: List<String>,
+        ) : GoogleResponse {
+            override fun toString(): String = "Tokens(account=$account, codes=${codes.size})"
+        }
+    }
+
     sealed interface RegisterResponse {
         class Created(val account: AccountSummary?, val codes: List<String>) : RegisterResponse {
             override fun toString(): String = "Created(account=$account, codes=${codes.size})"
@@ -40,6 +56,9 @@ internal object AuthApiContract {
 
     fun loginBody(email: String, password: CharArray): String =
         JSONObject().put("email", email).put("password", String(password)).toString()
+
+    fun googleBody(idToken: String, nonce: String): String =
+        JSONObject().put("idToken", idToken).put("nonce", nonce).toString()
 
     fun registerBody(displayName: String, email: String, password: CharArray): String =
         JSONObject().put("email", email).put("password", String(password)).put("displayName", displayName).toString()
@@ -81,6 +100,22 @@ internal object AuthApiContract {
         }
     } catch (_: JSONException) {
         null
+    }
+
+    // `recoveryCodes` ausente o ilegible es lista vacía: solo el servidor sabe si esta sesión creó la cuenta.
+    fun parseGoogle(body: String): GoogleResponse = when (val login = parseLogin(body)) {
+        null -> GoogleResponse.Unreadable
+        LoginResponse.NoRefreshToken -> GoogleResponse.NoRefreshToken
+        is LoginResponse.Tokens -> GoogleResponse.Tokens(
+            accessToken = login.accessToken,
+            refreshToken = login.refreshToken,
+            account = login.account,
+            codes = try {
+                codesOf(JSONObject(body).optJSONArray("recoveryCodes"))
+            } catch (_: JSONException) {
+                emptyList()
+            },
+        )
     }
 
     // Los códigos se aceptan tal cual (recortados): el servidor ya guardó sus hashes y rechazarlos dejaría la cuenta sin recuperación.

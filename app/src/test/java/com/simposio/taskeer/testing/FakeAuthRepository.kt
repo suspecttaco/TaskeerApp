@@ -3,6 +3,8 @@ package com.simposio.taskeer.testing
 import com.simposio.taskeer.data.repository.AuthRepository
 import com.simposio.taskeer.domain.auth.AccountSummary
 import com.simposio.taskeer.domain.auth.ChangePasswordOutcome
+import com.simposio.taskeer.domain.auth.GoogleCredential
+import com.simposio.taskeer.domain.auth.GoogleSignInOutcome
 import com.simposio.taskeer.domain.auth.LoginOutcome
 import com.simposio.taskeer.domain.auth.LogoutOutcome
 import com.simposio.taskeer.domain.auth.RecoveryCodes
@@ -56,6 +58,10 @@ class FakeAuthRepository(initial: SessionState = SessionState.SignedOut()) : Aut
     var regenerateGate: CompletableDeferred<Unit>? = null
     var regenerateCalls = 0
     var lastRegenerateCurrent: CharArray? = null
+    var googleResult: GoogleSignInOutcome = GoogleSignInOutcome.SignedIn(AccountSummary("ana@example.com", "Ana"), null)
+    var googleGate: CompletableDeferred<Unit>? = null
+    var googleCalls = 0
+    val googleCredentials = mutableListOf<GoogleCredential>()
     var loginGate: CompletableDeferred<Unit>? = null
     var logoutGate: CompletableDeferred<Unit>? = null
     var resumeCalls = 0
@@ -75,6 +81,13 @@ class FakeAuthRepository(initial: SessionState = SessionState.SignedOut()) : Aut
         lastPasswordArray = password
         loginGate?.await()
         return loginResult
+    }
+
+    override suspend fun signInWithGoogle(credential: GoogleCredential): GoogleSignInOutcome {
+        googleCalls++
+        googleCredentials += credential
+        googleGate?.await()
+        return googleResult
     }
 
     override suspend fun register(displayName: String, email: String, password: CharArray): RegisterOutcome {
