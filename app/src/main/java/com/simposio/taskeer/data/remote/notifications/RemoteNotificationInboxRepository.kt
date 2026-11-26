@@ -18,8 +18,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
@@ -57,6 +61,15 @@ class RemoteNotificationInboxRepository(
 
     override val state: StateFlow<InboxState> = mutableState.asStateFlow()
 
+    // Sin réplica ni suspensión: perder la más antigua de una ráfaga es inocuo para quien solo necesita «ha llegado algo».
+    private val mutableLiveArrivals = MutableSharedFlow<ServerNotification>(
+        replay = 0,
+        extraBufferCapacity = LIVE_ARRIVALS_BUFFER,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    override val liveArrivals: SharedFlow<ServerNotification> = mutableLiveArrivals.asSharedFlow()
+
     init {
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             sessionState.collect { onSession(it) }
@@ -81,6 +94,7 @@ class RemoteNotificationInboxRepository(
                 knownIds += notification.id
                 if (notification.isUnread) mutableState.value = current.copy(unreadCount = current.unreadCount + 1)
             }
+            mutableLiveArrivals.tryEmit(notification)
         }
     }
 
@@ -320,5 +334,6 @@ class RemoteNotificationInboxRepository(
 
     private companion object {
         const val NOTIFICATION_NOT_FOUND = "NOTIFICATION_NOT_FOUND"
+        const val LIVE_ARRIVALS_BUFFER = 16
     }
 }

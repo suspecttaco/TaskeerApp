@@ -735,4 +735,79 @@ class RemoteNotificationInboxRepositoryTest {
 
         assertEquals(2, repo.state.value.unreadCount)
     }
+
+    private fun TestScope.collectArrivals(repo: RemoteNotificationInboxRepository): List<String> {
+        val received = mutableListOf<String>()
+        backgroundScope.launch { repo.liveArrivals.collect { received += it.id } }
+        runCurrent()
+        return received
+    }
+
+    @Test
+    fun liveArrivals_emiteLaAceptada() = runTest {
+        val repo = repo()
+        val received = collectArrivals(repo)
+
+        repo.applyLive(live(2))
+        runCurrent()
+
+        assertEquals(listOf(uid(2)), received)
+    }
+
+    @Test
+    fun liveArrivals_noEmiteDuplicadas() = runTest {
+        val repo = repo()
+        repo.load(entry(1))
+        val received = collectArrivals(repo)
+
+        repo.applyLive(live(2))
+        repo.applyLive(live(2))
+        repo.applyLive(live(1))
+        runCurrent()
+
+        assertEquals(listOf(uid(2)), received)
+    }
+
+    @Test
+    fun liveArrivals_noEmiteBorradasLocalmente() = runTest {
+        val repo = repo()
+        repo.load(entry(1))
+        val received = collectArrivals(repo)
+        val gate = CompletableDeferred<Unit>()
+        client.enqueue { gate.await(); apiOk("{}") }
+        launch { repo.delete(uid(1)) }
+        runCurrent()
+
+        repo.applyLive(live(1))
+        runCurrent()
+        gate.complete(Unit)
+        runCurrent()
+
+        assertTrue(received.isEmpty())
+    }
+
+    @Test
+    fun liveArrivals_noEmiteSinSesion() = runTest {
+        session.value = SessionState.SignedOut()
+        val repo = repo()
+        val received = collectArrivals(repo)
+
+        repo.applyLive(live(2))
+        runCurrent()
+
+        assertTrue(received.isEmpty())
+    }
+
+    @Test
+    fun liveArrivals_noAlteraElContador() = runTest {
+        val repo = repo()
+        collectArrivals(repo)
+
+        repo.applyLive(live(2))
+        repo.applyLive(live(2))
+        runCurrent()
+
+        assertEquals(1, repo.state.value.unreadCount)
+        assertFalse(repo.state.value.listLoaded)
+    }
 }
