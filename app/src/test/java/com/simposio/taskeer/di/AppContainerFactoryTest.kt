@@ -30,6 +30,7 @@ import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
 import com.simposio.taskeer.testing.FakeNotificationInboxRepository
 import com.simposio.taskeer.testing.FakeNotificationLiveChannel
 import com.simposio.taskeer.testing.FakeSearchRepository
+import com.simposio.taskeer.testing.FakeWorkspaceMembersRepository
 import com.simposio.taskeer.testing.FakeWorkspaceRepository
 import com.simposio.taskeer.testing.FakeTaskListRepository
 import com.simposio.taskeer.testing.InMemoryCheckpointStore
@@ -186,6 +187,7 @@ class AppContainerFactoryTest {
             notificationInboxRepository = FakeNotificationInboxRepository(),
             notificationLiveChannel = FakeNotificationLiveChannel(),
             workspaceRepository = FakeWorkspaceRepository(),
+            workspaceMembersRepository = FakeWorkspaceMembersRepository(),
         )
 
         val viewModel = AppViewModelFactory(container).create(SubtasksViewModel::class.java)
@@ -222,6 +224,7 @@ class AppContainerFactoryTest {
             notificationInboxRepository = FakeNotificationInboxRepository(),
             notificationLiveChannel = FakeNotificationLiveChannel(),
             workspaceRepository = FakeWorkspaceRepository(),
+            workspaceMembersRepository = FakeWorkspaceMembersRepository(),
         )
 
         val viewModel = AppViewModelFactory(container).create(MyDayViewModel::class.java)
@@ -256,6 +259,7 @@ class AppContainerFactoryTest {
             notificationInboxRepository = FakeNotificationInboxRepository(),
             notificationLiveChannel = FakeNotificationLiveChannel(),
             workspaceRepository = FakeWorkspaceRepository(),
+            workspaceMembersRepository = FakeWorkspaceMembersRepository(),
         )
 
         assertSame(planned, container.plannedRepository)
@@ -286,6 +290,7 @@ class AppContainerFactoryTest {
             notificationInboxRepository = FakeNotificationInboxRepository(),
             notificationLiveChannel = FakeNotificationLiveChannel(),
             workspaceRepository = FakeWorkspaceRepository(),
+            workspaceMembersRepository = FakeWorkspaceMembersRepository(),
         )
 
         val viewModel = AppViewModelFactory(container).create(RemindersViewModel::class.java)
@@ -420,6 +425,14 @@ class AppContainerFactoryTest {
         val body = factorySource().substringAfter("fun createAppContainer(").substringBefore("// La lectura inicial")
 
         assertTrue(body.contains("workspaceRepository = remote.workspaces"))
+        assertTrue(!factorySource().contains("data.remote"))
+    }
+
+    @Test
+    fun expone_workspaceMembersRepository() {
+        val body = factorySource().substringAfter("fun createAppContainer(").substringBefore("// La lectura inicial")
+
+        assertTrue(body.contains("workspaceMembersRepository = remote.workspaceMembers"))
         assertTrue(!factorySource().contains("data.remote"))
     }
 
