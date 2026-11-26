@@ -57,7 +57,20 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Sin backend local por defecto: debug apunta a preproducción. Quien tenga uno propio
+            // lo sobrescribe con -Ptaskeer.apiBaseUrl; 10.0.2.2 (la máquina vista desde el emulador)
+            // sigue permitido en cleartext de debug.
+            val apiBaseUrl = providers.gradleProperty("taskeer.apiBaseUrl")
+                .getOrElse("https://backend-taskeerv3-preproduction.onrender.com/api/v1/")
+            buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+        }
         release {
+            buildConfigField(
+                "String",
+                "API_BASE_URL",
+                "\"https://backend-taskeerv3-preproduction.onrender.com/api/v1/\"",
+            )
             if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
             optimization {
                 enable = true
@@ -71,6 +84,7 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
     buildFeatures {
+        buildConfig = true
         compose = true
     }
 }
@@ -95,9 +109,11 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.room.runtime)
+    implementation(libs.okhttp)
     ksp(libs.androidx.room.compiler)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
     testImplementation(libs.androidx.datastore.preferences.core)
+    testImplementation(libs.json)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))
