@@ -1,5 +1,7 @@
 package com.simposio.taskeer.di
 
+import com.simposio.taskeer.data.auth.google.GoogleCredentialSource
+import com.simposio.taskeer.data.auth.google.UnavailableGoogleCredentialSource
 import com.simposio.taskeer.data.reminder.ReminderReconciler
 import com.simposio.taskeer.data.repository.AuthRepository
 import com.simposio.taskeer.data.repository.BoardRepository
@@ -15,6 +17,7 @@ import com.simposio.taskeer.data.repository.SearchRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskListRepository
 import com.simposio.taskeer.data.repository.TaskRepository
+import com.simposio.taskeer.domain.auth.GoogleSignInConfig
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.date.FirstDayOfWeekProvider
 import com.simposio.taskeer.domain.date.SystemFirstDayOfWeekProvider
@@ -39,6 +42,8 @@ class AppContainer(
     val dayWindowSource: DayWindowSource,
     val searchRepository: SearchRepository,
     val authRepository: AuthRepository,
+    val googleCredentialSource: GoogleCredentialSource = UnavailableGoogleCredentialSource,
+    val googleSignInConfig: GoogleSignInConfig = GoogleSignInConfig(""),
     val zoneChanges: Flow<Unit> = emptyFlow(),
     val firstDayOfWeek: FirstDayOfWeekProvider = SystemFirstDayOfWeekProvider(),
     val calendarReadGranted: () -> Boolean = { false },

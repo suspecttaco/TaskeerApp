@@ -27,10 +27,18 @@ class AuthWiringRulesTest {
 
     @Test
     fun dataAuthTieneUnSoloFicheroQueNombraDataRemote() {
-        val files = MainSources.kotlinFiles("data/auth")
+        val files = MainSources.kotlinFiles("data/auth").filterNot { it.startsWith(File(root, "data/auth/google")) }
 
         assertEquals(listOf("AuthRepositoryFactory.kt"), files.map { it.name })
         assertEquals(1, files.count { it.namesDataRemote() })
+    }
+
+    @Test
+    fun dataAuthGoogleNoNombraDataRemote() {
+        val files = MainSources.kotlinFiles("data/auth/google")
+
+        assertTrue(files.isNotEmpty())
+        assertEquals(emptyList<String>(), files.filter { it.namesDataRemote() }.map { it.name })
     }
 
     @Test
@@ -60,5 +68,15 @@ class AuthWiringRulesTest {
 
         assertTrue(factory.contains("import com.simposio.taskeer.data.auth.createAuthRepository"))
         assertTrue(!factory.contains("data.remote"))
+    }
+
+    @Test
+    fun elContenedorSoloImportaLaInterfazYLaFuncionDeGoogle() {
+        val factory = MainSources.kotlin("di/AppContainerFactory.kt")
+        val container = MainSources.kotlin("di/AppContainer.kt")
+
+        assertTrue(factory.contains("import com.simposio.taskeer.data.auth.google.createGoogleCredentialSource"))
+        assertTrue(!factory.contains("CredentialManagerGoogleSource") && !factory.contains("androidx.credentials"))
+        assertTrue(container.contains("import com.simposio.taskeer.data.auth.google.GoogleCredentialSource"))
     }
 }

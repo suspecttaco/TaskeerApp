@@ -24,6 +24,14 @@ class FakeAuthBackend(private val b8: Boolean) : HttpTransport {
     var changeReturnsRefresh = true
     val usedCodes = mutableSetOf<String>()
     var recoveryCodes = REGISTER_CODES.toMutableList()
+    // Modelo de servidor de Google (el cliente nunca lo decide): vincula solo si la cuenta local está verificada,
+    // crea sin contraseña si no existe y rechaza el login de correo de las cuentas sin contraseña.
+    var googleEndpoint = true
+    val verifiedLocalEmails = mutableSetOf(EMAIL)
+    val unverifiedLocalEmails = mutableSetOf<String>()
+    val linkedGoogleEmails = mutableSetOf<String>()
+    val googleOnlyEmails = mutableSetOf<String>()
+    var googleOnlyLoginRejection = "INVALID_CREDENTIALS"
     private val issuedRefreshTokens = mutableListOf<String>()
     private var currentAccess = "access-login"
 
@@ -31,6 +39,7 @@ class FakeAuthBackend(private val b8: Boolean) : HttpTransport {
         requests += request
         return when {
             request.url.endsWith("auth/login") -> login(request)
+            request.url.endsWith("auth/google/mobile") -> google(request)
             request.url.endsWith("auth/logout") -> logout(request)
             request.url.endsWith("auth/register") -> register(request)
             request.url.contains("auth/verify-email") -> verifyEmail(request)
@@ -45,6 +54,9 @@ class FakeAuthBackend(private val b8: Boolean) : HttpTransport {
 
     private fun login(request: HttpRequest): TransportResult {
         val body = JSONObject(requireNotNull(request.body))
+        if (body.getString("email").lowercase() in googleOnlyEmails) {
+            return response(401, errorBody(googleOnlyLoginRejection))
+        }
         if (body.getString("email") != EMAIL || body.getString("password") != password) {
             return response(401, errorBody("INVALID_CREDENTIALS"))
         }
@@ -56,6 +68,36 @@ class FakeAuthBackend(private val b8: Boolean) : HttpTransport {
             issuedRefreshTokens += "refresh-login"
             payload.put("refreshToken", "refresh-login")
         }
+        return response(200, payload.toString())
+    }
+
+    private fun google(request: HttpRequest): TransportResult {
+        if (!googleEndpoint) return response(404, errorBody("ROUTE_NOT_FOUND"))
+        val body = JSONObject(requireNotNull(request.body))
+        if (body.optString("nonce").isBlank()) return response(400, errorBody("INVALID_OAUTH_STATE"))
+        val idToken = body.optString("idToken")
+        if (!idToken.startsWith(GOOGLE_TOKEN_PREFIX)) return response(401, errorBody("INVALID_GOOGLE_TOKEN"))
+        val email = idToken.removePrefix(GOOGLE_TOKEN_PREFIX).lowercase()
+        var created = false
+        when {
+            email in linkedGoogleEmails || email in googleOnlyEmails -> Unit
+            email in unverifiedLocalEmails -> return response(409, errorBody("LOCAL_ACCOUNT_EMAIL_NOT_VERIFIED"))
+            email in verifiedLocalEmails -> linkedGoogleEmails += email
+            else -> {
+                googleOnlyEmails += email
+                created = true
+            }
+        }
+        val user = JSONObject().put("email", email).put("displayName", "Ana")
+            .put("emailVerifiedAt", "2026-11-26T00:00:00.000Z").put("hasPassword", email !in googleOnlyEmails)
+        val payload = JSONObject().put("accessToken", "access-google").put("user", user)
+        if (b8) {
+            rotating.seed("access-google", "refresh-google")
+            currentAccess = "access-google"
+            issuedRefreshTokens += "refresh-google"
+            payload.put("refreshToken", "refresh-google")
+        }
+        if (created) payload.put("recoveryCodes", JSONArray(REGISTER_CODES))
         return response(200, payload.toString())
     }
 
@@ -137,6 +179,9 @@ class FakeAuthBackend(private val b8: Boolean) : HttpTransport {
     companion object {
         const val EMAIL = "ana@example.com"
         const val PASSWORD = "secreta"
+        const val GOOGLE_TOKEN_PREFIX = "google-token:"
+
+        fun googleIdToken(email: String) = GOOGLE_TOKEN_PREFIX + email
         val REGISTER_CODES = List(10) { "ABCD-%04d".format(it) }
     }
 }

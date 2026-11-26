@@ -170,8 +170,6 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
         modelClass.isAssignableFrom(UnreadCounterViewModel::class.java) ->
             UnreadCounterViewModel(container.notificationHistoryRepository) as T
 
-        modelClass.isAssignableFrom(LoginViewModel::class.java) ->
-            LoginViewModel(container.authRepository) as T
         modelClass.isAssignableFrom(SessionViewModel::class.java) ->
             SessionViewModel(container.authRepository) as T
 
@@ -215,6 +213,13 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 settleMillis = ::currentSettleMillis,
             ) as T
 
+        modelClass.isAssignableFrom(LoginViewModel::class.java) ->
+            LoginViewModel(
+                container.authRepository,
+                container.googleCredentialSource,
+                container.googleSignInConfig,
+                extras.createSavedStateHandle(),
+            ) as T
         modelClass.isAssignableFrom(RegisterViewModel::class.java) ->
             RegisterViewModel(container.authRepository, extras.createSavedStateHandle()) as T
         modelClass.isAssignableFrom(RegenerateCodesViewModel::class.java) ->

@@ -1,7 +1,6 @@
 package com.simposio.taskeer.di
 
 import com.simposio.taskeer.ui.auth.SessionViewModel
-import com.simposio.taskeer.ui.auth.LoginViewModel
 import com.simposio.taskeer.data.reminder.ReminderReconciler
 import com.simposio.taskeer.data.repository.BoardRepository
 import com.simposio.taskeer.data.repository.ColumnRepository
@@ -151,13 +150,6 @@ class AppViewModelFactoryTest {
         assertEquals(SessionViewModel::class.java, factory.create(SessionViewModel::class.java).javaClass)
     }
 
-    @Test
-    fun creaLoginViewModel() {
-        val factory = AppViewModelFactory(container())
-
-        assertEquals(LoginViewModel::class.java, factory.create(LoginViewModel::class.java).javaClass)
-    }
-
     // `createSavedStateHandle` exige un SavedStateRegistryOwner real: se comprueba el cableado por fuente.
     @Test
     fun creaRegisterViewModel() {
@@ -165,6 +157,18 @@ class AppViewModelFactoryTest {
 
         assertTrue(
             factory.contains("RegisterViewModel(container.authRepository, extras.createSavedStateHandle())"),
+        )
+    }
+
+    @Test
+    fun creaLoginViewModel() {
+        val factory = MainSources.kotlin("di/AppViewModelFactory.kt")
+
+        val call = factory.substringAfter("LoginViewModel(").substringBefore(") as T").filterNot { it.isWhitespace() }
+
+        assertEquals(
+            "container.authRepository,container.googleCredentialSource,container.googleSignInConfig,extras.createSavedStateHandle()",
+            call.trimEnd(','),
         )
     }
 

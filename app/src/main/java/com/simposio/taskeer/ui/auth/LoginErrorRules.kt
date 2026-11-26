@@ -27,6 +27,7 @@ fun loginFailureFor(error: DomainError): LoginFailure = when (error) {
             AuthRules.PASSWORD_REQUIRED -> LoginError.PASSWORD_REQUIRED
             AuthRules.PASSWORD_TOO_LONG -> LoginError.PASSWORD_TOO_LONG
             AuthRules.ALREADY_SIGNED_IN -> LoginError.UNEXPECTED
+            AuthRules.NO_LOCAL_PASSWORD -> LoginError.NO_LOCAL_PASSWORD
             else -> LoginError.VALIDATION
         },
     )

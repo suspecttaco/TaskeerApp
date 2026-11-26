@@ -18,6 +18,8 @@ import com.simposio.taskeer.data.remote.session.AuthSession
 import com.simposio.taskeer.data.remote.session.HttpSessionRefresher
 import com.simposio.taskeer.data.remote.session.RefreshOutcome
 import com.simposio.taskeer.domain.auth.AccountSummary
+import com.simposio.taskeer.domain.auth.GoogleCredential
+import com.simposio.taskeer.domain.auth.GoogleSignInOutcome
 import com.simposio.taskeer.domain.auth.LoginOutcome
 import com.simposio.taskeer.domain.auth.RegisterOutcome
 import com.simposio.taskeer.domain.auth.ResendVerificationOutcome
@@ -1697,5 +1699,339 @@ class RemoteAuthRepositoryTest {
         assertEquals(ChangePasswordOutcome.ChangedSignedOut, outcome)
         assertNull(store.value)
         assertEquals(SessionState.SignedOut(), repository.sessionState.value)
+    }
+
+    private fun googleCredential(token: String = "id-token-secreto", nonce: String = "nonce-claro") =
+        GoogleCredential(token, nonce)
+
+    private fun googleJson(
+        refresh: String? = "r1",
+        codes: List<String>? = null,
+        hasPassword: Boolean? = null,
+    ): String {
+        val user = JSONObject().put("email", "ana@example.com").put("displayName", "Ana")
+        if (hasPassword != null) user.put("hasPassword", hasPassword)
+        val json = JSONObject().put("accessToken", "a1").put("user", user)
+        if (refresh != null) json.put("refreshToken", refresh)
+        if (codes != null) json.put("recoveryCodes", JSONArray(codes))
+        return json.toString()
+    }
+
+    private fun failedGoogle(outcome: GoogleSignInOutcome): GoogleSignInOutcome.Failed =
+        outcome as GoogleSignInOutcome.Failed
+
+    @Test
+    fun signInWithGoogle_hacePostSinAuthorizationConElJsonEsperado() = runTest {
+        transport.enqueue(response(200, googleJson()))
+
+        repository().signInWithGoogle(googleCredential())
+
+        val request = transport.requests.single()
+        assertEquals(HttpMethod.POST, request.method)
+        assertEquals("https://api.test/api/v1/auth/google/mobile", request.url)
+        assertNull(request.headers["Authorization"])
+        assertEquals("mobile", request.headers["X-Client"])
+        val body = JSONObject(requireNotNull(request.body))
+        assertEquals("id-token-secreto", body.getString("idToken"))
+        assertEquals("nonce-claro", body.getString("nonce"))
+        assertEquals(2, body.length())
+    }
+
+    @Test
+    fun signInWithGoogle_conSesion_noHacePeticion() = runTest {
+        val repository = repository()
+        repository.signIn()
+
+        val outcome = failedGoogle(repository.signInWithGoogle(googleCredential()))
+
+        assertEquals("ALREADY_SIGNED_IN", outcome.error.code)
+        assertEquals(1, transport.requests.size)
+    }
+
+    @Test
+    fun signInWithGoogle_haceUnaSolaPeticionPorLlamada() = runTest {
+        transport.enqueue(response(500, ""))
+
+        repository().signInWithGoogle(googleCredential())
+
+        assertEquals(1, transport.requests.size)
+    }
+
+    @Test
+    fun signInWithGoogle_soloTocaElHostDeLaApi() = runTest {
+        transport.enqueue(response(200, googleJson()))
+
+        repository().signInWithGoogle(googleCredential())
+
+        assertTrue(transport.requests.all { it.url.startsWith("https://api.test/") })
+    }
+
+    @Test
+    fun signInWithGoogle_exitoso_guardaElParYPublicaLaCuenta() = runTest {
+        transport.enqueue(response(200, googleJson(refresh = "r1")))
+        val repository = repository()
+
+        val outcome = repository.signInWithGoogle(googleCredential())
+
+        assertEquals("a1", session.currentAccessToken())
+        assertEquals("r1", store.value)
+        assertEquals(account, (outcome as GoogleSignInOutcome.SignedIn).account)
+        assertEquals(SessionState.SignedIn(account, offline = false), repository.sessionState.value)
+    }
+
+    @Test
+    fun signInWithGoogle_conCodigos_devuelveLosCodigos() = runTest {
+        transport.enqueue(response(200, googleJson(codes = listOf("ABCD-0001", "ABCD-0002"))))
+
+        val outcome = repository().signInWithGoogle(googleCredential()) as GoogleSignInOutcome.SignedIn
+
+        assertEquals(listOf("ABCD-0001", "ABCD-0002"), outcome.newAccountCodes?.values)
+    }
+
+    @Test
+    fun signInWithGoogle_sinCodigos_devuelveNull() = runTest {
+        transport.enqueue(response(200, googleJson(codes = null)))
+
+        val absent = repository().signInWithGoogle(googleCredential()) as GoogleSignInOutcome.SignedIn
+
+        assertNull(absent.newAccountCodes)
+    }
+
+    @Test
+    fun signInWithGoogle_conCodigosVacios_devuelveNull() = runTest {
+        transport.enqueue(response(200, googleJson(codes = emptyList())))
+
+        val outcome = repository().signInWithGoogle(googleCredential()) as GoogleSignInOutcome.SignedIn
+
+        assertNull(outcome.newAccountCodes)
+    }
+
+    @Test
+    fun signInWithGoogle_sinRefreshToken_noIniciaSesion() = runTest {
+        transport.enqueue(response(200, googleJson(refresh = null)))
+        val repository = repository()
+
+        val outcome = failedGoogle(repository.signInWithGoogle(googleCredential()))
+
+        assertEquals("MOBILE_CLIENT_NOT_SUPPORTED", outcome.error.code)
+        assertEquals(0, store.writes)
+        assertEquals(SessionState.SignedOut(), repository.sessionState.value)
+    }
+
+    @Test
+    fun signInWithGoogle_cuerpoIlegible_noIniciaSesion() = runTest {
+        transport.enqueue(response(200, "no es json"))
+        val repository = repository()
+
+        val outcome = failedGoogle(repository.signInWithGoogle(googleCredential()))
+
+        assertEquals("INVALID_LOGIN_RESPONSE", outcome.error.code)
+        assertFalse(session.hasStoredSession())
+        assertEquals(SessionState.SignedOut(), repository.sessionState.value)
+    }
+
+    @Test
+    fun signInWithGoogle_noGuardaElIdTokenEnElAlmacen() = runTest {
+        transport.enqueue(response(200, googleJson()))
+
+        repository().signInWithGoogle(googleCredential(token = "id-token-secreto"))
+
+        assertEquals("r1", store.value)
+        assertFalse(store.value.orEmpty().contains("id-token-secreto"))
+        assertEquals("a1", session.currentAccessToken())
+    }
+
+    @Test
+    fun signInWithGoogle_conHasPasswordFalse_publicaLaCuentaSinContrasena() = runTest {
+        transport.enqueue(response(200, googleJson(hasPassword = false)))
+        val repository = repository()
+
+        repository.signInWithGoogle(googleCredential())
+
+        val signedIn = repository.sessionState.value as SessionState.SignedIn
+        assertEquals(false, signedIn.account?.hasPassword)
+    }
+
+    @Test
+    fun signInWithGoogle_con401InvalidGoogleToken_esUnauthenticatedYNoRenueva() = runTest {
+        transport.enqueue(response(401, errorBody("INVALID_GOOGLE_TOKEN")))
+        val repository = repository()
+
+        val outcome = failedGoogle(repository.signInWithGoogle(googleCredential()))
+
+        assertTrue(outcome.error is DomainError.Unauthenticated)
+        assertEquals("INVALID_GOOGLE_TOKEN", outcome.error.code)
+        assertTrue(refresher.receivedTokens.isEmpty())
+        assertEquals(SessionState.SignedOut(), repository.sessionState.value)
+    }
+
+    @Test
+    fun signInWithGoogle_con403_esForbiddenYNoIniciaSesion() = runTest {
+        transport.enqueue(response(403, errorBody("GOOGLE_EMAIL_NOT_VERIFIED")))
+
+        val outcome = failedGoogle(repository().signInWithGoogle(googleCredential()))
+
+        assertTrue(outcome.error is DomainError.Forbidden)
+        assertEquals("GOOGLE_EMAIL_NOT_VERIFIED", outcome.error.code)
+        assertFalse(session.hasStoredSession())
+    }
+
+    @Test
+    fun signInWithGoogle_con409_noIniciaSesionNiReintenta() = runTest {
+        transport.enqueue(response(409, errorBody("LOCAL_ACCOUNT_EMAIL_NOT_VERIFIED")))
+        val repository = repository()
+
+        val outcome = failedGoogle(repository.signInWithGoogle(googleCredential()))
+
+        assertTrue(outcome.error is DomainError.Conflict)
+        assertEquals(1, transport.requests.size)
+        assertFalse(session.hasStoredSession())
+        assertEquals(SessionState.SignedOut(), repository.sessionState.value)
+    }
+
+    @Test
+    fun signInWithGoogle_con429_devuelveRateLimitedConRetryAfter() = runTest {
+        transport.enqueue(response(429, errorBody("TOO_MANY_REQUESTS"), mapOf("retry-after" to "120")))
+
+        val outcome = failedGoogle(repository().signInWithGoogle(googleCredential()))
+
+        assertTrue(outcome.error is DomainError.RateLimited)
+        assertEquals(120L, outcome.retryAfterSeconds)
+    }
+
+    @Test
+    fun signInWithGoogle_sinRed_devuelveNetwork() = runTest {
+        transport.enqueue(failure(TransportFailureKind.UNREACHABLE))
+
+        val outcome = failedGoogle(repository().signInWithGoogle(googleCredential()))
+
+        assertTrue(outcome.error is DomainError.Network)
+    }
+
+    @Test
+    fun signInWithGoogle_con500_devuelveServer() = runTest {
+        transport.enqueue(response(500, ""))
+
+        val outcome = failedGoogle(repository().signInWithGoogle(googleCredential()))
+
+        assertTrue(outcome.error is DomainError.Server)
+    }
+
+    @Test
+    fun signInWithGoogle_conEndpointInexistente_esNotFoundYNoIniciaSesion() = runTest {
+        val backend = FakeAuthBackend(b8 = true)
+        backend.googleEndpoint = false
+        val repository = backendRepository(backend)
+
+        val outcome = failedGoogle(repository.signInWithGoogle(googleCredential(FakeAuthBackend.googleIdToken("x@example.com"))))
+
+        assertTrue(outcome.error is DomainError.NotFound)
+        assertEquals(SessionState.SignedOut(), repository.sessionState.value)
+    }
+
+    @Test
+    fun signInWithGoogle_conBackendSinB8_noIniciaSesion() = runTest {
+        val backend = FakeAuthBackend(b8 = false)
+        val repository = backendRepository(backend)
+
+        val outcome = failedGoogle(repository.signInWithGoogle(googleCredential(FakeAuthBackend.googleIdToken("x@example.com"))))
+
+        assertEquals("MOBILE_CLIENT_NOT_SUPPORTED", outcome.error.code)
+        assertFalse(session.hasStoredSession())
+    }
+
+    @Test
+    fun signInWithGoogle_cuentaLocalSinVerificar_noSeVincula() = runTest {
+        val backend = FakeAuthBackend(b8 = true)
+        backend.unverifiedLocalEmails += "luis@example.com"
+        val repository = backendRepository(backend)
+
+        val outcome = failedGoogle(repository.signInWithGoogle(googleCredential(FakeAuthBackend.googleIdToken("luis@example.com"))))
+
+        assertEquals("LOCAL_ACCOUNT_EMAIL_NOT_VERIFIED", outcome.error.code)
+        assertTrue(backend.linkedGoogleEmails.isEmpty())
+        assertFalse(session.hasStoredSession())
+        assertEquals(SessionState.SignedOut(), repository.sessionState.value)
+    }
+
+    @Test
+    fun signInWithGoogle_cuentaLocalVerificada_seVincula() = runTest {
+        val backend = FakeAuthBackend(b8 = true)
+        val repository = backendRepository(backend)
+
+        val outcome = repository.signInWithGoogle(googleCredential(FakeAuthBackend.googleIdToken(FakeAuthBackend.EMAIL)))
+
+        assertEquals(setOf(FakeAuthBackend.EMAIL), backend.linkedGoogleEmails)
+        assertNull((outcome as GoogleSignInOutcome.SignedIn).newAccountCodes)
+        assertEquals(true, outcome.account.hasPassword)
+        assertEquals("refresh-google", store.value)
+    }
+
+    @Test
+    fun signInWithGoogle_sinCuenta_creaConCodigos() = runTest {
+        val backend = FakeAuthBackend(b8 = true)
+        val repository = backendRepository(backend)
+
+        val outcome = repository.signInWithGoogle(googleCredential(FakeAuthBackend.googleIdToken("nuevo@example.com")))
+
+        assertEquals(FakeAuthBackend.REGISTER_CODES, (outcome as GoogleSignInOutcome.SignedIn).newAccountCodes?.values)
+        assertEquals(false, outcome.account.hasPassword)
+        assertEquals(setOf("nuevo@example.com"), backend.googleOnlyEmails)
+    }
+
+    @Test
+    fun signInWithGoogle_segundoAcceso_entraSinCodigos() = runTest {
+        val backend = FakeAuthBackend(b8 = true)
+        val first = backendRepository(backend)
+        first.signInWithGoogle(googleCredential(FakeAuthBackend.googleIdToken("nuevo@example.com")))
+        first.logout()
+
+        val outcome = first.signInWithGoogle(googleCredential(FakeAuthBackend.googleIdToken("nuevo@example.com")))
+
+        assertNull((outcome as GoogleSignInOutcome.SignedIn).newAccountCodes)
+    }
+
+    @Test
+    fun login_conCuentaSoloGoogle_noIniciaSesion() = runTest {
+        val backend = FakeAuthBackend(b8 = true)
+        backend.googleOnlyEmails += "nuevo@example.com"
+        val repository = backendRepository(backend)
+
+        val outcome = failed(repository.login("nuevo@example.com", password()))
+
+        assertTrue(outcome.error is DomainError.Unauthenticated)
+        assertFalse(session.hasStoredSession())
+        assertEquals(SessionState.SignedOut(), repository.sessionState.value)
+    }
+
+    @Test
+    fun login_conRechazoDeCuentaSinContrasena_noIniciaSesion() = runTest {
+        val backend = FakeAuthBackend(b8 = true)
+        backend.googleOnlyEmails += "nuevo@example.com"
+        backend.googleOnlyLoginRejection = "NO_LOCAL_PASSWORD"
+        val repository = backendRepository(backend)
+
+        val outcome = failed(repository.login("nuevo@example.com", password()))
+
+        assertEquals("NO_LOCAL_PASSWORD", outcome.error.code)
+        assertFalse(session.hasStoredSession())
+        assertEquals(SessionState.SignedOut(), repository.sessionState.value)
+    }
+
+    @Test
+    fun signInWithGoogle_canceladoTrasLaRespuesta_terminaDeIniciarLaSesion() = runTest {
+        val repository = repository()
+        lateinit var job: Job
+        transport.enqueue { _ ->
+            job.cancel()
+            response(200, googleJson())
+        }
+        job = launch { repository.signInWithGoogle(googleCredential()) }
+
+        advanceUntilIdle()
+        job.join()
+
+        assertEquals("r1", store.value)
+        assertEquals(SessionState.SignedIn(account, offline = false), repository.sessionState.value)
     }
 }

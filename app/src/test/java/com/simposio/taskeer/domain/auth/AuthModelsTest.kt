@@ -83,4 +83,48 @@ class AuthModelsTest {
     fun accountSummary_sinHasPassword_esNulo() {
         assertEquals(null, AccountSummary("ana@example.com", "Ana").hasPassword)
     }
+
+    @Test
+    fun toString_deGoogleCredential_noIncluyeToken() {
+        val rendered = GoogleCredential("id-token-secreto", "nonce-secreto").toString()
+
+        assertFalse(rendered.contains("secreto"))
+        assertEquals("GoogleCredential(redacted)", rendered)
+    }
+
+    @Test
+    fun toString_deObtained_noIncluyeToken() {
+        val rendered = GoogleCredentialResult.Obtained(GoogleCredential("id-token-secreto", "nonce-secreto")).toString()
+
+        assertFalse(rendered.contains("secreto"))
+    }
+
+    @Test
+    fun toString_deSignedInConCodigos_noIncluyeLosCodigos() {
+        val account = AccountSummary("ana@example.com", "Ana")
+        val rendered = listOf(
+            GoogleSignInOutcome.SignedIn(account, RecoveryCodes(listOf("CTPQ-Q479", "ABCD-EFGH"))).toString(),
+            GoogleSignInOutcome.SignedIn(account, null).toString(),
+            GoogleSignInOutcome.Failed(DomainError.Network("X", "y")).toString(),
+        ).joinToString("\n")
+
+        assertFalse(rendered.contains("CTPQ"))
+        assertFalse(rendered.contains("EFGH"))
+        assertTrue(rendered.contains("newAccountCodes=2"))
+    }
+
+    @Test
+    fun googleSignInConfig_conClientIdVacio_noEstaDisponible() {
+        assertFalse(GoogleSignInConfig("").isAvailable)
+        assertFalse(GoogleSignInConfig("   ").isAvailable)
+        assertTrue(GoogleSignInConfig("123-abc.apps.example").isAvailable)
+    }
+
+    @Test
+    fun googleCredential_noEsDataClass() {
+        val methods = GoogleCredential::class.java.declaredMethods.map { it.name }
+
+        assertFalse(methods.contains("copy"))
+        assertFalse(methods.contains("component1"))
+    }
 }

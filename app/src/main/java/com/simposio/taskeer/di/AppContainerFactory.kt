@@ -9,7 +9,9 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
+import com.simposio.taskeer.BuildConfig
 import com.simposio.taskeer.data.auth.createAuthRepository
+import com.simposio.taskeer.data.auth.google.createGoogleCredentialSource
 import com.simposio.taskeer.data.calendar.DeviceCalendarRepository
 import com.simposio.taskeer.data.local.AppDatabase
 import com.simposio.taskeer.data.local.ColumnDao
@@ -37,6 +39,7 @@ import com.simposio.taskeer.data.repository.TaskListRepository
 import com.simposio.taskeer.data.repository.TaskListRepositoryImpl
 import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.data.repository.TaskRepositoryImpl
+import com.simposio.taskeer.domain.auth.GoogleSignInConfig
 import com.simposio.taskeer.domain.date.TimeZoneProvider
 import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
@@ -74,6 +77,7 @@ fun createAppContainer(context: Context): AppContainer {
     val dayWindowSource = ClockDayWindowSource(Instant::now, timeZoneProvider, zoneChanges = timeZoneProvider.changes)
     val calendarReadGranted = { isGranted(context, Manifest.permission.READ_CALENDAR) }
     val calendarWriteGranted = { isGranted(context, Manifest.permission.WRITE_CALENDAR) }
+    val googleSignInConfig = GoogleSignInConfig(BuildConfig.GOOGLE_WEB_CLIENT_ID)
     return AppContainer(
         preferencesRepository = preferencesRepository,
         timeZoneProvider = timeZoneProvider,
@@ -122,6 +126,8 @@ fun createAppContainer(context: Context): AppContainer {
             database.taskListDao(),
         ),
         authRepository = createAuthRepository(context, CoroutineScope(SupervisorJob() + Dispatchers.Default)),
+        googleCredentialSource = createGoogleCredentialSource(googleSignInConfig),
+        googleSignInConfig = googleSignInConfig,
         zoneChanges = timeZoneProvider.changes,
         calendarReadGranted = calendarReadGranted,
         calendarWriteGranted = calendarWriteGranted,

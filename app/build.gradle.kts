@@ -29,6 +29,9 @@ val releaseKeyPassword = signingValue("keyPassword", "TASKEER_KEY_PASSWORD")
 val hasReleaseSigning = listOf(releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword)
     .all { !it.isNullOrBlank() }
 
+// ID de cliente Web de Google Cloud (no es un secreto, pero depende del entorno): vacío oculta el botón de Google.
+val googleWebClientId = providers.gradleProperty("taskeer.googleWebClientId").getOrElse("").trim().replace("\"", "")
+
 android {
     namespace = "com.simposio.taskeer"
     compileSdk {
@@ -64,6 +67,7 @@ android {
             val apiBaseUrl = providers.gradleProperty("taskeer.apiBaseUrl")
                 .getOrElse("https://backend-taskeerv3-preproduction.onrender.com/api/v1/")
             buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+            buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
         }
         release {
             buildConfigField(
@@ -71,6 +75,7 @@ android {
                 "API_BASE_URL",
                 "\"https://backend-taskeerv3-preproduction.onrender.com/api/v1/\"",
             )
+            buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
             if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
             optimization {
                 enable = true
@@ -102,6 +107,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -109,6 +116,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.room.runtime)
+    implementation(libs.googleid)
     implementation(libs.okhttp)
     ksp(libs.androidx.room.compiler)
     coreLibraryDesugaring(libs.desugar.jdk.libs)

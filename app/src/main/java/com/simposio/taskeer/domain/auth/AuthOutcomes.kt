@@ -8,6 +8,15 @@ sealed interface LoginOutcome {
     data class Failed(val error: DomainError, val retryAfterSeconds: Long? = null) : LoginOutcome
 }
 
+sealed interface GoogleSignInOutcome {
+    // `newAccountCodes` solo llega si este acceso creó la cuenta; es el único momento en que existen.
+    class SignedIn(val account: AccountSummary, val newAccountCodes: RecoveryCodes?) : GoogleSignInOutcome {
+        override fun toString(): String = "SignedIn(account=$account, newAccountCodes=${newAccountCodes?.count})"
+    }
+
+    data class Failed(val error: DomainError, val retryAfterSeconds: Long? = null) : GoogleSignInOutcome
+}
+
 sealed interface RegisterOutcome {
     data class Registered(val account: AccountSummary, val recoveryCodes: RecoveryCodes) : RegisterOutcome
 
