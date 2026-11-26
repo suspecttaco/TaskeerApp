@@ -23,6 +23,7 @@ data class LoginUiState(
     val blocked: LoginBlock? = null,
     val passwordResetCount: Int = 0,
     val signedIn: Boolean = false,
+    val accountCreated: Boolean = false,
 ) {
     val canSubmit: Boolean get() = !isSubmitting && blocked != LoginBlock.RATE_LIMITED
 }

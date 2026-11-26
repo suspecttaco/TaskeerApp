@@ -24,4 +24,29 @@ class AppNavHostSourceTest {
         assertTrue(source.contains("LoginScreen("))
         assertTrue(source.contains("AppDestination.LOGIN.route"))
     }
+
+    @Test
+    fun hayRutaRegister() {
+        assertTrue(source.contains("composable(AppDestination.REGISTER.route)"))
+        assertTrue(source.contains("RegisterScreen("))
+    }
+
+    @Test
+    fun registroVuelveAlLoginConElCorreoPrecargado() {
+        assertTrue(source.contains("var pendingLoginEmail by remember { mutableStateOf<String?>(null) }"))
+        assertFalse(source.contains("rememberSaveable"))
+        assertTrue(source.contains("popUpTo(AppDestination.SETTINGS.route)"))
+        assertTrue(source.contains("prefillEmail = pendingLoginEmail"))
+    }
+
+    @Test
+    fun elCorreoPrecargadoSeConsumeUnaVez() {
+        assertTrue(source.contains("onPrefillConsumed = { pendingLoginEmail = null }"))
+    }
+
+    @Test
+    fun sigueSinGuardDeSesion_yElInicioSigueSiendoMiDia() {
+        assertTrue(source.contains("startDestination = AppDestination.START.route"))
+        assertFalse(source.contains("SessionState"))
+    }
 }

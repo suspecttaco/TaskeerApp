@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedSecureTextField
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -57,7 +58,10 @@ import kotlinx.coroutines.flow.filter
 fun LoginScreen(
     viewModelFactory: ViewModelProvider.Factory,
     onSignedIn: () -> Unit,
+    onCreateAccount: () -> Unit,
     modifier: Modifier = Modifier,
+    prefillEmail: String? = null,
+    onPrefillConsumed: () -> Unit = {},
 ) {
     val viewModel: LoginViewModel = viewModel(factory = viewModelFactory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -66,6 +70,12 @@ fun LoginScreen(
 
     LaunchedEffect(state.signedIn) {
         if (state.signedIn) onSignedIn()
+    }
+    LaunchedEffect(prefillEmail) {
+        if (prefillEmail != null) {
+            viewModel.prefill(prefillEmail)
+            onPrefillConsumed()
+        }
     }
     LaunchedEffect(state.passwordResetCount) { passwordState.clearText() }
     LaunchedEffect(passwordState) {
@@ -96,6 +106,7 @@ fun LoginScreen(
         passwordState = passwordState,
         onEmailChange = viewModel::onEmailChange,
         onSubmit = submit,
+        onCreateAccount = onCreateAccount,
         modifier = modifier,
     )
 }
@@ -106,6 +117,7 @@ private fun LoginForm(
     passwordState: TextFieldState,
     onEmailChange: (String) -> Unit,
     onSubmit: () -> Unit,
+    onCreateAccount: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var passwordVisible by remember { mutableStateOf(false) }
@@ -153,6 +165,13 @@ private fun LoginForm(
                 )
             },
         )
+        if (state.accountCreated) {
+            Text(
+                text = stringResource(R.string.register_account_created_notice),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
         state.error?.let { error ->
             Text(
                 text = loginErrorText(error, state.retryMinutes),
@@ -174,6 +193,10 @@ private fun LoginForm(
                 Text(stringResource(R.string.auth_login_action))
             }
         }
+        TextButton(
+            onClick = onCreateAccount,
+            modifier = Modifier.fillMaxWidth().heightIn(min = Spacing.MinTouchTarget),
+        ) { Text(stringResource(R.string.register_link_action)) }
         Text(
             text = stringResource(R.string.auth_login_optional_hint),
             style = MaterialTheme.typography.bodyMedium,

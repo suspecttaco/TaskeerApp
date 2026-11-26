@@ -20,6 +20,7 @@ import com.simposio.taskeer.testing.FakeSearchRepository
 import com.simposio.taskeer.testing.FakePreferencesRepository
 import com.simposio.taskeer.testing.FakeTaskListRepository
 import com.simposio.taskeer.testing.InMemoryCheckpointStore
+import com.simposio.taskeer.testing.MainSources
 import com.simposio.taskeer.testing.RecordingNotifier
 import com.simposio.taskeer.testing.RecordingReminderScheduler
 import com.simposio.taskeer.ui.alltasks.AllTasksViewModel
@@ -37,6 +38,7 @@ import java.lang.reflect.Proxy
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AppViewModelFactoryTest {
@@ -150,5 +152,15 @@ class AppViewModelFactoryTest {
         val factory = AppViewModelFactory(container())
 
         assertEquals(LoginViewModel::class.java, factory.create(LoginViewModel::class.java).javaClass)
+    }
+
+    // `createSavedStateHandle` exige un SavedStateRegistryOwner real: se comprueba el cableado por fuente.
+    @Test
+    fun creaRegisterViewModel() {
+        val factory = MainSources.kotlin("di/AppViewModelFactory.kt")
+
+        assertTrue(
+            factory.contains("RegisterViewModel(container.authRepository, extras.createSavedStateHandle())"),
+        )
     }
 }

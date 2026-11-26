@@ -132,4 +132,10 @@ class NavigationPolicyTest {
     fun shouldOpenViewer_desdeHistorial_false() {
         assertFalse(shouldOpenViewer(hasExtra = true, isRestored = false, launchedFromHistory = true))
     }
+
+    @Test
+    fun register_caeALoginSinPantallaPrevia() {
+        assertEquals(BackStep.Navigate("login"), backStep(AppDestination.REGISTER, null, hasPrevious = false))
+        assertEquals(BackStep.Pop, backStep(AppDestination.REGISTER, null, hasPrevious = true))
+    }
 }

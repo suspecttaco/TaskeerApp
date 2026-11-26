@@ -21,4 +21,22 @@ class AppShellSourceTest {
         assertTrue(source.contains("SessionMessage.LOGGED_OUT -> loggedOutText"))
         assertTrue(source.contains("SessionMessage.LOGGED_OUT_SERVER_UNREACHABLE -> loggedOutOfflineText"))
     }
+
+    @Test
+    fun flechaConsultaElBackGuardAntesDeNavegar() {
+        val guard = source.indexOf("backGuard.intercept()")
+        val navigation = source.indexOf("BackStep.Pop -> navController.popBackStack()")
+
+        assertTrue(guard in 0 until navigation)
+    }
+
+    @Test
+    fun proveeElBackGuardPorCompositionLocal() {
+        assertTrue(source.contains("LocalBackGuard provides backGuard"))
+    }
+
+    @Test
+    fun tituloDeRegistro() {
+        assertTrue(source.contains("AppDestination.REGISTER -> stringResource(R.string.register_title)"))
+    }
 }

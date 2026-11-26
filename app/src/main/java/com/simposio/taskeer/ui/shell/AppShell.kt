@@ -49,7 +49,9 @@ import com.simposio.taskeer.ui.lists.ListViewModel
 import com.simposio.taskeer.ui.lists.TaskListsViewModel
 import com.simposio.taskeer.ui.navigation.AppDestination
 import com.simposio.taskeer.ui.navigation.AppNavHost
+import com.simposio.taskeer.ui.navigation.BackGuard
 import com.simposio.taskeer.ui.navigation.BackStep
+import com.simposio.taskeer.ui.navigation.LocalBackGuard
 import com.simposio.taskeer.ui.navigation.MenuItem
 import com.simposio.taskeer.ui.navigation.OverflowMenu
 import com.simposio.taskeer.ui.navigation.backStep
@@ -106,6 +108,7 @@ fun AppShell(
     val suggestionsBadge by suggestions.badge.collectAsStateWithLifecycle()
     var suggestionsOpen by rememberSaveable { mutableStateOf(false) }
     val sheetGate = remember { SheetGate() }
+    val backGuard = remember { BackGuard() }
     val eventEditor: EventEditorViewModel = viewModel(factory = viewModelFactory)
     val eventState by eventEditor.uiState.collectAsStateWithLifecycle()
     val eventAddedText = stringResource(R.string.event_added)
@@ -226,7 +229,7 @@ fun AppShell(
     val back = backStep(destination, boardId, hasPrevious = navController.previousBackStackEntry != null)
 
     val snackbarClearance = if (destination == AppDestination.HOME) Spacing.HubBarClearance else Spacing.ChromeClearance
-    CompositionLocalProvider(LocalSheetGate provides sheetGate) {
+    CompositionLocalProvider(LocalSheetGate provides sheetGate, LocalBackGuard provides backGuard) {
         Box(modifier = modifier.fillMaxSize()) {
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
@@ -259,7 +262,7 @@ fun AppShell(
                             },
                             onSuggestions = { suggestionsOpen = true },
                             onBack = {
-                                when (back) {
+                                if (!backGuard.intercept()) when (back) {
                                     BackStep.Pop -> navController.popBackStack()
                                     is BackStep.Navigate -> navController.navigate(back.route) { launchSingleTop = true }
                                     BackStep.None -> Unit
@@ -412,6 +415,7 @@ private fun AppDestination.title(listName: String?, boardName: String?): String 
     AppDestination.NOTIFICATIONS -> stringResource(R.string.notifications_title)
     AppDestination.SETTINGS -> stringResource(R.string.menu_settings)
     AppDestination.LOGIN -> stringResource(R.string.auth_login_title)
+    AppDestination.REGISTER -> stringResource(R.string.register_title)
 }
 
 @Preview(showBackground = true)

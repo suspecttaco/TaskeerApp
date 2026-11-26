@@ -13,6 +13,8 @@ import com.simposio.taskeer.domain.auth.AccountSummary
 import com.simposio.taskeer.domain.auth.AuthRules
 import com.simposio.taskeer.domain.auth.LoginOutcome
 import com.simposio.taskeer.domain.auth.LogoutOutcome
+import com.simposio.taskeer.domain.auth.RecoveryCodes
+import com.simposio.taskeer.domain.auth.RegisterOutcome
 import com.simposio.taskeer.domain.auth.SessionState
 import com.simposio.taskeer.domain.model.DomainError
 import java.util.concurrent.atomic.AtomicInteger
@@ -119,6 +121,46 @@ class RemoteAuthRepository(
                 LoginOutcome.SignedIn(parsed.account)
             }
         }
+
+    // No toma `authMutex` ni toca `AuthSession`: registrar no inicia sesión y no debe esperar a un login en vuelo.
+    override suspend fun register(displayName: String, email: String, password: CharArray): RegisterOutcome {
+        try {
+            AuthRules.validateRegistration(displayName, email, password)?.let { return RegisterOutcome.Failed(it) }
+            if (state.value is SessionState.SignedIn) {
+                return RegisterOutcome.Failed(
+                    DomainError.Validation(AuthRules.ALREADY_SIGNED_IN, "Ya hay una sesión iniciada"),
+                )
+            }
+            val sentName = displayName.trim()
+            val sentEmail = AuthRules.normalizedEmail(email)
+            val request = ApiRequest(
+                method = HttpMethod.POST,
+                path = AuthApiContract.REGISTER_PATH,
+                jsonBody = AuthApiContract.registerBody(sentName, sentEmail, password),
+                auth = AuthMode.NONE,
+            )
+            return when (val result = client.execute(request)) {
+                is ApiResult.Failure -> RegisterOutcome.Failed(result.error, result.retryAfterSeconds)
+                is ApiResult.Success -> when (val parsed = AuthApiContract.parseRegister(result.response.body)) {
+                    AuthApiContract.RegisterResponse.Unreadable -> RegisterOutcome.RegisteredWithoutCodes(sentEmail)
+                    is AuthApiContract.RegisterResponse.Created ->
+                        if (parsed.codes.isEmpty()) {
+                            RegisterOutcome.RegisteredWithoutCodes(sentEmail)
+                        } else {
+                            RegisterOutcome.Registered(
+                                AccountSummary(
+                                    email = parsed.account?.email?.takeIf { it.isNotBlank() } ?: sentEmail,
+                                    displayName = parsed.account?.displayName?.takeIf { it.isNotBlank() } ?: sentName,
+                                ),
+                                RecoveryCodes(parsed.codes),
+                            )
+                        }
+                }
+            }
+        } finally {
+            password.fill('\u0000')
+        }
+    }
 
     override suspend fun logout(): LogoutOutcome {
         logoutEpoch.incrementAndGet()

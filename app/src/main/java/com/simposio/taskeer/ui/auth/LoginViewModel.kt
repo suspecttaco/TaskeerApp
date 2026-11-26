@@ -27,12 +27,22 @@ class LoginViewModel(private val auth: AuthRepository) : ViewModel() {
         }
     }
 
+    fun prefill(email: String) {
+        _uiState.update { it.copy(email = email, accountCreated = true) }
+    }
+
     fun onEmailChange(value: String) {
-        _uiState.update { it.copy(email = value, error = null, retryMinutes = null) }
+        _uiState.update { it.copy(email = value, error = null, retryMinutes = null, accountCreated = false) }
     }
 
     fun onPasswordEdited() {
-        _uiState.update { if (it.error == null) it else it.copy(error = null, retryMinutes = null) }
+        _uiState.update {
+            if (it.error == null && !it.accountCreated) {
+                it
+            } else {
+                it.copy(error = null, retryMinutes = null, accountCreated = false)
+            }
+        }
     }
 
     fun dismissNotSupported() {
@@ -49,10 +59,14 @@ class LoginViewModel(private val auth: AuthRepository) : ViewModel() {
         if (invalid != null) {
             password.fill(ZERO)
             val failure = loginFailureFor(invalid) as LoginFailure.Inline
-            _uiState.update { it.copy(email = email, error = failure.error, retryMinutes = null) }
+            _uiState.update {
+                it.copy(email = email, error = failure.error, retryMinutes = null, accountCreated = false)
+            }
             return
         }
-        _uiState.update { it.copy(email = email, error = null, retryMinutes = null, isSubmitting = true) }
+        _uiState.update {
+            it.copy(email = email, error = null, retryMinutes = null, isSubmitting = true, accountCreated = false)
+        }
         viewModelScope.launch {
             try {
                 apply(auth.login(email, password))

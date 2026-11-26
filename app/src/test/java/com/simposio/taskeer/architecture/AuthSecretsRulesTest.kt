@@ -16,7 +16,7 @@ import org.junit.Test
 
 class AuthSecretsRulesTest {
 
-    private val authDirectories = listOf("ui/auth", "data/remote/auth", "data/auth", "domain/auth")
+    private val authDirectories = listOf("ui/auth", "data/remote/auth", "data/auth", "domain/auth", "ui/register")
 
     @Test
     fun authNoUsaLogNiPrintln() {

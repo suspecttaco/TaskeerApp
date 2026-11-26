@@ -1,6 +1,10 @@
 package com.simposio.taskeer.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
@@ -22,6 +26,7 @@ import com.simposio.taskeer.ui.lists.ListScreen
 import com.simposio.taskeer.ui.lists.ListViewModel
 import com.simposio.taskeer.ui.myday.MyDayScreen
 import com.simposio.taskeer.ui.notifications.NotificationsScreen
+import com.simposio.taskeer.ui.register.RegisterScreen
 import com.simposio.taskeer.ui.search.SearchScreen
 import com.simposio.taskeer.ui.settings.SettingsScreen
 import com.simposio.taskeer.ui.tasks.SwipeHintState
@@ -41,6 +46,8 @@ fun AppNavHost(
     modifier: Modifier = Modifier,
 ) {
     val animated = rememberAnimationsEnabled()
+    // El correo no es secreto pero no se persiste: si se pierde al rotar, el usuario lo escribe.
+    var pendingLoginEmail by remember { mutableStateOf<String?>(null) }
     NavHost(
         navController = navController,
         startDestination = AppDestination.START.route,
@@ -99,7 +106,26 @@ fun AppNavHost(
             )
         }
         composable(AppDestination.LOGIN.route) {
-            LoginScreen(viewModelFactory = viewModelFactory, onSignedIn = { navController.popBackStack() })
+            LoginScreen(
+                viewModelFactory = viewModelFactory,
+                onSignedIn = { navController.popBackStack() },
+                onCreateAccount = { navController.navigate(AppDestination.REGISTER.route) { launchSingleTop = true } },
+                prefillEmail = pendingLoginEmail,
+                onPrefillConsumed = { pendingLoginEmail = null },
+            )
+        }
+        composable(AppDestination.REGISTER.route) {
+            RegisterScreen(
+                viewModelFactory = viewModelFactory,
+                onFinished = { email ->
+                    pendingLoginEmail = email
+                    navController.navigate(AppDestination.LOGIN.route) {
+                        popUpTo(AppDestination.SETTINGS.route)
+                        launchSingleTop = true
+                    }
+                },
+                onHaveAccount = { navController.popBackStack() },
+            )
         }
         composable(AppDestination.SEARCH.route) {
             SearchScreen(

@@ -44,6 +44,7 @@ class AppDestinationTest {
                 "NOTIFICATIONS" to "notifications",
                 "SETTINGS" to "settings",
                 "LOGIN" to "login",
+                "REGISTER" to "register",
             ),
             AppDestination.entries.associate { it.name to it.route },
         )
@@ -124,5 +125,11 @@ class AppDestinationTest {
     fun login_tieneRutaLogin() {
         assertEquals("login", AppDestination.LOGIN.route)
         assertEquals(AppDestination.LOGIN, AppDestination.fromRoute("login"))
+    }
+
+    @Test
+    fun register_tieneRutaRegister() {
+        assertEquals("register", AppDestination.REGISTER.route)
+        assertEquals(AppDestination.REGISTER, AppDestination.fromRoute("register"))
     }
 }

@@ -252,4 +252,18 @@ class ChromeRulesTest {
     fun login_noTieneMenu() {
         assertEquals(OverflowMenu(emptyList(), emptyList()), overflowMenuFor(AppDestination.LOGIN))
     }
+
+    @Test
+    fun register_esDetalleSinHomeNiPildora() {
+        val chrome = chromeFor(AppDestination.REGISTER)
+
+        assertEquals(TopBarKind.DETAIL, chrome.topBar)
+        assertFalse(chrome.showHomeButton)
+        assertFalse(chrome.showPill)
+    }
+
+    @Test
+    fun register_noTieneMenu() {
+        assertEquals(OverflowMenu(emptyList(), emptyList()), overflowMenuFor(AppDestination.REGISTER))
+    }
 }
