@@ -1,7 +1,9 @@
 package com.simposio.taskeer.domain.auth
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AuthRulesTest {
@@ -92,5 +94,90 @@ class AuthRulesTest {
     @Test
     fun lockoutSeconds_sinDato_esCero() {
         assertEquals(0L, AuthRules.lockoutSeconds(null))
+    }
+
+    private fun registration(
+        name: String = "Ana",
+        email: String = "ana@example.com",
+        password: String = "secreta1",
+    ) = AuthRules.validateRegistration(name, email, password.toCharArray())?.code
+
+    @Test
+    fun registro_nombreCorto_esDisplayNameInvalid() {
+        assertEquals("DISPLAY_NAME_INVALID", registration(name = "A"))
+        assertEquals("DISPLAY_NAME_INVALID", registration(name = ""))
+    }
+
+    @Test
+    fun registro_nombreSeRecortaAntesDeValidar() {
+        assertEquals("DISPLAY_NAME_INVALID", registration(name = "  A  "))
+        assertNull(registration(name = "  Al  "))
+    }
+
+    @Test
+    fun registro_nombreMayorDe100_esDisplayNameInvalid() {
+        assertEquals("DISPLAY_NAME_INVALID", registration(name = "a".repeat(101)))
+        assertNull(registration(name = "a".repeat(100)))
+    }
+
+    @Test
+    fun registro_correoInvalido_esEmailInvalid() {
+        assertEquals("EMAIL_INVALID", registration(email = "ana.example.com"))
+    }
+
+    @Test
+    fun registro_passwordDe7_esPasswordTooShort() {
+        assertEquals("PASSWORD_TOO_SHORT", registration(password = "1234567"))
+    }
+
+    @Test
+    fun registro_passwordVacia_esPasswordTooShort() {
+        assertEquals("PASSWORD_TOO_SHORT", registration(password = ""))
+    }
+
+    @Test
+    fun registro_passwordDe8_esValida() {
+        assertNull(registration(password = "12345678"))
+    }
+
+    @Test
+    fun registro_passwordSoloEspaciosDe8_esValidaYNoSeRecorta() {
+        val password = " ".repeat(8).toCharArray()
+
+        assertNull(AuthRules.validateRegistration("Ana", "ana@example.com", password))
+        assertEquals(8, password.size)
+    }
+
+    @Test
+    fun registro_passwordDe129_esPasswordTooLong() {
+        assertEquals("PASSWORD_TOO_LONG", registration(password = "x".repeat(129)))
+        assertNull(registration(password = "x".repeat(128)))
+    }
+
+    @Test
+    fun registro_ordenDeErrores_nombreCorreoPassword() {
+        assertEquals("DISPLAY_NAME_INVALID", registration(name = "A", email = "x", password = "1"))
+        assertEquals("EMAIL_INVALID", registration(email = "x", password = "1"))
+        assertEquals("PASSWORD_TOO_SHORT", registration(password = "1"))
+    }
+
+    @Test
+    fun registro_datosValidos_devuelvenNull() {
+        assertNull(registration())
+    }
+
+    @Test
+    fun passwordsMatch_iguales_esTrue() {
+        assertTrue(AuthRules.passwordsMatch("secreta1".toCharArray(), "secreta1".toCharArray()))
+    }
+
+    @Test
+    fun passwordsMatch_distintas_esFalse() {
+        assertFalse(AuthRules.passwordsMatch("secreta1".toCharArray(), "secreta2".toCharArray()))
+    }
+
+    @Test
+    fun passwordsMatch_distintaLongitud_esFalse() {
+        assertFalse(AuthRules.passwordsMatch("secreta1".toCharArray(), "secreta".toCharArray()))
     }
 }

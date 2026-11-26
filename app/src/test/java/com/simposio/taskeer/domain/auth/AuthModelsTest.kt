@@ -1,6 +1,8 @@
 package com.simposio.taskeer.domain.auth
 
+import com.simposio.taskeer.domain.model.DomainError
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AuthModelsTest {
@@ -19,5 +21,20 @@ class AuthModelsTest {
 
         assertFalse(rendered.contains("token"))
         assertFalse(rendered.contains("password"))
+    }
+
+    @Test
+    fun toString_deRegisterOutcome_noIncluyeCodigosNiPassword() {
+        val account = AccountSummary("ana@example.com", "Ana")
+        val rendered = listOf(
+            RegisterOutcome.Registered(account, RecoveryCodes(listOf("CTPQ-Q479", "ABCD-EFGH"))).toString(),
+            RegisterOutcome.RegisteredWithoutCodes("ana@example.com").toString(),
+            RegisterOutcome.Failed(DomainError.Network("X", "y")).toString(),
+        ).joinToString("\n")
+
+        assertFalse(rendered.contains("CTPQ"))
+        assertFalse(rendered.contains("EFGH"))
+        assertFalse(rendered.lowercase().contains("password"))
+        assertTrue(rendered.contains("RecoveryCodes(count=2)"))
     }
 }

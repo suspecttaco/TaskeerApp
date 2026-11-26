@@ -16,6 +16,7 @@ import com.simposio.taskeer.data.remote.session.HttpSessionRefresher
 import com.simposio.taskeer.data.remote.session.RefreshOutcome
 import com.simposio.taskeer.domain.auth.AccountSummary
 import com.simposio.taskeer.domain.auth.LoginOutcome
+import com.simposio.taskeer.domain.auth.RegisterOutcome
 import com.simposio.taskeer.domain.auth.SessionState
 import com.simposio.taskeer.domain.model.DomainError
 import kotlinx.coroutines.CompletableDeferred
@@ -31,6 +32,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -712,5 +714,251 @@ class RemoteAuthRepositoryTest {
         repository.resume()
 
         assertEquals(SessionState.SignedIn(account = null, offline = false), repository.sessionState.value)
+    }
+
+    private fun registerJson(codes: List<String> = List(10) { "ABCD-000$it" }): String =
+        JSONObject()
+            .put("user", JSONObject().put("email", "ana@example.com").put("displayName", "Ana"))
+            .put("recoveryCodes", JSONArray(codes))
+            .toString()
+
+    private suspend fun RemoteAuthRepository.signUp(secret: CharArray = password("secreta1")) =
+        register("Ana", "ana@example.com", secret)
+
+    private fun failedRegister(outcome: RegisterOutcome): RegisterOutcome.Failed = outcome as RegisterOutcome.Failed
+
+    @Test
+    fun register_exitoso_haceLaPeticionCorrectaSinAuthorization() = runTest {
+        transport.enqueue(response(201, registerJson()))
+
+        repository().register("  Ana  ", "  ana@example.com ", password("secreta1"))
+
+        val request = transport.requests.single()
+        assertEquals(HttpMethod.POST, request.method)
+        assertEquals("https://api.test/api/v1/auth/register", request.url)
+        assertNull(request.headers["Authorization"])
+        assertEquals("mobile", request.headers["X-Client"])
+        val body = JSONObject(requireNotNull(request.body))
+        assertEquals("Ana", body.getString("displayName"))
+        assertEquals("ana@example.com", body.getString("email"))
+        assertEquals("secreta1", body.getString("password"))
+    }
+
+    @Test
+    fun register_exitoso_devuelveLosDiezCodigos() = runTest {
+        val codes = List(10) { "ABCD-000$it" }
+        transport.enqueue(response(201, registerJson(codes)))
+
+        val outcome = repository().signUp() as RegisterOutcome.Registered
+
+        assertEquals(codes, outcome.recoveryCodes.values)
+        assertEquals(account, outcome.account)
+    }
+
+    @Test
+    fun register_exitoso_noIniciaSesion() = runTest {
+        transport.enqueue(response(201, registerJson()))
+
+        repository().signUp()
+
+        assertFalse(session.hasStoredSession())
+        assertEquals(0, store.writes)
+        assertNull(session.currentAccessToken())
+    }
+
+    @Test
+    fun register_exitoso_noCambiaElEstadoDeSesion() = runTest {
+        transport.enqueue(response(201, registerJson()))
+        val repository = repository()
+
+        repository.signUp()
+
+        assertEquals(SessionState.SignedOut(), repository.sessionState.value)
+    }
+
+    @Test
+    fun register_noTomaAuthMutex_duranteUnLoginEnVuelo() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        transport.enqueue { gate.await(); response(200, loginJson()) }
+        transport.enqueue(response(201, registerJson()))
+        val repository = repository()
+        val login = async { repository.login("ana@example.com", password()) }
+        runCurrent()
+
+        val outcome = repository.signUp()
+
+        assertTrue(outcome is RegisterOutcome.Registered)
+        gate.complete(Unit)
+        login.await()
+    }
+
+    @Test
+    fun register_conMenosDeDiezCodigos_losDevuelveTodos() = runTest {
+        transport.enqueue(response(201, registerJson(listOf("AAAA-BBBB", "CCCC-DDDD", "EEEE-FFFF"))))
+
+        val outcome = repository().signUp() as RegisterOutcome.Registered
+
+        assertEquals(3, outcome.recoveryCodes.count)
+    }
+
+    @Test
+    fun register_sinCodigos_devuelveRegisteredWithoutCodes() = runTest {
+        transport.enqueue(response(201, registerJson(emptyList())))
+
+        val outcome = repository().signUp()
+
+        assertEquals(RegisterOutcome.RegisteredWithoutCodes("ana@example.com"), outcome)
+    }
+
+    @Test
+    fun register_cuerpoIlegible_devuelveRegisteredWithoutCodes() = runTest {
+        transport.enqueue(response(201, "no es json"))
+
+        val outcome = repository().signUp()
+
+        assertEquals(RegisterOutcome.RegisteredWithoutCodes("ana@example.com"), outcome)
+    }
+
+    @Test
+    fun register_noRetieneLosCodigos() = runTest {
+        val types = RemoteAuthRepository::class.java.declaredFields.map { it.type.name }
+
+        assertTrue(types.none { it.contains("RecoveryCodes") })
+    }
+
+    @Test
+    fun register_conDatosInvalidos_noHacePeticion() = runTest {
+        val outcome = failedRegister(repository().register("A", "ana@example.com", password("secreta1")))
+
+        assertEquals("DISPLAY_NAME_INVALID", outcome.error.code)
+        assertTrue(transport.requests.isEmpty())
+    }
+
+    @Test
+    fun register_conSesionActiva_noHacePeticion() = runTest {
+        val repository = repository()
+        repository.signIn()
+
+        val outcome = failedRegister(repository.signUp())
+
+        assertEquals("ALREADY_SIGNED_IN", outcome.error.code)
+        assertEquals(1, transport.requests.size)
+    }
+
+    @Test
+    fun register_con409_esConflictYNoIniciaSesion() = runTest {
+        transport.enqueue(response(409, errorBody("EMAIL_ALREADY_REGISTERED")))
+
+        val outcome = failedRegister(repository().signUp())
+
+        assertTrue(outcome.error is DomainError.Conflict)
+        assertFalse(session.hasStoredSession())
+    }
+
+    @Test
+    fun register_con429_devuelveRateLimitedConRetryAfter() = runTest {
+        transport.enqueue(response(429, errorBody("TOO_MANY_REQUESTS"), mapOf("retry-after" to "120")))
+
+        val outcome = failedRegister(repository().signUp())
+
+        assertTrue(outcome.error is DomainError.RateLimited)
+        assertEquals(120L, outcome.retryAfterSeconds)
+    }
+
+    @Test
+    fun register_sinRed_devuelveNetwork() = runTest {
+        transport.enqueue(failure(TransportFailureKind.UNREACHABLE))
+
+        assertTrue(failedRegister(repository().signUp()).error is DomainError.Network)
+    }
+
+    @Test
+    fun register_con500_devuelveServer() = runTest {
+        transport.enqueue(response(500, ""))
+
+        assertTrue(failedRegister(repository().signUp()).error is DomainError.Server)
+    }
+
+    @Test
+    fun register_con400_devuelveValidation() = runTest {
+        transport.enqueue(response(400, errorBody("VALIDATION_ERROR")))
+
+        assertTrue(failedRegister(repository().signUp()).error is DomainError.Validation)
+    }
+
+    @Test
+    fun register_con403UntrustedOrigin_devuelveMobileClientNotSupported() = runTest {
+        transport.enqueue(response(403, errorBody("UNTRUSTED_ORIGIN")))
+
+        val outcome = failedRegister(repository().signUp())
+
+        assertEquals("MOBILE_CLIENT_NOT_SUPPORTED", outcome.error.code)
+    }
+
+    @Test
+    fun register_vaciaLaPasswordTrasExito() = runTest {
+        transport.enqueue(response(201, registerJson()))
+        val secret = password("secreta1")
+
+        repository().signUp(secret)
+
+        assertTrue(secret.all { it == '\u0000' })
+    }
+
+    @Test
+    fun register_vaciaLaPasswordTrasCadaFallo() = runTest {
+        val responses = listOf(
+            response(409, errorBody("EMAIL_ALREADY_REGISTERED")),
+            response(429, errorBody("TOO_MANY_REQUESTS")),
+            failure(TransportFailureKind.TIMEOUT),
+            response(500, ""),
+            response(400, errorBody("VALIDATION_ERROR")),
+            response(403, errorBody("UNTRUSTED_ORIGIN")),
+            response(201, "ilegible"),
+        )
+        val repository = repository()
+
+        responses.forEach { result ->
+            transport.enqueue(result)
+            val secret = password("secreta1")
+            repository.signUp(secret)
+            assertTrue(secret.all { it == '\u0000' })
+        }
+    }
+
+    @Test
+    fun register_vaciaLaPasswordSiLaValidacionFalla() = runTest {
+        val secret = password("corta")
+
+        repository().signUp(secret)
+
+        assertTrue(secret.all { it == '\u0000' })
+        assertTrue(transport.requests.isEmpty())
+    }
+
+    @Test
+    fun conBackendSinB8_register_funcionaYLoginPosteriorNoCreaSesion() = runTest {
+        val backend = FakeAuthBackend(b8 = false)
+        val noB8Session = AuthSession(store, HttpSessionRefresher(backend, TEST_CONFIG))
+        val repository = repository(noB8Session, RealApiClient(backend, noB8Session, TEST_CONFIG))
+
+        val registered = repository.register("Bea", "bea@example.com", password("secreta1")) as RegisterOutcome.Registered
+        val login = repository.login("bea@example.com", password("secreta1"))
+
+        assertEquals(10, registered.recoveryCodes.count)
+        assertTrue(login is LoginOutcome.Failed)
+        assertFalse(noB8Session.hasStoredSession())
+    }
+
+    @Test
+    fun login_yLogout_conservanSuComportamiento() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(200, "{}"))
+
+        val logout = repository.logout()
+
+        assertTrue(logout.serverRevoked)
+        assertEquals(SessionState.SignedOut(), repository.sessionState.value)
     }
 }

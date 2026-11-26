@@ -6,12 +6,14 @@ import com.simposio.taskeer.data.remote.HttpTransport
 import com.simposio.taskeer.data.remote.TransportResult
 import com.simposio.taskeer.data.remote.errorBody
 import com.simposio.taskeer.data.remote.response
+import org.json.JSONArray
 import org.json.JSONObject
 
 // Con b8 = false imita al backend de hoy: el login fija el refresh en cookie y refresh/logout exigen Origin.
 class FakeAuthBackend(private val b8: Boolean) : HttpTransport {
     val requests = mutableListOf<HttpRequest>()
     val revokedRefreshTokens = mutableListOf<String>()
+    val registeredEmails = mutableListOf<String>()
     val rotating = FakeRotatingBackend(grace = true)
 
     override suspend fun send(request: HttpRequest): TransportResult {
@@ -19,6 +21,7 @@ class FakeAuthBackend(private val b8: Boolean) : HttpTransport {
         return when {
             request.url.endsWith("auth/login") -> login(request)
             request.url.endsWith("auth/logout") -> logout(request)
+            request.url.endsWith("auth/register") -> register(request)
             request.url.endsWith("auth/refresh") -> refresh(request)
             else -> response(404, errorBody("ROUTE_NOT_FOUND"))
         }
@@ -38,6 +41,16 @@ class FakeAuthBackend(private val b8: Boolean) : HttpTransport {
         return response(200, payload.toString())
     }
 
+    private fun register(request: HttpRequest): TransportResult {
+        val body = JSONObject(requireNotNull(request.body))
+        val email = body.getString("email").lowercase()
+        if (email in registeredEmails || email == EMAIL) return response(409, errorBody("EMAIL_ALREADY_REGISTERED"))
+        registeredEmails += email
+        val user = JSONObject().put("email", email).put("displayName", body.getString("displayName"))
+        val codes = JSONArray(REGISTER_CODES)
+        return response(201, JSONObject().put("user", user).put("recoveryCodes", codes).toString())
+    }
+
     private fun logout(request: HttpRequest): TransportResult {
         if (!b8) return response(403, errorBody("UNTRUSTED_ORIGIN"))
         revokedRefreshTokens += JSONObject(requireNotNull(request.body)).getString("refreshToken")
@@ -54,5 +67,6 @@ class FakeAuthBackend(private val b8: Boolean) : HttpTransport {
     companion object {
         const val EMAIL = "ana@example.com"
         const val PASSWORD = "secreta"
+        val REGISTER_CODES = List(10) { "ABCD-%04d".format(it) }
     }
 }
