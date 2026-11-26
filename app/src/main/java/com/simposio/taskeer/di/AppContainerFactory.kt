@@ -10,7 +10,7 @@ import androidx.core.content.ContextCompat
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
 import com.simposio.taskeer.BuildConfig
-import com.simposio.taskeer.data.auth.createAuthRepository
+import com.simposio.taskeer.data.auth.createRemoteRepositories
 import com.simposio.taskeer.data.auth.google.createGoogleCredentialSource
 import com.simposio.taskeer.data.calendar.DeviceCalendarRepository
 import com.simposio.taskeer.data.local.AppDatabase
@@ -78,6 +78,7 @@ fun createAppContainer(context: Context): AppContainer {
     val calendarReadGranted = { isGranted(context, Manifest.permission.READ_CALENDAR) }
     val calendarWriteGranted = { isGranted(context, Manifest.permission.WRITE_CALENDAR) }
     val googleSignInConfig = GoogleSignInConfig(BuildConfig.GOOGLE_WEB_CLIENT_ID)
+    val remote = createRemoteRepositories(context, CoroutineScope(SupervisorJob() + Dispatchers.Default))
     return AppContainer(
         preferencesRepository = preferencesRepository,
         timeZoneProvider = timeZoneProvider,
@@ -125,7 +126,8 @@ fun createAppContainer(context: Context): AppContainer {
             database.taskDao(),
             database.taskListDao(),
         ),
-        authRepository = createAuthRepository(context, CoroutineScope(SupervisorJob() + Dispatchers.Default)),
+        authRepository = remote.auth,
+        notificationInboxRepository = remote.inbox,
         googleCredentialSource = createGoogleCredentialSource(googleSignInConfig),
         googleSignInConfig = googleSignInConfig,
         zoneChanges = timeZoneProvider.changes,

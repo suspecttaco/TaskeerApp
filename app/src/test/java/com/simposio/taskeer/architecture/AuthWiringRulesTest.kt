@@ -66,8 +66,29 @@ class AuthWiringRulesTest {
     fun elContenedorSoloImportaElPuenteDataAuth() {
         val factory = MainSources.kotlin("di/AppContainerFactory.kt")
 
-        assertTrue(factory.contains("import com.simposio.taskeer.data.auth.createAuthRepository"))
+        assertTrue(factory.contains("import com.simposio.taskeer.data.auth.createRemoteRepositories"))
         assertTrue(!factory.contains("data.remote"))
+    }
+
+    @Test
+    fun authEInbox_comparteElMismoApiClient() {
+        val bridge = MainSources.kotlin("data/auth/AuthRepositoryFactory.kt")
+
+        assertEquals(1, Regex("createApiClient\\(").findAll(bridge.substringAfter("fun createRemoteRepositories")).count())
+        assertTrue(bridge.contains("RemoteAuthRepository(remote.client, remote.session, scope)"))
+        assertTrue(bridge.contains("RemoteNotificationInboxRepository(remote.client, auth.sessionState, scope)"))
+    }
+
+    @Test
+    fun soloElPuenteConstruyeLosRepositoriosRemotos() {
+        val offenders = root.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .filterNot { it.startsWith(File(root, "data/remote")) }
+            .filter { it.readText().contains("RemoteNotificationInboxRepository(") }
+            .map { it.relativeTo(root).path }
+            .toList()
+
+        assertEquals(listOf("data/auth/AuthRepositoryFactory.kt"), offenders)
     }
 
     @Test

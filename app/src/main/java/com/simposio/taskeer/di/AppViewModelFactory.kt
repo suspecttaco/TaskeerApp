@@ -20,6 +20,7 @@ import com.simposio.taskeer.ui.lists.ListViewModel
 import com.simposio.taskeer.ui.lists.TaskListsViewModel
 import com.simposio.taskeer.ui.myday.MyDayViewModel
 import com.simposio.taskeer.ui.myday.MySuggestionsViewModel
+import com.simposio.taskeer.ui.notifications.AccountNotificationsViewModel
 import com.simposio.taskeer.ui.notifications.NotificationsViewModel
 import com.simposio.taskeer.ui.notifications.UnreadCounterViewModel
 import com.simposio.taskeer.ui.passwordreset.ResetPasswordViewModel
@@ -168,7 +169,14 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 container.timeZoneProvider,
             ) as T
         modelClass.isAssignableFrom(UnreadCounterViewModel::class.java) ->
-            UnreadCounterViewModel(container.notificationHistoryRepository) as T
+            UnreadCounterViewModel(container.notificationHistoryRepository, container.notificationInboxRepository) as T
+        modelClass.isAssignableFrom(AccountNotificationsViewModel::class.java) ->
+            AccountNotificationsViewModel(
+                container.notificationInboxRepository,
+                container.authRepository.sessionState,
+                container.taskRepository,
+                container.dateTimeConverter,
+            ) as T
 
         modelClass.isAssignableFrom(SessionViewModel::class.java) ->
             SessionViewModel(container.authRepository) as T

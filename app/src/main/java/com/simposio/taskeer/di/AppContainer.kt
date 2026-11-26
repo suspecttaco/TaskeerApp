@@ -10,6 +10,7 @@ import com.simposio.taskeer.data.repository.DayWindowSource
 import com.simposio.taskeer.data.repository.ColumnRepository
 import com.simposio.taskeer.data.repository.MyDayRepository
 import com.simposio.taskeer.data.repository.NotificationHistoryRepository
+import com.simposio.taskeer.data.repository.NotificationInboxRepository
 import com.simposio.taskeer.data.repository.PlannedRepository
 import com.simposio.taskeer.data.repository.PreferencesRepository
 import com.simposio.taskeer.data.repository.ReminderRepository
@@ -42,6 +43,7 @@ class AppContainer(
     val dayWindowSource: DayWindowSource,
     val searchRepository: SearchRepository,
     val authRepository: AuthRepository,
+    val notificationInboxRepository: NotificationInboxRepository,
     val googleCredentialSource: GoogleCredentialSource = UnavailableGoogleCredentialSource,
     val googleSignInConfig: GoogleSignInConfig = GoogleSignInConfig(""),
     val zoneChanges: Flow<Unit> = emptyFlow(),
