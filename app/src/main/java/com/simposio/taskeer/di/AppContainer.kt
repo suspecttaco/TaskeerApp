@@ -19,6 +19,7 @@ import com.simposio.taskeer.data.repository.SearchRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskListRepository
 import com.simposio.taskeer.data.repository.TaskRepository
+import com.simposio.taskeer.data.repository.WorkspaceMembersRepository
 import com.simposio.taskeer.data.repository.WorkspaceRepository
 import com.simposio.taskeer.domain.auth.GoogleSignInConfig
 import com.simposio.taskeer.domain.date.DateTimeConverter
@@ -48,6 +49,7 @@ class AppContainer(
     val notificationInboxRepository: NotificationInboxRepository,
     val notificationLiveChannel: NotificationLiveChannel,
     val workspaceRepository: WorkspaceRepository,
+    val workspaceMembersRepository: WorkspaceMembersRepository,
     val googleCredentialSource: GoogleCredentialSource = UnavailableGoogleCredentialSource,
     val googleSignInConfig: GoogleSignInConfig = GoogleSignInConfig(""),
     val zoneChanges: Flow<Unit> = emptyFlow(),

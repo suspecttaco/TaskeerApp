@@ -32,5 +32,7 @@ data class WorkspacesUiState(
 sealed interface WorkspacesEvent {
     data class ShowError(val message: WorkspaceErrorMessage) : WorkspacesEvent
 
+    data class OpenMembers(val workspaceId: String) : WorkspacesEvent
+
     data object LeaveScreen : WorkspacesEvent
 }

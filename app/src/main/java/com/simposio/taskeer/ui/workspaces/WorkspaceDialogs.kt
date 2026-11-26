@@ -94,7 +94,7 @@ fun ConfirmDeleteWorkspaceDialog(
 }
 
 @Composable
-private fun SubmittingIndicator() {
+internal fun SubmittingIndicator() {
     val description = stringResource(R.string.workspaces_saving)
     Row(modifier = Modifier.fillMaxWidth().padding(top = Spacing.ItemGap)) {
         CircularProgressIndicator(modifier = Modifier.semantics { contentDescription = description })

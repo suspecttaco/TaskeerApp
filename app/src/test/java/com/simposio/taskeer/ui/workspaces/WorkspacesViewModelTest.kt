@@ -273,6 +273,26 @@ class WorkspacesViewModelTest {
     }
 
     @Test
+    fun tocarFila_emiteAbrirMiembros() = runTest {
+        loaded(workspace(id = uuid(1), name = "Uno", role = WorkspaceRole.VIEWER))
+        val viewModel = viewModel()
+
+        viewModel.openMembers(uuid(1))
+
+        assertEquals(WorkspacesEvent.OpenMembers(uuid(1)), viewModel.firstEvent())
+    }
+
+    @Test
+    fun tocarFila_deWorkspaceDesconocido_noEmiteNada() = runTest {
+        loaded(workspace(id = uuid(1)))
+        val viewModel = viewModel()
+
+        viewModel.openMembers(uuid(9))
+
+        assertNull(viewModel.firstEvent())
+    }
+
+    @Test
     fun cerrarSesion_emiteSalida() = runTest {
         val viewModel = viewModel()
 

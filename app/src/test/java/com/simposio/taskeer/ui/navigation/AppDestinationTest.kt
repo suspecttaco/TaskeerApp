@@ -43,6 +43,7 @@ class AppDestinationTest {
                 "SEARCH" to "search",
                 "NOTIFICATIONS" to "notifications",
                 "WORKSPACES" to "workspaces",
+                "WORKSPACE_MEMBERS" to "workspaces/{workspaceId}/members",
                 "SETTINGS" to "settings",
                 "LOGIN" to "login",
                 "REGISTER" to "register",
@@ -89,6 +90,12 @@ class AppDestinationTest {
         assertEquals("board_columns/{boardId}", AppDestination.BOARD_COLUMNS.route)
         assertFalse(HomeSection.entries.any { it.destination == AppDestination.BOARD_COLUMNS })
         assertEquals("board_columns/tablero-1", AppDestination.boardColumnsRoute("tablero-1"))
+    }
+
+    @Test
+    fun workspaceMembersRoute_llevaElWorkspace() {
+        assertEquals("workspaces/abc/members", AppDestination.workspaceMembersRoute("abc"))
+        assertEquals(AppDestination.WORKSPACE_MEMBERS, AppDestination.fromRoute("workspaces/{workspaceId}/members"))
     }
 
     @Test

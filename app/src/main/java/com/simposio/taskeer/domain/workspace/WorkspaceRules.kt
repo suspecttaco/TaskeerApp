@@ -15,6 +15,8 @@ data class ConfirmedOps(
 )
 
 object WorkspaceRules {
+    private val ID_PATTERN = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
     const val NAME_MIN = 2
     const val NAME_MAX = 150
 
@@ -45,6 +47,8 @@ object WorkspaceRules {
                 .filter { it.id !in confirmed.deletedIds }
                 .map { workspace -> confirmed.renamed[workspace.id]?.let { workspace.copy(name = it) } ?: workspace },
         )
+
+    fun isValidId(id: String): Boolean = ID_PATTERN.matches(id)
 
     fun roleOf(raw: String?): WorkspaceRole =
         WorkspaceRole.entries.firstOrNull { it != WorkspaceRole.UNKNOWN && it.name == raw } ?: WorkspaceRole.UNKNOWN

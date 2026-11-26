@@ -1,6 +1,7 @@
 package com.simposio.taskeer.ui.workspaces
 
 import android.content.res.Resources
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -52,6 +53,7 @@ import com.simposio.taskeer.ui.theme.TaskeerTheme
 fun WorkspacesScreen(
     viewModelFactory: ViewModelProvider.Factory,
     onLeave: () -> Unit,
+    onOpenMembers: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: WorkspacesViewModel = viewModel(factory = viewModelFactory)
@@ -64,6 +66,7 @@ fun WorkspacesScreen(
         viewModel.events.collect { event ->
             when (event) {
                 is WorkspacesEvent.ShowError -> snackbarHostState.showSnackbar(event.message.text(resources))
+                is WorkspacesEvent.OpenMembers -> onOpenMembers(event.workspaceId)
                 WorkspacesEvent.LeaveScreen -> onLeave()
             }
         }
@@ -76,6 +79,7 @@ fun WorkspacesScreen(
         onNew = viewModel::openCreate,
         onRename = viewModel::openRename,
         onDelete = viewModel::requestDelete,
+        onOpen = viewModel::openMembers,
         modifier = modifier,
     )
     WorkspaceDialogs(state, viewModel)
@@ -89,6 +93,7 @@ fun WorkspacesContent(
     onNew: () -> Unit,
     onRename: (String) -> Unit,
     onDelete: (String) -> Unit,
+    onOpen: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -112,7 +117,7 @@ fun WorkspacesContent(
                     message = (state.error ?: WorkspaceErrorMessage.Generic).text(),
                     action = StatePageAction(stringResource(R.string.workspaces_retry), onRefresh),
                 )
-                WorkspacesPhase.EMPTY, WorkspacesPhase.LIST -> WorkspacesList(state, onRefresh, onRename, onDelete)
+                WorkspacesPhase.EMPTY, WorkspacesPhase.LIST -> WorkspacesList(state, onRefresh, onRename, onDelete, onOpen)
             }
         }
     }
@@ -133,6 +138,7 @@ private fun WorkspacesList(
     onRefresh: () -> Unit,
     onRename: (String) -> Unit,
     onDelete: (String) -> Unit,
+    onOpen: (String) -> Unit,
 ) {
     PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -146,7 +152,7 @@ private fun WorkspacesList(
                 }
             }
             items(state.rows, key = { it.id }) { row ->
-                WorkspaceRow(row = row, onRename = onRename, onDelete = onDelete)
+                WorkspaceRow(row = row, onRename = onRename, onDelete = onDelete, onOpen = onOpen)
                 AppDivider()
             }
         }
@@ -154,9 +160,11 @@ private fun WorkspacesList(
 }
 
 @Composable
-private fun WorkspaceRow(row: WorkspaceRowUi, onRename: (String) -> Unit, onDelete: (String) -> Unit) {
+private fun WorkspaceRow(row: WorkspaceRowUi, onRename: (String) -> Unit, onDelete: (String) -> Unit, onOpen: (String) -> Unit) {
     ListItem(
-        modifier = Modifier.semantics(mergeDescendants = true) {},
+        modifier = Modifier
+            .clickable(onClickLabel = stringResource(R.string.workspaces_open_members)) { onOpen(row.id) }
+            .semantics(mergeDescendants = true) {},
         headlineContent = { Text(row.name) },
         supportingContent = { Text(text = row.role.text(), color = MaterialTheme.colorScheme.onSurfaceVariant) },
         trailingContent = {
@@ -220,7 +228,7 @@ internal fun WorkspaceErrorMessage.text(resources: Resources): String = when (th
 }
 
 @Composable
-private fun RoleLabel.text(): String = stringResource(
+internal fun RoleLabel.text(): String = stringResource(
     when (this) {
         RoleLabel.PERSONAL -> R.string.workspaces_role_personal
         RoleLabel.OWNER -> R.string.workspaces_role_owner
@@ -249,6 +257,7 @@ private fun WorkspacesContentPreview() {
             onNew = {},
             onRename = {},
             onDelete = {},
+            onOpen = {},
         )
     }
 }

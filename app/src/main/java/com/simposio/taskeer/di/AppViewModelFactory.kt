@@ -41,6 +41,7 @@ import com.simposio.taskeer.ui.tasks.TasksViewModel
 import com.simposio.taskeer.ui.upcoming.UpcomingViewModel
 import com.simposio.taskeer.ui.verifyemail.ResendVerificationViewModel
 import com.simposio.taskeer.ui.verifyemail.VerifyEmailViewModel
+import com.simposio.taskeer.ui.workspaces.WorkspaceMembersViewModel
 import com.simposio.taskeer.ui.workspaces.WorkspacesViewModel
 import java.time.Instant
 
@@ -244,6 +245,14 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
 
         modelClass.isAssignableFrom(TasksViewModel::class.java) ->
             TasksViewModel(container.taskRepository, extras.createSavedStateHandle()) as T
+
+        modelClass.isAssignableFrom(WorkspaceMembersViewModel::class.java) ->
+            WorkspaceMembersViewModel(
+                extras.createSavedStateHandle(),
+                container.workspaceMembersRepository,
+                container.workspaceRepository,
+                container.authRepository.sessionState,
+            ) as T
 
         else -> create(modelClass)
     }

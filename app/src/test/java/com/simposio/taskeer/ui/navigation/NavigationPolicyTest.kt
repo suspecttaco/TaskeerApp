@@ -110,6 +110,12 @@ class NavigationPolicyTest {
     }
 
     @Test
+    fun backStep_desdeMiembros_vuelveAWorkspaces() {
+        assertEquals(BackStep.Navigate("workspaces"), backStep(AppDestination.WORKSPACE_MEMBERS, null, hasPrevious = false))
+        assertEquals(BackStep.Pop, backStep(AppDestination.WORKSPACE_MEMBERS, null, hasPrevious = true))
+    }
+
+    @Test
     fun backStep_desdeBusqueda_vuelveAHome() {
         assertEquals(BackStep.Navigate("home"), backStep(AppDestination.SEARCH, null, hasPrevious = false))
     }
