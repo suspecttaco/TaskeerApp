@@ -16,6 +16,9 @@ class FakeNotificationInboxRepository(initial: InboxState = InboxState()) : Noti
     var refreshItems: List<ServerNotification>? = null
     var refreshUnreadCalls = 0
     var refreshCalls = 0
+    var catchUpCalls = 0
+    var onCatchUp: () -> Unit = {}
+    val liveApplied = mutableListOf<ServerNotification>()
     val markedRead = mutableListOf<String>()
     var markAllReadCalls = 0
     val deleted = mutableListOf<String>()
@@ -24,6 +27,24 @@ class FakeNotificationInboxRepository(initial: InboxState = InboxState()) : Noti
     override suspend fun refreshUnread(): InboxOutcome {
         refreshUnreadCalls++
         return result
+    }
+
+    override suspend fun catchUp(): InboxOutcome {
+        catchUpCalls++
+        onCatchUp()
+        return result
+    }
+
+    override fun applyLive(notification: ServerNotification) {
+        liveApplied += notification
+        val current = mutableState.value
+        if (current.items.any { it.id == notification.id }) return
+        mutableState.value = if (current.listLoaded) {
+            val items = InboxRules.mergeLive(current.items, listOf(notification))
+            current.copy(items = items, unreadCount = InboxRules.unreadCount(items))
+        } else {
+            current.copy(unreadCount = current.unreadCount + if (notification.isUnread) 1 else 0)
+        }
     }
 
     override suspend fun refresh(): InboxOutcome {
