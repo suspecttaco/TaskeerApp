@@ -25,6 +25,8 @@ class TaskeerApplication : Application() {
             reconcile = container.reminderReconciler::reconcile,
             zone = container.zoneChanges,
         )
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { triggers.run() }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        scope.launch { triggers.run() }
+        scope.launch { container.authRepository.resume() }
     }
 }

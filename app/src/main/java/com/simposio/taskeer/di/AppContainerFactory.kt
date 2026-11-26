@@ -9,6 +9,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
+import com.simposio.taskeer.data.auth.createAuthRepository
 import com.simposio.taskeer.data.calendar.DeviceCalendarRepository
 import com.simposio.taskeer.data.local.AppDatabase
 import com.simposio.taskeer.data.local.ColumnDao
@@ -120,6 +121,7 @@ fun createAppContainer(context: Context): AppContainer {
             database.taskDao(),
             database.taskListDao(),
         ),
+        authRepository = createAuthRepository(context, CoroutineScope(SupervisorJob() + Dispatchers.Default)),
         zoneChanges = timeZoneProvider.changes,
         calendarReadGranted = calendarReadGranted,
         calendarWriteGranted = calendarWriteGranted,

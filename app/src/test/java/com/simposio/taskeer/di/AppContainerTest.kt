@@ -30,6 +30,7 @@ import com.simposio.taskeer.domain.model.TaskCreation
 import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.planned.AllTasksView
 import com.simposio.taskeer.domain.planned.UpcomingDay
+import com.simposio.taskeer.testing.FakeAuthRepository
 import com.simposio.taskeer.testing.FakeCalendarRepository
 import com.simposio.taskeer.testing.FakeDayWindowSource
 import com.simposio.taskeer.testing.FakePreferencesRepository
@@ -212,6 +213,7 @@ class AppContainerTest {
         calendarRepository = calendarRepository,
         dayWindowSource = dayWindowSource,
         searchRepository = FakeSearchRepository(),
+        authRepository = FakeAuthRepository(),
         firstDayOfWeek = firstDayOfWeek,
         calendarReadGranted = calendarReadGranted,
         calendarWriteGranted = calendarWriteGranted,
@@ -352,5 +354,30 @@ class AppContainerTest {
 
         private fun unused(): DomainResult.Failure =
             DomainResult.Failure(DomainError.Unknown("UNUSED", "doble de test"))
+    }
+
+    @Test
+    fun exponeAuthRepository() {
+        val auth = FakeAuthRepository()
+        val container = AppContainer(
+            preferencesRepository = FakePreferencesRepository(),
+            timeZoneProvider = TimeZoneProvider { auckland },
+            boardRepository = FakeBoardRepository(),
+            columnRepository = FakeColumnRepository(),
+            taskRepository = FakeTaskRepository(),
+            taskListRepository = FakeTaskListRepository(),
+            subtaskRepository = FakeSubtaskRepository(),
+            myDayRepository = FakeMyDayRepository(),
+            plannedRepository = FakePlannedRepository(),
+            reminderRepository = FakeReminderRepository(),
+            reminderReconciler = reconciler(FakePreferencesRepository(), FakeTaskRepository(), FakeReminderRepository()),
+            notificationHistoryRepository = FakeNotificationHistoryRepository(),
+            calendarRepository = FakeCalendarRepository(),
+            dayWindowSource = FakeDayWindowSource(Instant.EPOCH, ZoneOffset.UTC),
+            searchRepository = FakeSearchRepository(),
+            authRepository = auth,
+        )
+
+        assertSame(auth, container.authRepository)
     }
 }

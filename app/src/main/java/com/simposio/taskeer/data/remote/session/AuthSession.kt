@@ -90,6 +90,17 @@ class AuthSession(
         }
     }
 
+    // Lectura y borrado bajo el mismo bloqueo: una renovación en vuelo no deja revocar un token ya rotado
+    // ni conservar el nuevo. No emite en `expirations`: es un cierre voluntario, no una expiración.
+    suspend fun endSession(): String? = mutex.withLock {
+        val token = memoryRefreshToken ?: store.read()
+        accessToken = null
+        memoryRefreshToken = null
+        lastFailure = null
+        clearStoreQuietly()
+        token
+    }
+
     // Si el almacén no se pudo borrar, el token revocado queda en disco pero la sesión en memoria ya está
     // cerrada: el siguiente refresh lo rechazará el servidor y volverá a limpiar. Fallar aquí dejaría
     // viva una sesión que el servidor ya dio por terminada y ocultaría la expiración a la UI.

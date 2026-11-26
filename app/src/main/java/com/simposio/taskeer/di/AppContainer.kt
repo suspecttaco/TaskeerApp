@@ -1,6 +1,7 @@
 package com.simposio.taskeer.di
 
 import com.simposio.taskeer.data.reminder.ReminderReconciler
+import com.simposio.taskeer.data.repository.AuthRepository
 import com.simposio.taskeer.data.repository.BoardRepository
 import com.simposio.taskeer.data.repository.CalendarRepository
 import com.simposio.taskeer.data.repository.DayWindowSource
@@ -37,6 +38,7 @@ class AppContainer(
     val calendarRepository: CalendarRepository,
     val dayWindowSource: DayWindowSource,
     val searchRepository: SearchRepository,
+    val authRepository: AuthRepository,
     val zoneChanges: Flow<Unit> = emptyFlow(),
     val firstDayOfWeek: FirstDayOfWeekProvider = SystemFirstDayOfWeekProvider(),
     val calendarReadGranted: () -> Boolean = { false },

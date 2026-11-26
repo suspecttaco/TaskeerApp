@@ -8,7 +8,7 @@ object ApiErrorMapper {
 
     const val MOBILE_CLIENT_NOT_SUPPORTED = "MOBILE_CLIENT_NOT_SUPPORTED"
     private const val UNTRUSTED_ORIGIN = "UNTRUSTED_ORIGIN"
-    private const val MOBILE_CLIENT_MESSAGE =
+    const val MOBILE_CLIENT_MESSAGE =
         "El servidor no admite todavía esta versión de la app. Actualiza la aplicación o inténtalo más tarde."
 
     fun map(status: Int, headers: Map<String, String>, body: String): ApiResult.Failure =
