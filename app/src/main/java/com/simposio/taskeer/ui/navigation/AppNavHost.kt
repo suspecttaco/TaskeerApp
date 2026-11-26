@@ -37,6 +37,7 @@ import com.simposio.taskeer.ui.settings.SettingsScreen
 import com.simposio.taskeer.ui.tasks.SwipeHintState
 import com.simposio.taskeer.ui.upcoming.UpcomingScreen
 import com.simposio.taskeer.ui.verifyemail.VerifyEmailScreen
+import com.simposio.taskeer.ui.workspaces.WorkspacesScreen
 import java.time.LocalDate
 
 @Composable
@@ -83,6 +84,10 @@ fun AppNavHost(
                     navController.navigate(AppDestination.boardRoute(boardId)) { launchSingleTop = true }
                 },
                 onOpenSection = navController::navigateSection,
+                session = session,
+                onOpenWorkspaces = {
+                    navController.navigate(AppDestination.WORKSPACES.route) { launchSingleTop = true }
+                },
             )
         }
         composable(AppDestination.UPCOMING_7_DAYS.route) {
@@ -200,6 +205,12 @@ fun AppNavHost(
             )
         }
         composable(AppDestination.NOTIFICATIONS.route) { NotificationsScreen(viewModelFactory, onDelete) }
+        composable(AppDestination.WORKSPACES.route) {
+            WorkspacesScreen(
+                viewModelFactory = viewModelFactory,
+                onLeave = { if (!navController.popBackStack()) navController.navigateHome() },
+            )
+        }
         composable(
             route = AppDestination.BOARD.route,
             arguments = listOf(

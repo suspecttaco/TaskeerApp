@@ -41,6 +41,7 @@ import com.simposio.taskeer.ui.tasks.TasksViewModel
 import com.simposio.taskeer.ui.upcoming.UpcomingViewModel
 import com.simposio.taskeer.ui.verifyemail.ResendVerificationViewModel
 import com.simposio.taskeer.ui.verifyemail.VerifyEmailViewModel
+import com.simposio.taskeer.ui.workspaces.WorkspacesViewModel
 import java.time.Instant
 
 class AppViewModelFactory(private val container: AppContainer) : ViewModelProvider.Factory {
@@ -174,6 +175,8 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 container.notificationInboxRepository,
                 container.notificationLiveChannel,
             ) as T
+        modelClass.isAssignableFrom(WorkspacesViewModel::class.java) ->
+            WorkspacesViewModel(container.workspaceRepository, container.authRepository.sessionState) as T
         modelClass.isAssignableFrom(AccountNotificationsViewModel::class.java) ->
             AccountNotificationsViewModel(
                 container.notificationInboxRepository,

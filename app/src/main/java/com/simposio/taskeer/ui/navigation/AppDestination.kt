@@ -11,6 +11,7 @@ enum class AppDestination(val route: String) {
     BOARD_COLUMNS("board_columns/{boardId}"),
     SEARCH("search"),
     NOTIFICATIONS("notifications"),
+    WORKSPACES("workspaces"),
     SETTINGS("settings"),
     LOGIN("login"),
     REGISTER("register"),

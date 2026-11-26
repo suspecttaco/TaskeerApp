@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Card
@@ -56,12 +57,14 @@ import com.simposio.taskeer.domain.model.TaskListSummary
 import com.simposio.taskeer.ui.boards.BoardDialogs
 import com.simposio.taskeer.ui.boards.BoardsUiState
 import com.simposio.taskeer.ui.boards.BoardsViewModel
+import com.simposio.taskeer.ui.auth.SessionViewModel
 import com.simposio.taskeer.ui.components.DecorativeIcon
 import com.simposio.taskeer.ui.lists.ListDialogs
 import com.simposio.taskeer.ui.lists.TaskListsUiState
 import com.simposio.taskeer.ui.lists.TaskListsViewModel
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
+import com.simposio.taskeer.ui.workspaces.WorkspacesScreenRules
 import java.time.Instant
 
 @Composable
@@ -70,12 +73,15 @@ fun HomeScreen(
     onOpenList: (String) -> Unit,
     onOpenBoard: (String) -> Unit,
     onOpenSection: (HomeSection) -> Unit,
+    session: SessionViewModel,
+    onOpenWorkspaces: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listsViewModel: TaskListsViewModel = viewModel(factory = viewModelFactory)
     val boardsViewModel: BoardsViewModel = viewModel(factory = viewModelFactory)
     val listsState by listsViewModel.uiState.collectAsStateWithLifecycle()
     val boardsState by boardsViewModel.uiState.collectAsStateWithLifecycle()
+    val sessionState by session.state.collectAsStateWithLifecycle()
     HomeContent(
         lists = listsState,
         boards = boardsState,
@@ -84,6 +90,8 @@ fun HomeScreen(
         onOpenBoard = onOpenBoard,
         onNewBoard = boardsViewModel::openCreate,
         onOpenSection = onOpenSection,
+        showWorkspaces = WorkspacesScreenRules.showEntry(sessionState),
+        onOpenWorkspaces = onOpenWorkspaces,
         modifier = modifier,
     )
     ListDialogs(listsState, listsViewModel)
@@ -99,6 +107,8 @@ fun HomeContent(
     onOpenBoard: (String) -> Unit,
     onNewBoard: () -> Unit,
     onOpenSection: (HomeSection) -> Unit,
+    showWorkspaces: Boolean = false,
+    onOpenWorkspaces: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -135,6 +145,20 @@ fun HomeContent(
             }
             item(key = "new-list") { NewTile(stringResource(R.string.home_new_list), onNewList) }
             sectionTitle(R.string.home_shared_space)
+            if (showWorkspaces) {
+                item(key = "workspaces-entry") {
+                    val label = stringResource(R.string.workspaces_tile)
+                    Tile(label = label, onClick = onOpenWorkspaces) {
+                        DecorativeIcon(Icons.Filled.Groups, tint = MaterialTheme.colorScheme.primary)
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.titleSmall,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
             items(boards.boards, key = { "board-${it.id}" }) { board ->
                 Tile(label = board.name, onClick = { onOpenBoard(board.id) }) {
                     DecorativeIcon(Icons.Filled.Dashboard, tint = MaterialTheme.colorScheme.primary)

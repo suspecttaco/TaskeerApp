@@ -33,6 +33,15 @@ class HomeRulesTest {
         assertTrue("el hub no expone indicadores de vacío: $indicators", indicators.none { "empty" in it })
     }
 
+    @Test
+    fun mosaicoDeWorkspaces_soloConSesion() {
+        val home = sourceOf("ui/home/HomeScreen.kt")
+
+        assertTrue(home.contains("if (showWorkspaces) {"))
+        assertTrue(home.contains("showWorkspaces: Boolean = false"))
+        assertTrue(home.contains("showWorkspaces = WorkspacesScreenRules.showEntry(sessionState)"))
+    }
+
     private fun sourceOf(path: String): String = File(sourceRoot(), path).readText()
 
     private fun sourceRoot(): File {

@@ -18,6 +18,7 @@ import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
 import com.simposio.taskeer.testing.FakeNotificationInboxRepository
 import com.simposio.taskeer.testing.FakeNotificationLiveChannel
 import com.simposio.taskeer.testing.FakeSearchRepository
+import com.simposio.taskeer.testing.FakeWorkspaceRepository
 import com.simposio.taskeer.testing.FakePreferencesRepository
 import com.simposio.taskeer.testing.FakeTaskListRepository
 import com.simposio.taskeer.testing.InMemoryCheckpointStore
@@ -28,6 +29,7 @@ import com.simposio.taskeer.ui.alltasks.AllTasksViewModel
 import com.simposio.taskeer.ui.calendar.CalendarViewModel
 import com.simposio.taskeer.ui.calendar.EventEditorViewModel
 import com.simposio.taskeer.ui.lists.TaskListsViewModel
+import com.simposio.taskeer.ui.workspaces.WorkspacesViewModel
 import com.simposio.taskeer.ui.myday.MySuggestionsViewModel
 import com.simposio.taskeer.ui.quickadd.QuickAddViewModel
 import com.simposio.taskeer.ui.shell.ClearCompletedViewModel
@@ -103,6 +105,13 @@ class AppViewModelFactoryTest {
         assertEquals(EventEditorViewModel::class.java, factory.create(EventEditorViewModel::class.java).javaClass)
     }
 
+    @Test
+    fun creaWorkspacesViewModel() {
+        val factory = AppViewModelFactory(container())
+
+        assertEquals(WorkspacesViewModel::class.java, factory.create(WorkspacesViewModel::class.java).javaClass)
+    }
+
     private fun container(
         preferences: PreferencesRepository = stub<PreferencesRepository>(),
     ): AppContainer = AppContainer(
@@ -133,6 +142,7 @@ class AppViewModelFactoryTest {
         authRepository = FakeAuthRepository(),
         notificationInboxRepository = FakeNotificationInboxRepository(),
         notificationLiveChannel = FakeNotificationLiveChannel(),
+        workspaceRepository = FakeWorkspaceRepository(),
     )
 
     private inline fun <reified T : Any> stub(): T = Proxy.newProxyInstance(
