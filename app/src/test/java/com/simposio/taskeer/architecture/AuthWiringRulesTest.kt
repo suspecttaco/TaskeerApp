@@ -121,6 +121,29 @@ class AuthWiringRulesTest {
     }
 
     @Test
+    fun invitaciones_comparteElMismoApiClientYLaMismaSesion() {
+        val bridge = MainSources.kotlin("data/auth/AuthRepositoryFactory.kt")
+
+        assertTrue(bridge.contains("RemoteWorkspaceInvitationsRepository(remote.client, auth.sessionState, scope)"))
+        assertTrue(bridge.contains("RemoteMyInvitationsRepository(remote.client, auth.sessionState, scope)"))
+        assertEquals(1, Regex("createApiClient\\(").findAll(bridge.substringAfter("fun createRemoteRepositories")).count())
+    }
+
+    @Test
+    fun soloElPuenteConstruyeLosRepositoriosRemotosDeInvitaciones() {
+        listOf("RemoteWorkspaceInvitationsRepository(", "RemoteMyInvitationsRepository(").forEach { constructor ->
+            val offenders = root.walkTopDown()
+                .filter { it.isFile && it.extension == "kt" }
+                .filterNot { it.startsWith(File(root, "data/remote")) }
+                .filter { it.readText().contains(constructor) }
+                .map { it.relativeTo(root).path }
+                .toList()
+
+            assertEquals(constructor, listOf("data/auth/AuthRepositoryFactory.kt"), offenders)
+        }
+    }
+
+    @Test
     fun soloElPuenteConstruyeLosRepositoriosRemotos() {
         val offenders = root.walkTopDown()
             .filter { it.isFile && it.extension == "kt" }

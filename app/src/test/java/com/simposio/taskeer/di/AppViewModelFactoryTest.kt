@@ -14,10 +14,12 @@ import com.simposio.taskeer.testing.FakeAuthRepository
 import com.simposio.taskeer.testing.FakeCalendarRepository
 import com.simposio.taskeer.testing.FakeDayWindowSource
 import com.simposio.taskeer.testing.FakeDestinationTaskRepository
+import com.simposio.taskeer.testing.FakeMyInvitationsRepository
 import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
 import com.simposio.taskeer.testing.FakeNotificationInboxRepository
 import com.simposio.taskeer.testing.FakeNotificationLiveChannel
 import com.simposio.taskeer.testing.FakeSearchRepository
+import com.simposio.taskeer.testing.FakeWorkspaceInvitationsRepository
 import com.simposio.taskeer.testing.FakeWorkspaceMembersRepository
 import com.simposio.taskeer.testing.FakeWorkspaceRepository
 import com.simposio.taskeer.testing.FakePreferencesRepository
@@ -145,6 +147,8 @@ class AppViewModelFactoryTest {
         notificationLiveChannel = FakeNotificationLiveChannel(),
         workspaceRepository = FakeWorkspaceRepository(),
         workspaceMembersRepository = FakeWorkspaceMembersRepository(),
+        workspaceInvitationsRepository = FakeWorkspaceInvitationsRepository(),
+        myInvitationsRepository = FakeMyInvitationsRepository(),
     )
 
     private inline fun <reified T : Any> stub(): T = Proxy.newProxyInstance(

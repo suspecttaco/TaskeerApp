@@ -9,6 +9,7 @@ import com.simposio.taskeer.data.repository.CalendarRepository
 import com.simposio.taskeer.data.repository.DayWindowSource
 import com.simposio.taskeer.data.repository.ColumnRepository
 import com.simposio.taskeer.data.repository.MyDayRepository
+import com.simposio.taskeer.data.repository.MyInvitationsRepository
 import com.simposio.taskeer.data.repository.NotificationHistoryRepository
 import com.simposio.taskeer.data.repository.NotificationInboxRepository
 import com.simposio.taskeer.data.repository.NotificationLiveChannel
@@ -19,6 +20,7 @@ import com.simposio.taskeer.data.repository.SearchRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskListRepository
 import com.simposio.taskeer.data.repository.TaskRepository
+import com.simposio.taskeer.data.repository.WorkspaceInvitationsRepository
 import com.simposio.taskeer.data.repository.WorkspaceMembersRepository
 import com.simposio.taskeer.data.repository.WorkspaceRepository
 import com.simposio.taskeer.domain.auth.GoogleSignInConfig
@@ -50,6 +52,8 @@ class AppContainer(
     val notificationLiveChannel: NotificationLiveChannel,
     val workspaceRepository: WorkspaceRepository,
     val workspaceMembersRepository: WorkspaceMembersRepository,
+    val workspaceInvitationsRepository: WorkspaceInvitationsRepository,
+    val myInvitationsRepository: MyInvitationsRepository,
     val googleCredentialSource: GoogleCredentialSource = UnavailableGoogleCredentialSource,
     val googleSignInConfig: GoogleSignInConfig = GoogleSignInConfig(""),
     val zoneChanges: Flow<Unit> = emptyFlow(),
