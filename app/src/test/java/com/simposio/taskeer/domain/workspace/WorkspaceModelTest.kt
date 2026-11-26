@@ -1,9 +1,11 @@
 package com.simposio.taskeer.domain.workspace
 
 import com.simposio.taskeer.testing.MainSources
+import com.simposio.taskeer.testing.boardOverride
 import com.simposio.taskeer.testing.invitation
 import com.simposio.taskeer.testing.member
 import com.simposio.taskeer.testing.myInvitation
+import com.simposio.taskeer.testing.serverBoard
 import com.simposio.taskeer.testing.uuid
 import com.simposio.taskeer.testing.workspace
 import org.junit.Assert.assertFalse
@@ -76,5 +78,28 @@ class WorkspaceModelTest {
     @Test
     fun aceptacion_toString_noIncluyeElNombre() {
         assertFalse(AcceptOutcome.Accepted("Equipo Secreto", alreadyMember = false).toString().contains("Secreto"))
+    }
+
+    @Test
+    fun sobreDeTableros_sinDependenciasDeAndroid() {
+        val imports = listOf("ServerBoard.kt", "BoardMemberOverride.kt", "BoardRoleRules.kt")
+            .flatMap { MainSources.kotlin("domain/workspace/$it").lines().filter { line -> line.startsWith("import ") } }
+
+        assertTrue(imports.none { it.startsWith("import android") || it.startsWith("import org.json") })
+        assertTrue(imports.none { it.startsWith("import com.simposio.taskeer.data") || it.startsWith("import com.simposio.taskeer.ui") })
+        assertTrue(imports.isNotEmpty())
+    }
+
+    @Test
+    fun override_toString_noIncluyeElUserId() {
+        assertFalse(boardOverride(3).toString().contains(uuid(3)))
+    }
+
+    @Test
+    fun accesoATablero_toString_noIncluyeElNombre() {
+        val state = BoardAccessState(boardName = "Tablero Secreto", boardId = uuid(1001), effectiveRole = WorkspaceRole.EDITOR)
+
+        assertFalse(state.toString().contains("Secreto") || state.toString().contains(uuid(1001)))
+        assertFalse(serverBoard(1, "Tablero Secreto").toString().contains("Secreto"))
     }
 }
