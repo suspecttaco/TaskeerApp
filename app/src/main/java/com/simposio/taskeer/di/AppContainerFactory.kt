@@ -128,6 +128,7 @@ fun createAppContainer(context: Context): AppContainer {
         ),
         authRepository = remote.auth,
         notificationInboxRepository = remote.inbox,
+        notificationLiveChannel = remote.live,
         googleCredentialSource = createGoogleCredentialSource(googleSignInConfig),
         googleSignInConfig = googleSignInConfig,
         zoneChanges = timeZoneProvider.changes,

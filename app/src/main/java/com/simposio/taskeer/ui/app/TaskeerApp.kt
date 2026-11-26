@@ -17,6 +17,7 @@ import com.simposio.taskeer.ui.notifications.UnreadCounterViewModel
 import com.simposio.taskeer.ui.permission.NotificationPermissionGate
 import com.simposio.taskeer.ui.shell.AppShell
 import com.simposio.taskeer.ui.theme.TaskeerTheme
+import kotlinx.coroutines.launch
 
 @Composable
 fun TaskeerApp(
@@ -35,7 +36,12 @@ fun TaskeerApp(
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     // Cubre la apertura en frío y cada vuelta desde segundo plano; el tope de frecuencia vive en el repositorio.
     LaunchedEffect(signedIn, lifecycle) {
-        if (signedIn) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { unreadCounter.onAppForegrounded() }
+        if (signedIn) {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch { unreadCounter.keepLiveWhileForeground() }
+                unreadCounter.onAppForegrounded()
+            }
+        }
     }
     TaskeerTheme(themeMode = themeMode, dynamicColor = dynamicColor) {
         NotificationPermissionGate(viewModelFactory)

@@ -37,6 +37,7 @@ import com.simposio.taskeer.testing.FakePreferencesRepository
 import com.simposio.taskeer.testing.FakeReminderRepository
 import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
 import com.simposio.taskeer.testing.FakeNotificationInboxRepository
+import com.simposio.taskeer.testing.FakeNotificationLiveChannel
 import com.simposio.taskeer.testing.FakeSearchRepository
 import com.simposio.taskeer.testing.FakeTaskListRepository
 import com.simposio.taskeer.testing.InMemoryCheckpointStore
@@ -216,6 +217,7 @@ class AppContainerTest {
         searchRepository = FakeSearchRepository(),
         authRepository = FakeAuthRepository(),
         notificationInboxRepository = FakeNotificationInboxRepository(),
+        notificationLiveChannel = FakeNotificationLiveChannel(),
         firstDayOfWeek = firstDayOfWeek,
         calendarReadGranted = calendarReadGranted,
         calendarWriteGranted = calendarWriteGranted,
@@ -379,6 +381,7 @@ class AppContainerTest {
             searchRepository = FakeSearchRepository(),
             authRepository = auth,
             notificationInboxRepository = FakeNotificationInboxRepository(),
+            notificationLiveChannel = FakeNotificationLiveChannel(),
         )
 
         assertSame(auth, container.authRepository)
