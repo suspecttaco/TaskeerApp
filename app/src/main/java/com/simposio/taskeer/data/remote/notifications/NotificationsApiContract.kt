@@ -14,6 +14,10 @@ internal object NotificationsApiContract {
     const val LIST_PATH = "notifications"
     const val READ_ALL_PATH = "notifications/read-all"
     const val DELETE_READ_PATH = "notifications/read"
+    const val STREAM_TICKET_PATH = "notifications/stream-ticket"
+    const val STREAM_PATH = "notifications/stream"
+
+    private val TICKET_PATTERN = Regex("^[a-f0-9]{64}$")
 
     private val ID_PATTERN = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
@@ -28,6 +32,19 @@ internal object NotificationsApiContract {
     fun parseList(body: String): List<ServerNotification>? = try {
         val array: JSONArray? = JSONObject(body).optJSONArray("notifications")
         array?.let { list -> (0 until list.length()).mapNotNull { parseEntry(list.opt(it)) } }
+    } catch (_: JSONException) {
+        null
+    }
+
+    // Solo hex: el ticket se interpola en la URL del stream.
+    fun parseTicket(body: String): String? = try {
+        (JSONObject(body).opt("ticket") as? String)?.takeIf { TICKET_PATTERN.matches(it) }
+    } catch (_: JSONException) {
+        null
+    }
+
+    fun parseOne(body: String): ServerNotification? = try {
+        parseEntry(JSONObject(body))
     } catch (_: JSONException) {
         null
     }

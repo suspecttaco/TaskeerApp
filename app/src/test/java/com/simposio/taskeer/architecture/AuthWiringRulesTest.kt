@@ -77,6 +77,7 @@ class AuthWiringRulesTest {
         assertEquals(1, Regex("createApiClient\\(").findAll(bridge.substringAfter("fun createRemoteRepositories")).count())
         assertTrue(bridge.contains("RemoteAuthRepository(remote.client, remote.session, scope)"))
         assertTrue(bridge.contains("RemoteNotificationInboxRepository(remote.client, auth.sessionState, scope)"))
+        assertTrue(bridge.contains("RemoteNotificationLiveChannel(remote.client, remote.streamTransport, inbox, auth.sessionState, remote.config)"))
     }
 
     @Test

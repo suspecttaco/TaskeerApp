@@ -16,8 +16,12 @@ class RemoteLayerRulesTest {
     fun okhttpSoloEnTransport() {
         val offenders = allSources().filter { it.readText().contains("okhttp3") }
             .map { it.relativeTo(sourcesRoot).path }
+            .sorted()
 
-        assertEquals(listOf("data/remote/transport/OkHttpTransport.kt"), offenders)
+        assertEquals(
+            listOf("data/remote/transport/OkHttpStreamTransport.kt", "data/remote/transport/OkHttpTransport.kt"),
+            offenders,
+        )
     }
 
     @Test

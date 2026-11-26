@@ -169,7 +169,11 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 container.timeZoneProvider,
             ) as T
         modelClass.isAssignableFrom(UnreadCounterViewModel::class.java) ->
-            UnreadCounterViewModel(container.notificationHistoryRepository, container.notificationInboxRepository) as T
+            UnreadCounterViewModel(
+                container.notificationHistoryRepository,
+                container.notificationInboxRepository,
+                container.notificationLiveChannel,
+            ) as T
         modelClass.isAssignableFrom(AccountNotificationsViewModel::class.java) ->
             AccountNotificationsViewModel(
                 container.notificationInboxRepository,

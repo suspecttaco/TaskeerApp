@@ -7,9 +7,10 @@ import com.simposio.taskeer.data.remote.session.AuthSession
 import com.simposio.taskeer.data.remote.session.EncryptedRefreshTokenStore
 import com.simposio.taskeer.data.remote.session.HttpSessionRefresher
 import com.simposio.taskeer.data.remote.session.SharedPreferencesKeyValueStore
+import com.simposio.taskeer.data.remote.transport.OkHttpStreamTransport
 import com.simposio.taskeer.data.remote.transport.OkHttpTransport
 
-class RemoteApi(val client: ApiClient, val session: AuthSession)
+class RemoteApi(val client: ApiClient, val session: AuthSession, val streamTransport: StreamTransport, val config: ApiConfig)
 
 fun createApiClient(context: Context): RemoteApi {
     val config = ApiConfig(
@@ -23,5 +24,5 @@ fun createApiClient(context: Context): RemoteApi {
         cipher = AndroidKeystoreTokenCipher(),
     )
     val session = AuthSession(store, HttpSessionRefresher(transport, config))
-    return RemoteApi(RealApiClient(transport, session, config), session)
+    return RemoteApi(RealApiClient(transport, session, config), session, OkHttpStreamTransport(config), config)
 }

@@ -106,4 +106,23 @@ class InboxRulesTest {
 
         assertEquals(fresh, InboxRules.reapplyPending(fresh, PendingOps(), t0))
     }
+
+    @Test
+    fun mergeLive_anadeAusentesOrdenada() {
+        val current = listOf(item("1", t0), item("2", t0.minusSeconds(5)))
+
+        val merged = InboxRules.mergeLive(current, listOf(item("3", t0.plusSeconds(5)), item("4", t0.minusSeconds(1))))
+
+        assertEquals(listOf("3", "1", "4", "2"), merged.map { it.id })
+    }
+
+    @Test
+    fun mergeLive_noDuplicaPorId() {
+        val current = listOf(item("1", t0, read = true))
+
+        val merged = InboxRules.mergeLive(current, listOf(item("1", t0), item("2", t0), item("2", t0)))
+
+        assertEquals(listOf("1", "2"), merged.map { it.id })
+        assertTrue(merged.first { it.id == "1" }.readAt != null)
+    }
 }

@@ -3,6 +3,7 @@ package com.simposio.taskeer.ui
 import com.simposio.taskeer.domain.model.NotificationEvent
 import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
 import com.simposio.taskeer.testing.FakeNotificationInboxRepository
+import com.simposio.taskeer.testing.FakeNotificationLiveChannel
 import com.simposio.taskeer.ui.notifications.UnreadCounterViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -33,7 +34,7 @@ class UnreadCounterTest {
 
     @Test
     fun contador_sigueLlegadaLecturaYBorrado() = runTest {
-        val viewModel = UnreadCounterViewModel(history, FakeNotificationInboxRepository())
+        val viewModel = UnreadCounterViewModel(history, FakeNotificationInboxRepository(), FakeNotificationLiveChannel())
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.unreadCount.collect {} }
         assertEquals(0, viewModel.unreadCount.value)
 
@@ -50,7 +51,7 @@ class UnreadCounterTest {
 
     @Test
     fun contador_alMarcarTodasYBorrarTodo_quedaACero() = runTest {
-        val viewModel = UnreadCounterViewModel(history, FakeNotificationInboxRepository())
+        val viewModel = UnreadCounterViewModel(history, FakeNotificationInboxRepository(), FakeNotificationLiveChannel())
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.unreadCount.collect {} }
         repeat(3) { history.record(NotificationEvent.Digest(it), true) }
 

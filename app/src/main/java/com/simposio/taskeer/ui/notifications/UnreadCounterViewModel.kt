@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.simposio.taskeer.data.repository.NotificationHistoryRepository
 import com.simposio.taskeer.data.repository.NotificationInboxRepository
+import com.simposio.taskeer.data.repository.NotificationLiveChannel
 import com.simposio.taskeer.domain.notification.InboxRules
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -15,6 +16,7 @@ import kotlinx.coroutines.launch
 class UnreadCounterViewModel(
     history: NotificationHistoryRepository,
     private val inbox: NotificationInboxRepository,
+    private val liveChannel: NotificationLiveChannel,
 ) : ViewModel() {
 
     val unreadCount: StateFlow<Int> = combine(
@@ -26,6 +28,11 @@ class UnreadCounterViewModel(
     // La frecuencia y la sesión las decide el repositorio: sin sesión o dentro del intervalo no hay petición.
     fun onAppForegrounded() {
         viewModelScope.launch { inbox.refreshUnread() }
+    }
+
+    // Se lanza desde el ciclo de vida de la pantalla: salir de primer plano cancela la corrutina y cierra el canal.
+    suspend fun keepLiveWhileForeground() {
+        liveChannel.run()
     }
 
     private companion object {

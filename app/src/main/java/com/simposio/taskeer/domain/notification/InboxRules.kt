@@ -31,6 +31,11 @@ object InboxRules {
         return sorted(current + unread.filter { it.id !in known })
     }
 
+    fun mergeLive(current: List<ServerNotification>, live: List<ServerNotification>): List<ServerNotification> {
+        val known = current.mapTo(HashSet()) { it.id }
+        return sorted(current + live.filter { known.add(it.id) })
+    }
+
     // `readAt` solo se usa para las entradas que el usuario marcó leídas y el servidor aún devuelve sin leer.
     fun reapplyPending(
         fresh: List<ServerNotification>,

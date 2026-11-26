@@ -48,6 +48,13 @@ class RemoteNotificationInboxRepository(
     private var refreshRunning = false
     private var knownEmail: String? = null
 
+    // Eventos en vivo recibidos mientras una petición de lista está en vuelo: la respuesta puede haberse emitido antes que ellos.
+    private val liveSeen = mutableListOf<ServerNotification>()
+    private var inFlight = 0
+
+    // Ids ya contados mientras la lista no está cargada (solo hay contador): evita sumar dos veces la misma entrega.
+    private val knownIds = mutableSetOf<String>()
+
     override val state: StateFlow<InboxState> = mutableState.asStateFlow()
 
     init {
@@ -56,33 +63,71 @@ class RemoteNotificationInboxRepository(
         }
     }
 
-    override suspend fun refreshUnread(): InboxOutcome {
+    override suspend fun refreshUnread(): InboxOutcome = fetchUnread(force = false)
+
+    override suspend fun catchUp(): InboxOutcome = fetchUnread(force = true)
+
+    override fun applyLive(notification: ServerNotification) {
+        synchronized(lock) {
+            if (!signedIn()) return
+            val current = mutableState.value
+            if (current.items.any { it.id == notification.id } || notification.id in knownIds) return
+            if (notification.id in pendingOps().deletedIds) return
+            if (inFlight > 0) liveSeen += notification
+            if (current.listLoaded) {
+                val items = InboxRules.mergeLive(current.items, listOf(notification))
+                mutableState.value = current.copy(items = items, unreadCount = InboxRules.unreadCount(items))
+            } else {
+                knownIds += notification.id
+                if (notification.isUnread) mutableState.value = current.copy(unreadCount = current.unreadCount + 1)
+            }
+        }
+    }
+
+    private suspend fun fetchUnread(force: Boolean): InboxOutcome {
         if (!signedIn()) return unauthenticated()
         val startEpoch = synchronized(lock) {
             val now = clock()
-            if (!InboxRules.shouldRefresh(lastAttempt, now)) return InboxOutcome.Done
+            if (!force && !InboxRules.shouldRefresh(lastAttempt, now)) return InboxOutcome.Done
             lastAttempt = now
+            inFlight++
             epoch
         }
-        val request = ApiRequest(HttpMethod.GET, NotificationsApiContract.LIST_PATH, query = listOf("unread" to "true"), auth = AuthMode.BEARER)
-        return when (val result = client.execute(request)) {
-            is ApiResult.Failure -> InboxOutcome.Failed(result.error, result.retryAfterSeconds)
-            is ApiResult.Success -> {
-                val unread = NotificationsApiContract.parseList(result.response.body) ?: return unreadable()
-                synchronized(lock) {
-                    if (epoch != startEpoch) return stale()
-                    val fresh = InboxRules.reapplyPending(InboxRules.sorted(unread), pendingOps(), clock())
-                    mutableState.value = mutableState.value.let { current ->
-                        if (current.listLoaded) {
-                            val merged = InboxRules.mergeUnread(current.items, fresh)
-                            current.copy(items = merged, unreadCount = InboxRules.unreadCount(merged))
-                        } else {
-                            current.copy(unreadCount = fresh.size)
+        try {
+            val request = ApiRequest(HttpMethod.GET, NotificationsApiContract.LIST_PATH, query = listOf("unread" to "true"), auth = AuthMode.BEARER)
+            return when (val result = client.execute(request)) {
+                is ApiResult.Failure -> InboxOutcome.Failed(result.error, result.retryAfterSeconds)
+                is ApiResult.Success -> {
+                    val unread = NotificationsApiContract.parseList(result.response.body) ?: return unreadable()
+                    synchronized(lock) {
+                        if (epoch != startEpoch) return stale()
+                        val fresh = InboxRules.reapplyPending(
+                            InboxRules.mergeLive(InboxRules.sorted(unread), liveSeen),
+                            pendingOps(),
+                            clock(),
+                        )
+                        mutableState.value = mutableState.value.let { current ->
+                            if (current.listLoaded) {
+                                val merged = InboxRules.mergeUnread(current.items, fresh)
+                                current.copy(items = merged, unreadCount = InboxRules.unreadCount(merged))
+                            } else {
+                                knownIds += fresh.map { it.id }
+                                current.copy(unreadCount = fresh.size)
+                            }
                         }
                     }
+                    InboxOutcome.Done
                 }
-                InboxOutcome.Done
             }
+        } finally {
+            requestDone()
+        }
+    }
+
+    private fun requestDone() {
+        synchronized(lock) {
+            inFlight--
+            if (inFlight == 0) liveSeen.clear()
         }
     }
 
@@ -99,6 +144,7 @@ class RemoteNotificationInboxRepository(
         val startEpoch = synchronized(lock) {
             ops.removeAll { !it.active }
             refreshRunning = true
+            inFlight++
             epoch
         }
         try {
@@ -109,7 +155,11 @@ class RemoteNotificationInboxRepository(
                     val list = NotificationsApiContract.parseList(result.response.body) ?: return unreadable()
                     synchronized(lock) {
                         if (epoch != startEpoch) return stale()
-                        val fresh = InboxRules.reapplyPending(InboxRules.sorted(list), pendingOps(), clock())
+                        val fresh = InboxRules.reapplyPending(
+                            InboxRules.mergeLive(InboxRules.sorted(list), liveSeen),
+                            pendingOps(),
+                            clock(),
+                        )
                         mutableState.value = InboxState(fresh, InboxRules.unreadCount(fresh), listLoaded = true)
                     }
                     InboxOutcome.Done
@@ -120,6 +170,7 @@ class RemoteNotificationInboxRepository(
                 refreshRunning = false
                 ops.removeAll { !it.active }
             }
+            requestDone()
         }
     }
 
@@ -248,6 +299,8 @@ class RemoteNotificationInboxRepository(
         lastAttempt = null
         ops.clear()
         inFlightIds.clear()
+        liveSeen.clear()
+        knownIds.clear()
         knownEmail = email
     }
 

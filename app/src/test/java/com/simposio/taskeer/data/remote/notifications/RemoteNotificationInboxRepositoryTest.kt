@@ -563,4 +563,176 @@ class RemoteNotificationInboxRepositoryTest {
 
         assertEquals(1, client.requests.size)
     }
+
+    private fun live(n: Int, read: Boolean = false, ageSeconds: Long = -n.toLong()) =
+        requireNotNull(NotificationsApiContract.parseOne(entry(n, read, ageSeconds)))
+
+    @Test
+    fun applyLive_listaCargada_anadeYSubeElContador() = runTest {
+        val repo = repo()
+        repo.load(entry(1))
+
+        repo.applyLive(live(2))
+
+        assertEquals(listOf(uid(2), uid(1)), repo.state.value.items.map { it.id })
+        assertEquals(2, repo.state.value.unreadCount)
+    }
+
+    @Test
+    fun applyLive_listaNoCargada_soloSubeElContador() = runTest {
+        val repo = repo()
+
+        repo.applyLive(live(2))
+
+        assertEquals(emptyList<Any>(), repo.state.value.items)
+        assertEquals(1, repo.state.value.unreadCount)
+        assertFalse(repo.state.value.listLoaded)
+    }
+
+    @Test
+    fun applyLive_duplicado_noCambiaNada() = runTest {
+        val repo = repo()
+        repo.load(entry(1))
+        repo.applyLive(live(2))
+        val after = repo.state.value
+
+        repo.applyLive(live(2))
+        repo.applyLive(live(1))
+
+        assertEquals(after, repo.state.value)
+    }
+
+    @Test
+    fun applyLive_duplicadoConListaNoCargada_noSumaDosVeces() = runTest {
+        val repo = repo()
+
+        repo.applyLive(live(2))
+        repo.applyLive(live(2))
+
+        assertEquals(1, repo.state.value.unreadCount)
+    }
+
+    @Test
+    fun applyLive_yaLeida_noSubeElContador() = runTest {
+        val repo = repo()
+        repo.load(entry(1))
+
+        repo.applyLive(live(2, read = true))
+
+        assertEquals(2, repo.state.value.items.size)
+        assertEquals(1, repo.state.value.unreadCount)
+    }
+
+    @Test
+    fun applyLive_sinSesion_noHaceNada() = runTest {
+        session.value = SessionState.SignedOut()
+        val repo = repo()
+
+        repo.applyLive(live(2))
+
+        assertEquals(0, repo.state.value.unreadCount)
+        assertTrue(repo.state.value.items.isEmpty())
+    }
+
+    @Test
+    fun applyLive_idBorradoLocalmente_noSeReinserta() = runTest {
+        val repo = repo()
+        repo.load(entry(1))
+        val gate = CompletableDeferred<Unit>()
+        client.enqueue { gate.await(); apiOk("{}") }
+        launch { repo.delete(uid(1)) }
+        runCurrent()
+
+        repo.applyLive(live(1))
+
+        assertTrue(repo.state.value.items.isEmpty())
+        assertEquals(0, repo.state.value.unreadCount)
+        gate.complete(Unit)
+        runCurrent()
+    }
+
+    @Test
+    fun applyLive_durantePeticionEnCurso_noSePierdeAlResponder() = runTest {
+        val repo = repo()
+        val gate = CompletableDeferred<Unit>()
+        client.enqueue { gate.await(); apiOk(body(entry(1))) }
+        launch { repo.refresh() }
+        runCurrent()
+
+        repo.applyLive(live(2))
+        gate.complete(Unit)
+        runCurrent()
+
+        assertEquals(setOf(uid(1), uid(2)), repo.state.value.items.map { it.id }.toSet())
+        assertEquals(2, repo.state.value.unreadCount)
+    }
+
+    @Test
+    fun applyLive_trasCerrarSesion_seDescarta() = runTest {
+        val repo = repo()
+        val gate = CompletableDeferred<Unit>()
+        client.enqueue { gate.await(); apiOk(body(entry(1))) }
+        launch { repo.refresh() }
+        runCurrent()
+        repo.applyLive(live(2))
+
+        session.value = SessionState.SignedOut()
+        runCurrent()
+        repo.applyLive(live(3))
+        gate.complete(Unit)
+        runCurrent()
+
+        assertTrue(repo.state.value.items.isEmpty())
+        assertEquals(0, repo.state.value.unreadCount)
+        assertFalse(repo.state.value.listLoaded)
+    }
+
+    @Test
+    fun catchUp_ignoraElIntervaloDe30s() = runTest {
+        val repo = repo()
+        client.fallback = { apiOk(body(entry(1))) }
+        repo.refreshUnread()
+
+        repo.catchUp()
+
+        assertEquals(2, client.requests.size)
+        assertEquals(listOf("unread" to "true"), client.requests.last().query)
+    }
+
+    @Test
+    fun catchUp_anotaElIntentoYElForegroundNoRepite() = runTest {
+        val repo = repo()
+        client.fallback = { apiOk(body(entry(1))) }
+
+        repo.catchUp()
+        repo.refreshUnread()
+
+        assertEquals(1, client.requests.size)
+    }
+
+    @Test
+    fun catchUp_fallido_devuelveFailed() = runTest {
+        val repo = repo()
+        client.enqueue(failure(serverDown()))
+
+        val outcome = repo.catchUp()
+
+        assertTrue(outcome is InboxOutcome.Failed && outcome.error is DomainError.Server)
+        assertEquals(0, repo.state.value.unreadCount)
+    }
+
+    @Test
+    fun catchUp_fusionaConLoRecibidoEnVivo() = runTest {
+        val repo = repo()
+        val gate = CompletableDeferred<Unit>()
+        client.enqueue { gate.await(); apiOk(body(entry(1))) }
+        launch { repo.catchUp() }
+        runCurrent()
+
+        repo.applyLive(live(2))
+        gate.complete(Unit)
+        runCurrent()
+
+        assertEquals(2, repo.state.value.unreadCount)
+    }
 }
