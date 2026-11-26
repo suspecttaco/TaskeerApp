@@ -3,6 +3,7 @@ package com.simposio.taskeer.ui.workspaces
 import android.content.Context
 import android.content.res.Resources
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -11,7 +12,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
@@ -59,6 +63,7 @@ fun WorkspaceMembersScreen(
     viewModelFactory: ViewModelProvider.Factory,
     onLeave: () -> Unit,
     onVerifyEmail: () -> Unit,
+    onOpenBoards: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: WorkspaceMembersViewModel = viewModel(factory = viewModelFactory)
@@ -88,6 +93,7 @@ fun WorkspaceMembersScreen(
                     announce(context, scope, snackbarHostState, event.message.text(resources), leaving = event.message == WorkspaceMemberErrorMessage.WorkspaceGone)
                 is MembersEvent.ShowMessage ->
                     announce(context, scope, snackbarHostState, event.notice.text(resources), leaving = event.notice is MembersNotice.Left)
+                is MembersEvent.OpenBoards -> onOpenBoards(event.workspaceId)
                 MembersEvent.LeaveScreen -> leaveOnce()
             }
         }
@@ -125,6 +131,7 @@ fun WorkspaceMembersScreen(
         onRemove = viewModel::requestRemove,
         onLeave = viewModel::requestLeave,
         onTransfer = viewModel::requestTransfer,
+        onOpenBoards = viewModel::openBoards,
         modifier = modifier,
     )
     WorkspaceMemberDialogs(state, viewModel)
@@ -132,7 +139,7 @@ fun WorkspaceMembersScreen(
 }
 
 // Si la pantalla se cierra a continuación, su Snackbar desaparecería con ella: el aviso va en un Toast.
-private fun announce(
+internal fun announce(
     context: Context,
     scope: CoroutineScope,
     snackbarHostState: SnackbarHostState,
@@ -160,6 +167,7 @@ fun WorkspaceMembersContent(
     onInvite: () -> Unit = {},
     onRevokeInvitation: (String) -> Unit = {},
     onRetryInvitations: () -> Unit = {},
+    onOpenBoards: () -> Unit = {},
 ) {
     Scaffold(
         modifier = modifier,
@@ -178,7 +186,7 @@ fun WorkspaceMembersContent(
                 MembersPhase.EMPTY, MembersPhase.LIST ->
                     MembersList(
                         state, invitations, onRefresh, onChangeRole, onRemove, onLeave, onTransfer,
-                        onInvite, onRevokeInvitation, onRetryInvitations,
+                        onInvite, onRevokeInvitation, onRetryInvitations, onOpenBoards,
                     )
             }
         }
@@ -206,9 +214,19 @@ private fun MembersList(
     onInvite: () -> Unit,
     onRevokeInvitation: (String) -> Unit,
     onRetryInvitations: () -> Unit,
+    onOpenBoards: () -> Unit,
 ) {
     PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
+            item {
+                ListItem(
+                    modifier = Modifier.clickable(role = Role.Button, onClick = onOpenBoards),
+                    leadingContent = { DecorativeIcon(Icons.Filled.Dashboard) },
+                    headlineContent = { Text(stringResource(R.string.board_roles_members_row)) },
+                    trailingContent = { DecorativeIcon(Icons.Filled.ChevronRight) },
+                )
+                AppDivider()
+            }
             item {
                 Text(
                     text = stringResource(R.string.workspace_members_title),

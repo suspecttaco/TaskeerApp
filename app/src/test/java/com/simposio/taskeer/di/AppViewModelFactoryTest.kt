@@ -11,6 +11,7 @@ import com.simposio.taskeer.data.repository.ReminderRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.testing.FakeAuthRepository
+import com.simposio.taskeer.testing.FakeBoardAccessRepository
 import com.simposio.taskeer.testing.FakeCalendarRepository
 import com.simposio.taskeer.testing.FakeDayWindowSource
 import com.simposio.taskeer.testing.FakeDestinationTaskRepository
@@ -18,12 +19,14 @@ import com.simposio.taskeer.testing.FakeMyInvitationsRepository
 import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
 import com.simposio.taskeer.testing.FakeNotificationInboxRepository
 import com.simposio.taskeer.testing.FakeNotificationLiveChannel
+import com.simposio.taskeer.testing.FakePreferencesRepository
+import com.simposio.taskeer.testing.FakeRoleChangeSignals
 import com.simposio.taskeer.testing.FakeSearchRepository
+import com.simposio.taskeer.testing.FakeServerBoardsRepository
+import com.simposio.taskeer.testing.FakeTaskListRepository
 import com.simposio.taskeer.testing.FakeWorkspaceInvitationsRepository
 import com.simposio.taskeer.testing.FakeWorkspaceMembersRepository
 import com.simposio.taskeer.testing.FakeWorkspaceRepository
-import com.simposio.taskeer.testing.FakePreferencesRepository
-import com.simposio.taskeer.testing.FakeTaskListRepository
 import com.simposio.taskeer.testing.InMemoryCheckpointStore
 import com.simposio.taskeer.testing.MainSources
 import com.simposio.taskeer.testing.RecordingNotifier
@@ -149,6 +152,9 @@ class AppViewModelFactoryTest {
         workspaceMembersRepository = FakeWorkspaceMembersRepository(),
         workspaceInvitationsRepository = FakeWorkspaceInvitationsRepository(),
         myInvitationsRepository = FakeMyInvitationsRepository(),
+        serverBoardsRepository = FakeServerBoardsRepository(),
+        boardAccessRepository = FakeBoardAccessRepository(),
+        roleChangeSignals = FakeRoleChangeSignals(),
     )
 
     private inline fun <reified T : Any> stub(): T = Proxy.newProxyInstance(
@@ -208,6 +214,29 @@ class AppViewModelFactoryTest {
         val factory = AppViewModelFactory(container())
 
         assertEquals(ResetPasswordViewModel::class.java, factory.create(ResetPasswordViewModel::class.java).javaClass)
+    }
+
+    @Test
+    fun creaLosViewModelsDeTablerosDelServidor() {
+        val source = MainSources.kotlin("di/AppViewModelFactory.kt")
+            .substringAfter("modelClass.isAssignableFrom(ServerBoardsViewModel::class.java)")
+            .substringBefore("modelClass.isAssignableFrom(WorkspaceInvitationsViewModel::class.java)")
+            .filterNot { it.isWhitespace() }
+            .replace(",)", ")")
+
+        assertTrue(
+            source.contains(
+                "ServerBoardsViewModel(extras.createSavedStateHandle(),container.serverBoardsRepository," +
+                    "container.workspaceRepository,container.authRepository.sessionState)",
+            ),
+        )
+        assertTrue(
+            source.contains(
+                "BoardAccessViewModel(extras.createSavedStateHandle(),container.boardAccessRepository," +
+                    "container.workspaceMembersRepository,container.workspaceRepository,container.roleChangeSignals," +
+                    "container.authRepository.sessionState)",
+            ),
+        )
     }
 
     @Test

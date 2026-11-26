@@ -164,4 +164,27 @@ class AuthWiringRulesTest {
         assertTrue(!factory.contains("CredentialManagerGoogleSource") && !factory.contains("androidx.credentials"))
         assertTrue(container.contains("import com.simposio.taskeer.data.auth.google.GoogleCredentialSource"))
     }
+
+    @Test
+    fun tablerosDelServidor_comparteElMismoApiClientYLaMismaSesion() {
+        val bridge = MainSources.kotlin("data/auth/AuthRepositoryFactory.kt")
+
+        assertTrue(bridge.contains("RemoteServerBoardsRepository(remote.client, auth.sessionState, scope)"))
+        assertTrue(bridge.contains("RemoteBoardAccessRepository(remote.client, auth.sessionState, scope)"))
+        assertEquals(1, Regex("createApiClient\\(").findAll(bridge.substringAfter("fun createRemoteRepositories")).count())
+    }
+
+    @Test
+    fun soloElPuenteConstruyeLosRepositoriosRemotosDeTableros() {
+        listOf("RemoteServerBoardsRepository(", "RemoteBoardAccessRepository(").forEach { constructor ->
+            val offenders = root.walkTopDown()
+                .filter { it.isFile && it.extension == "kt" }
+                .filterNot { it.startsWith(File(root, "data/remote")) }
+                .filter { it.readText().contains(constructor) }
+                .map { it.relativeTo(root).path }
+                .toList()
+
+            assertEquals(constructor, listOf("data/auth/AuthRepositoryFactory.kt"), offenders)
+        }
+    }
 }

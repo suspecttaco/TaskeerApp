@@ -68,6 +68,7 @@ import com.simposio.taskeer.ui.tasks.SwipeHintState
 import com.simposio.taskeer.ui.tasks.TaskDeletionViewModel
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
+import com.simposio.taskeer.ui.workspaces.ServerBoardsViewModel
 import com.simposio.taskeer.ui.workspaces.WorkspaceMembersViewModel
 import kotlinx.coroutines.launch
 
@@ -86,6 +87,7 @@ fun AppShell(
     val chrome = chromeFor(destination)
     val listId = currentEntry?.arguments?.getString(ListViewModel.LIST_ID_ARG)
     val boardId = currentEntry?.arguments?.getString(BoardViewModel.BOARD_ID_ARG)
+    val workspaceId = currentEntry?.arguments?.getString(ServerBoardsViewModel.WORKSPACE_ID_ARG)
 
     val quickAdd: QuickAddViewModel = viewModel(factory = viewModelFactory)
     val quickAddState by quickAdd.uiState.collectAsStateWithLifecycle()
@@ -235,7 +237,12 @@ fun AppShell(
 
     val menu: OverflowMenu = overflowMenuFor(destination).withListCount(listCount).withBoardPresent(boardName != null)
     val title = destination.title(listName, boardName, workspaceName)
-    val back = backStep(destination, boardId, hasPrevious = navController.previousBackStackEntry != null)
+    val back = backStep(
+        destination,
+        boardId,
+        hasPrevious = navController.previousBackStackEntry != null,
+        workspaceId = workspaceId,
+    )
 
     val snackbarClearance = if (destination == AppDestination.HOME) Spacing.HubBarClearance else Spacing.ChromeClearance
     CompositionLocalProvider(LocalSheetGate provides sheetGate, LocalBackGuard provides backGuard) {
@@ -425,6 +432,8 @@ private fun AppDestination.title(listName: String?, boardName: String?, workspac
     AppDestination.WORKSPACES -> stringResource(R.string.workspaces_title)
     AppDestination.WORKSPACE_INVITATIONS -> stringResource(R.string.workspace_invitations_inbox_title)
     AppDestination.WORKSPACE_MEMBERS -> workspaceName ?: stringResource(R.string.workspace_members_title)
+    AppDestination.WORKSPACE_BOARDS -> stringResource(R.string.board_roles_boards_title)
+    AppDestination.BOARD_ACCESS -> stringResource(R.string.board_roles_access_title)
     AppDestination.SETTINGS -> stringResource(R.string.menu_settings)
     AppDestination.LOGIN -> stringResource(R.string.auth_login_title)
     AppDestination.REGISTER -> stringResource(R.string.register_title)

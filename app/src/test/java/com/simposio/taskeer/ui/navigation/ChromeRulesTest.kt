@@ -81,6 +81,8 @@ class ChromeRulesTest {
             AppDestination.WORKSPACES,
             AppDestination.WORKSPACE_INVITATIONS,
             AppDestination.WORKSPACE_MEMBERS,
+            AppDestination.WORKSPACE_BOARDS,
+            AppDestination.BOARD_ACCESS,
             AppDestination.SETTINGS,
         ).forEach {
             assertEquals(Chrome(TopBarKind.DETAIL, showHomeButton = false, showPill = false), chromeFor(it))
@@ -194,6 +196,8 @@ class ChromeRulesTest {
             AppDestination.WORKSPACES,
             AppDestination.WORKSPACE_INVITATIONS,
             AppDestination.WORKSPACE_MEMBERS,
+            AppDestination.WORKSPACE_BOARDS,
+            AppDestination.BOARD_ACCESS,
             AppDestination.SETTINGS,
         ).forEach { assertEquals(OverflowMenu(emptyList(), emptyList()), overflowMenuFor(it)) }
     }

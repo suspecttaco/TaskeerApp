@@ -37,7 +37,11 @@ import com.simposio.taskeer.ui.settings.SettingsScreen
 import com.simposio.taskeer.ui.tasks.SwipeHintState
 import com.simposio.taskeer.ui.upcoming.UpcomingScreen
 import com.simposio.taskeer.ui.verifyemail.VerifyEmailScreen
+import com.simposio.taskeer.ui.workspaces.BoardAccessScreen
+import com.simposio.taskeer.ui.workspaces.BoardAccessViewModel
 import com.simposio.taskeer.ui.workspaces.MyInvitationsScreen
+import com.simposio.taskeer.ui.workspaces.ServerBoardListScreen
+import com.simposio.taskeer.ui.workspaces.ServerBoardsViewModel
 import com.simposio.taskeer.ui.workspaces.WorkspaceMembersScreen
 import com.simposio.taskeer.ui.workspaces.WorkspaceMembersViewModel
 import com.simposio.taskeer.ui.workspaces.WorkspacesScreen
@@ -238,6 +242,36 @@ fun AppNavHost(
                 onVerifyEmail = {
                     navController.navigate(AppDestination.VERIFY_EMAIL.route) { launchSingleTop = true }
                 },
+                onOpenBoards = { workspaceId ->
+                    navController.navigate(AppDestination.workspaceBoardsRoute(workspaceId)) { launchSingleTop = true }
+                },
+            )
+        }
+        composable(
+            route = AppDestination.WORKSPACE_BOARDS.route,
+            arguments = listOf(
+                navArgument(ServerBoardsViewModel.WORKSPACE_ID_ARG) { type = NavType.StringType },
+            ),
+        ) { entry ->
+            val workspaceId = entry.arguments?.getString(ServerBoardsViewModel.WORKSPACE_ID_ARG).orEmpty()
+            ServerBoardListScreen(
+                viewModelFactory = viewModelFactory,
+                onLeave = { if (!navController.popBackStack()) navController.navigateHome() },
+                onOpenBoard = { boardId ->
+                    navController.navigate(AppDestination.boardAccessRoute(workspaceId, boardId)) { launchSingleTop = true }
+                },
+            )
+        }
+        composable(
+            route = AppDestination.BOARD_ACCESS.route,
+            arguments = listOf(
+                navArgument(BoardAccessViewModel.WORKSPACE_ID_ARG) { type = NavType.StringType },
+                navArgument(BoardAccessViewModel.BOARD_ID_ARG) { type = NavType.StringType },
+            ),
+        ) {
+            BoardAccessScreen(
+                viewModelFactory = viewModelFactory,
+                onLeave = { if (!navController.popBackStack()) navController.navigateHome() },
             )
         }
         composable(

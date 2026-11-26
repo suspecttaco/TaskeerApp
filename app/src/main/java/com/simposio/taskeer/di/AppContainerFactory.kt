@@ -26,6 +26,7 @@ import com.simposio.taskeer.data.reminder.ReminderReconciler
 import com.simposio.taskeer.data.repository.BoardRepositoryImpl
 import com.simposio.taskeer.data.repository.ClockDayWindowSource
 import com.simposio.taskeer.data.repository.ColumnRepositoryImpl
+import com.simposio.taskeer.data.repository.LiveRoleChangeSignals
 import com.simposio.taskeer.data.repository.MyDayRepositoryImpl
 import com.simposio.taskeer.data.repository.NotificationHistoryRepositoryImpl
 import com.simposio.taskeer.data.repository.PlannedRepositoryImpl
@@ -133,6 +134,9 @@ fun createAppContainer(context: Context): AppContainer {
         workspaceMembersRepository = remote.workspaceMembers,
         workspaceInvitationsRepository = remote.workspaceInvitations,
         myInvitationsRepository = remote.myInvitations,
+        serverBoardsRepository = remote.serverBoards,
+        boardAccessRepository = remote.boardAccess,
+        roleChangeSignals = LiveRoleChangeSignals(remote.inbox, remote.live),
         googleCredentialSource = createGoogleCredentialSource(googleSignInConfig),
         googleSignInConfig = googleSignInConfig,
         zoneChanges = timeZoneProvider.changes,

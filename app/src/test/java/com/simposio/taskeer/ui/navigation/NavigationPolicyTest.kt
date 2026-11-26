@@ -116,6 +116,30 @@ class NavigationPolicyTest {
     }
 
     @Test
+    fun backStep_desdeTablerosDelWorkspace_vuelveAMiembros() {
+        assertEquals(
+            BackStep.Navigate("workspaces/w1/members"),
+            backStep(AppDestination.WORKSPACE_BOARDS, null, hasPrevious = false, workspaceId = "w1"),
+        )
+        assertEquals(BackStep.Pop, backStep(AppDestination.WORKSPACE_BOARDS, null, hasPrevious = true, workspaceId = "w1"))
+    }
+
+    @Test
+    fun backStep_desdeAccesoDelTablero_vuelveATableros() {
+        assertEquals(
+            BackStep.Navigate("workspaces/w1/boards"),
+            backStep(AppDestination.BOARD_ACCESS, "b1", hasPrevious = false, workspaceId = "w1"),
+        )
+        assertEquals(BackStep.Pop, backStep(AppDestination.BOARD_ACCESS, "b1", hasPrevious = true, workspaceId = "w1"))
+    }
+
+    @Test
+    fun backStep_desdeTablerosSinWorkspace_vuelveAWorkspaces() {
+        assertEquals(BackStep.Navigate("workspaces"), backStep(AppDestination.WORKSPACE_BOARDS, null, hasPrevious = false))
+        assertEquals(BackStep.Navigate("workspaces"), backStep(AppDestination.BOARD_ACCESS, "b1", hasPrevious = false))
+    }
+
+    @Test
     fun backStep_desdeInvitaciones_vuelveAWorkspaces() {
         assertEquals(BackStep.Navigate("workspaces"), backStep(AppDestination.WORKSPACE_INVITATIONS, null, hasPrevious = false))
         assertEquals(BackStep.Pop, backStep(AppDestination.WORKSPACE_INVITATIONS, null, hasPrevious = true))

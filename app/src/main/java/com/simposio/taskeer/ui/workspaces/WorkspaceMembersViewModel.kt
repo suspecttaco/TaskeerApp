@@ -134,6 +134,10 @@ class WorkspaceMembersViewModel(
         eventChannel.send(MembersEvent.LeaveScreen)
     }
 
+    fun openBoards() {
+        viewModelScope.launch { eventChannel.send(MembersEvent.OpenBoards(workspaceId)) }
+    }
+
     fun openChangeRole(userId: String) {
         val context = currentContext()
         val target = context.member(userId) ?: return

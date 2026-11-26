@@ -497,4 +497,22 @@ class WorkspaceMembersViewModelTest {
         assertEquals(emptyList<MemberRowUi>(), viewModel.uiState.value.rows)
         assertEquals(MembersPhase.LOADING, viewModel.uiState.value.phase)
     }
+
+    @Test
+    fun filaTableros_emiteAbrirTableros() = runTest {
+        val viewModel = opened()
+
+        viewModel.openBoards()
+
+        assertEquals(listOf<MembersEvent>(MembersEvent.OpenBoards(ws)), events)
+    }
+
+    @Test
+    fun filaTableros_estaDisponibleParaCualquierRol() = runTest {
+        val viewModel = opened(selfN = 4)
+
+        viewModel.openBoards()
+
+        assertEquals(listOf<MembersEvent>(MembersEvent.OpenBoards(ws)), events)
+    }
 }
