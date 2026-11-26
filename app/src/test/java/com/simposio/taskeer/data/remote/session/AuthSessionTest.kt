@@ -3,11 +3,14 @@ package com.simposio.taskeer.data.remote.session
 import com.simposio.taskeer.data.remote.FakeHttpTransport
 import com.simposio.taskeer.data.remote.FakeRotatingBackend
 import com.simposio.taskeer.data.remote.FakeSessionRefresher
+import com.simposio.taskeer.data.remote.FakeTokenCipher
+import com.simposio.taskeer.data.remote.InMemoryKeyValueStore
 import com.simposio.taskeer.data.remote.InMemoryRefreshTokenStore
 import com.simposio.taskeer.data.remote.TEST_CONFIG
 import com.simposio.taskeer.data.remote.response
 import com.simposio.taskeer.domain.model.DomainError
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
@@ -432,5 +435,86 @@ class AuthSessionTest {
         assertNull(store.value)
         assertEquals(1, expirations.value)
         assertTrue(backend.revoked)
+    }
+
+    @Test
+    fun endSession_devuelveElRefreshGuardadoYLimpiaTodo() = runTest {
+        session.start("a0", "r0")
+
+        val token = session.endSession()
+
+        assertEquals("r0", token)
+        assertNull(store.value)
+        assertNull(session.currentAccessToken())
+    }
+
+    @Test
+    fun endSession_conTokenSoloEnMemoria_loDevuelveYLoBorra() = runTest {
+        store.failOnWrite = true
+        session.start("a0", "r-memoria")
+        store.failOnWrite = false
+
+        val token = session.endSession()
+
+        assertEquals("r-memoria", token)
+        assertTrue(!session.hasStoredSession())
+    }
+
+    @Test
+    fun endSession_sinSesion_devuelveNull() = runTest {
+        store.value = null
+
+        assertNull(session.endSession())
+    }
+
+    @Test
+    fun endSession_noEmiteEnExpirations() = runTest {
+        session.start("a0", "r0")
+        val expirations = countExpirations(session)
+
+        session.endSession()
+        advanceUntilIdle()
+
+        assertEquals(0, expirations.value)
+    }
+
+    @Test
+    fun endSession_trasLimpiar_hasStoredSessionEsFalse_yElAccessTokenEsNull() = runTest {
+        session.start("a0", "r0")
+
+        session.endSession()
+
+        assertTrue(!session.hasStoredSession())
+        assertNull(session.currentAccessToken())
+    }
+
+    @Test
+    fun endSession_durante_renew_leeElTokenYaRotado() = runTest {
+        session.start("a0", "r0")
+        val gate = CompletableDeferred<Unit>().also { refresher.gate = it }
+        refresher.enqueue(RefreshOutcome.Renewed("a1", "r1"))
+        val renewing = async { session.renew("a0") }
+        advanceUntilIdle()
+        val ending = async { session.endSession() }
+        advanceUntilIdle()
+
+        gate.complete(Unit)
+
+        assertEquals(RenewOutcome.Renewed("a1"), renewing.await())
+        assertEquals("r1", ending.await())
+        assertNull(store.value)
+    }
+
+    @Test
+    fun endSession_siElAlmacenFallaAlLeer_devuelveNull() = runTest {
+        val cipher = FakeTokenCipher()
+        val keyValues = InMemoryKeyValueStore()
+        val encrypted = EncryptedRefreshTokenStore(keyValues, cipher, Dispatchers.Unconfined)
+        encrypted.write("r0")
+        cipher.failOnDecrypt = true
+        val failing = AuthSession(encrypted, refresher)
+
+        assertNull(failing.endSession())
+        assertTrue(keyValues.values.isEmpty())
     }
 }
