@@ -238,6 +238,36 @@
         <item quantity="one">Se borrará %1$d aviso (%2$d sin leer).</item>
         <item quantity="other">Se borrarán %1$d avisos (%2$d sin leer).</item>
     </plurals>
+    <string name="inbox_tab_device">Dispositivo</string>
+    <string name="inbox_tab_account">Cuenta</string>
+    <string name="inbox_empty">No tienes notificaciones</string>
+    <string name="inbox_unread_state">No leída</string>
+    <string name="inbox_mark_read">Marcar como leída</string>
+    <string name="inbox_mark_all_read">Marcar todas como leídas</string>
+    <string name="inbox_delete">Borrar</string>
+    <string name="inbox_delete_read">Borrar leídas</string>
+    <string name="inbox_delete_read_title">Borrar notificaciones leídas</string>
+    <string name="inbox_delete_read_message">Se borrarán de forma permanente las notificaciones ya leídas</string>
+    <string name="inbox_cancel">Cancelar</string>
+    <string name="inbox_retry">Reintentar</string>
+    <string name="inbox_loading">Cargando notificaciones</string>
+    <string name="inbox_error_title">No se pudieron cargar las notificaciones</string>
+    <string name="inbox_task_missing">Esa tarea todavía no está en este dispositivo</string>
+    <string name="inbox_error_rate_limited">Demasiadas peticiones. Inténtalo en unos minutos</string>
+    <plurals name="inbox_error_rate_limited_minutes">
+        <item quantity="one">Demasiadas peticiones. Inténtalo en %1$d minuto</item>
+        <item quantity="other">Demasiadas peticiones. Inténtalo en %1$d minutos</item>
+    </plurals>
+    <string name="inbox_error_offline">Sin conexión. Comprueba tu red e inténtalo de nuevo</string>
+    <string name="inbox_error_server">El servidor no responde. Inténtalo más tarde</string>
+    <string name="inbox_error_generic">No se pudo completar la acción</string>
+    <string name="inbox_type_reminder">Recordatorio</string>
+    <string name="inbox_type_task_assigned">Tarea asignada</string>
+    <string name="inbox_type_role_changed">Cambio de rol</string>
+    <string name="inbox_type_security">Seguridad</string>
+    <string name="inbox_type_invitation">Invitación</string>
+    <string name="inbox_type_mention">Mención</string>
+    <string name="inbox_type_unknown">Aviso</string>
     <string name="home_title">Home</string>
     <string name="home_button_description">Ir a Home</string>
     <string name="home_search_hint">Buscar</string>
