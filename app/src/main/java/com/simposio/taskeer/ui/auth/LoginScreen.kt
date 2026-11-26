@@ -59,6 +59,7 @@ fun LoginScreen(
     viewModelFactory: ViewModelProvider.Factory,
     onSignedIn: () -> Unit,
     onCreateAccount: () -> Unit,
+    onHaveVerificationLink: () -> Unit,
     modifier: Modifier = Modifier,
     prefillEmail: String? = null,
     onPrefillConsumed: () -> Unit = {},
@@ -107,6 +108,7 @@ fun LoginScreen(
         onEmailChange = viewModel::onEmailChange,
         onSubmit = submit,
         onCreateAccount = onCreateAccount,
+        onHaveVerificationLink = onHaveVerificationLink,
         modifier = modifier,
     )
 }
@@ -118,6 +120,7 @@ private fun LoginForm(
     onEmailChange: (String) -> Unit,
     onSubmit: () -> Unit,
     onCreateAccount: () -> Unit,
+    onHaveVerificationLink: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var passwordVisible by remember { mutableStateOf(false) }
@@ -197,6 +200,10 @@ private fun LoginForm(
             onClick = onCreateAccount,
             modifier = Modifier.fillMaxWidth().heightIn(min = Spacing.MinTouchTarget),
         ) { Text(stringResource(R.string.register_link_action)) }
+        TextButton(
+            onClick = onHaveVerificationLink,
+            modifier = Modifier.fillMaxWidth().heightIn(min = Spacing.MinTouchTarget),
+        ) { Text(stringResource(R.string.verify_have_link)) }
         Text(
             text = stringResource(R.string.auth_login_optional_hint),
             style = MaterialTheme.typography.bodyMedium,

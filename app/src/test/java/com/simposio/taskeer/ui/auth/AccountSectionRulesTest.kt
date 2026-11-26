@@ -52,4 +52,29 @@ class AccountSectionRulesTest {
         assertNull(accountSectionFor(SessionState.SignedIn(null, offline = false)).email)
         assertNull(accountSectionFor(SessionState.SignedIn(AccountSummary("", ""), offline = false)).email)
     }
+
+    private fun signedIn(verified: Boolean?, offline: Boolean = false) =
+        accountSectionFor(SessionState.SignedIn(AccountSummary("ana@example.com", "Ana", verified), offline))
+
+    @Test
+    fun verificacion_sinVerificarOfreceReenviarYEnlace() {
+        assertEquals(EmailVerification.UNVERIFIED, signedIn(false).verification)
+    }
+
+    @Test
+    fun verificacion_verificadoNoOfreceReenvio() {
+        assertEquals(EmailVerification.VERIFIED, signedIn(true).verification)
+    }
+
+    @Test
+    fun verificacion_desconocidoSinFila() {
+        assertNull(signedIn(null).verification)
+        assertNull(accountSectionFor(SessionState.SignedIn(null, offline = false)).verification)
+    }
+
+    @Test
+    fun verificacion_sinSesionSinFila() {
+        assertNull(accountSectionFor(SessionState.SignedOut()).verification)
+        assertNull(accountSectionFor(SessionState.Resuming).verification)
+    }
 }

@@ -45,6 +45,7 @@ class AppDestinationTest {
                 "SETTINGS" to "settings",
                 "LOGIN" to "login",
                 "REGISTER" to "register",
+                "VERIFY_EMAIL" to "verify-email",
             ),
             AppDestination.entries.associate { it.name to it.route },
         )
@@ -131,5 +132,11 @@ class AppDestinationTest {
     fun register_tieneRutaRegister() {
         assertEquals("register", AppDestination.REGISTER.route)
         assertEquals(AppDestination.REGISTER, AppDestination.fromRoute("register"))
+    }
+
+    @Test
+    fun verifyEmail_tieneRutaVerifyEmail() {
+        assertEquals("verify-email", AppDestination.VERIFY_EMAIL.route)
+        assertEquals(AppDestination.VERIFY_EMAIL, AppDestination.fromRoute("verify-email"))
     }
 }

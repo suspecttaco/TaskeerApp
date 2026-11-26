@@ -505,4 +505,26 @@
     <string name="register_no_codes_title">Cuenta creada</string>
     <string name="register_no_codes_message">Tu cuenta se creó, pero no recibimos tus códigos de recuperación. Inicia sesión con tu correo y contraseña.</string>
     <string name="register_go_to_login">Ir a iniciar sesión</string>
+    <string name="verify_title">Verificar correo</string>
+    <string name="verify_input_label">Enlace o código del correo</string>
+    <string name="verify_action">Verificar correo</string>
+    <string name="verify_error_input_invalid">Pega el enlace o el código del correo</string>
+    <string name="verify_done_title">Correo verificado</string>
+    <string name="verify_done_message">Tu correo quedó verificado</string>
+    <string name="verify_done_action">Listo</string>
+    <string name="verify_error_invalid_or_expired">Este enlace ya se usó o venció. Pide uno nuevo desde Ajustes → Cuenta.</string>
+    <string name="verify_error_disabled">El envío de correos de verificación no está disponible por ahora. Inténtalo más tarde</string>
+    <string name="verify_error_needs_sign_in">Inicia sesión para reenviar el correo</string>
+    <string name="verify_error_needs_sign_in_action">Iniciar sesión</string>
+    <string name="verify_error_rate_limited_minutes">Demasiados intentos. Inténtalo de nuevo en %1$d min.</string>
+    <string name="verify_error_rate_limited">Demasiados intentos. Inténtalo de nuevo en unos minutos</string>
+    <string name="verify_error_network">No hay conexión con el servidor. Revisa tu conexión e inténtalo de nuevo</string>
+    <string name="verify_error_server">El servidor no está disponible. Inténtalo de nuevo más tarde</string>
+    <string name="verify_error_unexpected">No se pudo completar la operación. Inténtalo de nuevo</string>
+    <string name="verify_resend_sent">Te enviamos un correo nuevo. Revisa tu bandeja y la carpeta de spam. El enlace anterior ya no sirve</string>
+    <string name="verify_resend_already">Tu correo ya está verificado</string>
+    <string name="verify_account_unverified">Correo sin verificar</string>
+    <string name="verify_account_verified">Correo verificado</string>
+    <string name="verify_resend_action">Reenviar correo de verificación</string>
+    <string name="verify_have_link">Tengo un enlace</string>
 </resources>

@@ -39,4 +39,9 @@ class AppShellSourceTest {
     fun tituloDeRegistro() {
         assertTrue(source.contains("AppDestination.REGISTER -> stringResource(R.string.register_title)"))
     }
+
+    @Test
+    fun tituloDeVerificarCorreo() {
+        assertTrue(source.contains("AppDestination.VERIFY_EMAIL -> stringResource(R.string.verify_title)"))
+    }
 }

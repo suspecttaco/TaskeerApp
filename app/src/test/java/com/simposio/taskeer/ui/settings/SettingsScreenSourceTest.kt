@@ -16,4 +16,12 @@ class SettingsScreenSourceTest {
             assertTrue("Cuenta debe ir antes de $it", account < source.indexOf(it))
         }
     }
+
+    @Test
+    fun elReenvioSeCreaConSuPropioViewModel() {
+        val source = MainSources.kotlin("ui/settings/SettingsScreen.kt")
+
+        assertTrue(source.contains("ResendVerificationViewModel"))
+        assertTrue(source.contains("onResendVerification = resendViewModel::resend"))
+    }
 }
