@@ -15,7 +15,10 @@ import com.simposio.taskeer.domain.auth.LoginOutcome
 import com.simposio.taskeer.domain.auth.LogoutOutcome
 import com.simposio.taskeer.domain.auth.RecoveryCodes
 import com.simposio.taskeer.domain.auth.RegisterOutcome
+import com.simposio.taskeer.domain.auth.ResendVerificationOutcome
 import com.simposio.taskeer.domain.auth.SessionState
+import com.simposio.taskeer.domain.auth.VerificationInput
+import com.simposio.taskeer.domain.auth.VerifyEmailOutcome
 import com.simposio.taskeer.domain.model.DomainError
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
@@ -151,6 +154,7 @@ class RemoteAuthRepository(
                                 AccountSummary(
                                     email = parsed.account?.email?.takeIf { it.isNotBlank() } ?: sentEmail,
                                     displayName = parsed.account?.displayName?.takeIf { it.isNotBlank() } ?: sentName,
+                                    emailVerified = parsed.account?.emailVerified,
                                 ),
                                 RecoveryCodes(parsed.codes),
                             )
@@ -159,6 +163,50 @@ class RemoteAuthRepository(
             }
         } finally {
             password.fill('\u0000')
+        }
+    }
+
+    // No toma `authMutex` ni toca `AuthSession`: el endpoint es público y verificar no cambia la sesión.
+    override suspend fun verifyEmail(token: String): VerifyEmailOutcome {
+        val parsed = VerificationInput.parseToken(token)
+            ?: return VerifyEmailOutcome.Failed(DomainError.Validation(VerificationInput.TOKEN_INVALID, "Token no válido"))
+        val request = ApiRequest(
+            method = HttpMethod.GET,
+            path = AuthApiContract.VERIFY_EMAIL_PATH,
+            query = listOf("token" to parsed),
+            auth = AuthMode.NONE,
+        )
+        return when (val result = client.execute(request)) {
+            is ApiResult.Failure -> VerifyEmailOutcome.Failed(result.error, result.retryAfterSeconds)
+            is ApiResult.Success ->
+                if (AuthApiContract.parseVerified(result.response.body)) {
+                    VerifyEmailOutcome.Verified
+                } else {
+                    VerifyEmailOutcome.Failed(DomainError.Server("VERIFY_UNREADABLE", UNREADABLE_MESSAGE))
+                }
+        }
+    }
+
+    override suspend fun resendVerification(): ResendVerificationOutcome {
+        if (state.value !is SessionState.SignedIn) {
+            return ResendVerificationOutcome.Failed(
+                DomainError.Unauthenticated(NOT_SIGNED_IN, "No hay una sesión iniciada"),
+            )
+        }
+        val request = ApiRequest(
+            method = HttpMethod.POST,
+            path = AuthApiContract.RESEND_VERIFICATION_PATH,
+            auth = AuthMode.BEARER,
+        )
+        return when (val result = client.execute(request)) {
+            is ApiResult.Failure -> ResendVerificationOutcome.Failed(result.error, result.retryAfterSeconds)
+            is ApiResult.Success -> when (AuthApiContract.parseAlreadyVerified(result.response.body)) {
+                true -> ResendVerificationOutcome.AlreadyVerified
+                false -> ResendVerificationOutcome.Sent
+                null -> ResendVerificationOutcome.Failed(
+                    DomainError.Server("RESEND_UNREADABLE", UNREADABLE_MESSAGE),
+                )
+            }
         }
     }
 
@@ -215,5 +263,10 @@ class RemoteAuthRepository(
                 else -> it
             }
         }
+    }
+
+    private companion object {
+        const val NOT_SIGNED_IN = "NOT_SIGNED_IN"
+        const val UNREADABLE_MESSAGE = "Respuesta no válida del servidor"
     }
 }

@@ -8,4 +8,5 @@ sealed interface SessionState {
     data class SignedIn(val account: AccountSummary?, val offline: Boolean) : SessionState
 }
 
-data class AccountSummary(val email: String, val displayName: String)
+// `emailVerified` nulo = desconocido; solo llega en login y registro, no hay GET /me.
+data class AccountSummary(val email: String, val displayName: String, val emailVerified: Boolean? = null)

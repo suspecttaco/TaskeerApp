@@ -1,6 +1,7 @@
 package com.simposio.taskeer.domain.auth
 
 import com.simposio.taskeer.domain.model.DomainError
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -36,5 +37,23 @@ class AuthModelsTest {
         assertFalse(rendered.contains("EFGH"))
         assertFalse(rendered.lowercase().contains("password"))
         assertTrue(rendered.contains("RecoveryCodes(count=2)"))
+    }
+
+    @Test
+    fun toString_deOutcomesDeVerificacion_noIncluyeToken() {
+        val error = DomainError.Validation("INVALID_OR_EXPIRED_TOKEN", "enlace vencido")
+        val rendered = listOf(
+            VerifyEmailOutcome.Verified.toString(),
+            VerifyEmailOutcome.Failed(error, 60).toString(),
+            ResendVerificationOutcome.Sent.toString(),
+            ResendVerificationOutcome.AlreadyVerified.toString(),
+        ).joinToString("\n")
+
+        assertFalse(rendered.contains("secreto-abc"))
+    }
+
+    @Test
+    fun accountSummary_sinEmailVerified_esNulo() {
+        assertEquals(null, AccountSummary("ana@example.com", "Ana").emailVerified)
     }
 }

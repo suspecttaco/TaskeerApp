@@ -17,7 +17,9 @@ import com.simposio.taskeer.data.remote.session.RefreshOutcome
 import com.simposio.taskeer.domain.auth.AccountSummary
 import com.simposio.taskeer.domain.auth.LoginOutcome
 import com.simposio.taskeer.domain.auth.RegisterOutcome
+import com.simposio.taskeer.domain.auth.ResendVerificationOutcome
 import com.simposio.taskeer.domain.auth.SessionState
+import com.simposio.taskeer.domain.auth.VerifyEmailOutcome
 import com.simposio.taskeer.domain.model.DomainError
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -960,5 +962,234 @@ class RemoteAuthRepositoryTest {
 
         assertTrue(logout.serverRevoked)
         assertEquals(SessionState.SignedOut(), repository.sessionState.value)
+    }
+
+    private val verifyUrl = "https://api.test/api/v1/auth/verify-email"
+    private val resendUrl = "https://api.test/api/v1/auth/resend-verification"
+    private val verifiedJson = JSONObject().put("verified", true).toString()
+
+    private fun failedVerify(outcome: VerifyEmailOutcome) = outcome as VerifyEmailOutcome.Failed
+
+    private fun failedResend(outcome: ResendVerificationOutcome) = outcome as ResendVerificationOutcome.Failed
+
+    @Test
+    fun verifyEmail_exitoso_hacePeticionGetSinAuthorization() = runTest {
+        transport.enqueue(response(200, verifiedJson))
+
+        repository().verifyEmail("abc+/=")
+
+        val request = transport.requests.single()
+        assertEquals(HttpMethod.GET, request.method)
+        assertEquals("$verifyUrl?token=abc%2B%2F%3D", request.url)
+        assertNull(request.headers["Authorization"])
+        assertEquals("mobile", request.headers["X-Client"])
+    }
+
+    @Test
+    fun verifyEmail_exitoso_devuelveVerified() = runTest {
+        transport.enqueue(response(200, verifiedJson))
+
+        assertEquals(VerifyEmailOutcome.Verified, repository().verifyEmail("abc"))
+    }
+
+    @Test
+    fun verifyEmail_conEnlaceCompleto_enviaSoloElToken() = runTest {
+        transport.enqueue(response(200, verifiedJson))
+
+        repository().verifyEmail("https://web.test/verificar-correo?token=abc123")
+
+        assertEquals("$verifyUrl?token=abc123", transport.requests.single().url)
+    }
+
+    @Test
+    fun verifyEmail_conTokenVacio_noHacePeticion() = runTest {
+        val outcome = failedVerify(repository().verifyEmail("   "))
+
+        assertTrue(outcome.error is DomainError.Validation)
+        assertTrue(transport.requests.isEmpty())
+    }
+
+    @Test
+    fun verifyEmail_con400_esValidationYNoVerifica() = runTest {
+        transport.enqueue(response(400, errorBody("INVALID_OR_EXPIRED_TOKEN")))
+
+        val outcome = repository().verifyEmail("abc")
+
+        assertTrue(failedVerify(outcome).error is DomainError.Validation)
+    }
+
+    @Test
+    fun verifyEmail_cuerpoIlegible_esServer() = runTest {
+        transport.enqueue(response(200, "<html>"))
+
+        assertTrue(failedVerify(repository().verifyEmail("abc")).error is DomainError.Server)
+    }
+
+    @Test
+    fun verifyEmail_conVerifiedFalse_esServer() = runTest {
+        transport.enqueue(response(200, """{"verified":false}"""))
+
+        assertTrue(failedVerify(repository().verifyEmail("abc")).error is DomainError.Server)
+    }
+
+    @Test
+    fun verifyEmail_con429_devuelveRateLimitedConRetryAfter() = runTest {
+        transport.enqueue(response(429, errorBody("TOO_MANY_REQUESTS"), mapOf("retry-after" to "90")))
+
+        val outcome = failedVerify(repository().verifyEmail("abc"))
+
+        assertTrue(outcome.error is DomainError.RateLimited)
+        assertEquals(90L, outcome.retryAfterSeconds)
+    }
+
+    @Test
+    fun verifyEmail_sinRed_devuelveNetwork() = runTest {
+        transport.enqueue(failure(TransportFailureKind.UNREACHABLE))
+
+        assertTrue(failedVerify(repository().verifyEmail("abc")).error is DomainError.Network)
+    }
+
+    @Test
+    fun verifyEmail_con500_devuelveServer() = runTest {
+        transport.enqueue(response(500, ""))
+
+        assertTrue(failedVerify(repository().verifyEmail("abc")).error is DomainError.Server)
+    }
+
+    @Test
+    fun verifyEmail_noCambiaElEstadoDeSesionNiTocaElAlmacen() = runTest {
+        val repository = repository()
+        repository.signIn()
+        val before = repository.sessionState.value
+        transport.enqueue(response(200, verifiedJson))
+
+        repository.verifyEmail("abc")
+
+        assertEquals(before, repository.sessionState.value)
+        assertEquals("r1", store.value)
+        assertNull(transport.requests.last().headers["Authorization"])
+    }
+
+    @Test
+    fun verifyEmail_noExponeElTokenEnToStringNiErrores() = runTest {
+        transport.enqueue(response(400, errorBody("INVALID_OR_EXPIRED_TOKEN")))
+
+        val outcome = repository().verifyEmail("secreto-abc")
+
+        assertFalse(outcome.toString().contains("secreto-abc"))
+        assertFalse(transport.requests.single().toString().contains("secreto-abc"))
+    }
+
+    @Test
+    fun resend_conSesion_hacePostConAuthorizationSinCuerpo() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(200, """{"alreadyVerified":false}"""))
+
+        repository.resendVerification()
+
+        val request = transport.requests.last()
+        assertEquals(HttpMethod.POST, request.method)
+        assertEquals(resendUrl, request.url)
+        assertEquals("Bearer a1", request.headers["Authorization"])
+        assertNull(request.body)
+    }
+
+    @Test
+    fun resend_sinSesion_noHacePeticion() = runTest {
+        val outcome = failedResend(repository().resendVerification())
+
+        assertEquals(DomainError.Unauthenticated::class, outcome.error::class)
+        assertEquals("NOT_SIGNED_IN", outcome.error.code)
+        assertTrue(transport.requests.isEmpty())
+    }
+
+    @Test
+    fun resend_alreadyVerifiedFalse_esSent() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(200, """{"alreadyVerified":false,"emailVerificationToken":"dev"}"""))
+
+        assertEquals(ResendVerificationOutcome.Sent, repository.resendVerification())
+    }
+
+    @Test
+    fun resend_alreadyVerifiedTrue_esAlreadyVerified() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(200, """{"alreadyVerified":true}"""))
+
+        assertEquals(ResendVerificationOutcome.AlreadyVerified, repository.resendVerification())
+    }
+
+    @Test
+    fun resend_con503_devuelveServerConCodigoDeSuspension() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(503, errorBody("EMAIL_VERIFICATION_DISABLED")))
+
+        val error = failedResend(repository.resendVerification()).error
+
+        assertTrue(error is DomainError.Server)
+        assertEquals("EMAIL_VERIFICATION_DISABLED", error.code)
+    }
+
+    @Test
+    fun resend_con429_devuelveRateLimitedConRetryAfter() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(429, errorBody("TOO_MANY_REQUESTS"), mapOf("retry-after" to "120")))
+
+        val outcome = failedResend(repository.resendVerification())
+
+        assertTrue(outcome.error is DomainError.RateLimited)
+        assertEquals(120L, outcome.retryAfterSeconds)
+    }
+
+    @Test
+    fun resend_con401_sinRenovacionPosible_devuelveUnauthenticated() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(401, errorBody("UNAUTHENTICATED")))
+        refresher.enqueue(RefreshOutcome.Rejected(DomainError.Unauthenticated("INVALID_REFRESH_TOKEN", "x")))
+
+        val outcome = failedResend(repository.resendVerification())
+
+        assertTrue(outcome.error is DomainError.Unauthenticated)
+    }
+
+    @Test
+    fun resend_con403UntrustedOrigin_devuelveMobileClientNotSupported() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(403, errorBody("UNTRUSTED_ORIGIN")))
+
+        assertEquals("MOBILE_CLIENT_NOT_SUPPORTED", failedResend(repository.resendVerification()).error.code)
+    }
+
+    @Test
+    fun resend_cuerpoIlegible_esServer() = runTest {
+        val repository = repository()
+        repository.signIn()
+        transport.enqueue(response(200, "<html>"))
+
+        assertTrue(failedResend(repository.resendVerification()).error is DomainError.Server)
+    }
+
+    @Test
+    fun conBackendB8_verificarYReenviar_extremoAExtremo() = runTest {
+        val backend = FakeAuthBackend(b8 = true)
+        backend.validVerificationTokens += "tok-1"
+        val auth = AuthSession(store, HttpSessionRefresher(backend, TEST_CONFIG))
+        val repository = repository(auth, RealApiClient(backend, auth, TEST_CONFIG))
+
+        assertEquals(VerifyEmailOutcome.Verified, repository.verifyEmail("tok-1"))
+        assertTrue(failedVerify(repository.verifyEmail("tok-1")).error is DomainError.Validation)
+        repository.login(FakeAuthBackend.EMAIL, password(FakeAuthBackend.PASSWORD))
+        assertEquals(ResendVerificationOutcome.Sent, repository.resendVerification())
+        backend.verificationEnabled = false
+        assertEquals("EMAIL_VERIFICATION_DISABLED", failedResend(repository.resendVerification()).error.code)
+        backend.resendAlreadyVerified = true
+        assertEquals(ResendVerificationOutcome.AlreadyVerified, repository.resendVerification())
     }
 }

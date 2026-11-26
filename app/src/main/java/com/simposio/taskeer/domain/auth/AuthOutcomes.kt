@@ -17,4 +17,18 @@ sealed interface RegisterOutcome {
     data class Failed(val error: DomainError, val retryAfterSeconds: Long? = null) : RegisterOutcome
 }
 
+sealed interface VerifyEmailOutcome {
+    data object Verified : VerifyEmailOutcome
+
+    data class Failed(val error: DomainError, val retryAfterSeconds: Long? = null) : VerifyEmailOutcome
+}
+
+sealed interface ResendVerificationOutcome {
+    data object Sent : ResendVerificationOutcome
+
+    data object AlreadyVerified : ResendVerificationOutcome
+
+    data class Failed(val error: DomainError, val retryAfterSeconds: Long? = null) : ResendVerificationOutcome
+}
+
 data class LogoutOutcome(val serverRevoked: Boolean)

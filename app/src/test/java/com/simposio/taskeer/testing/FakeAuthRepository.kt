@@ -6,7 +6,9 @@ import com.simposio.taskeer.domain.auth.LoginOutcome
 import com.simposio.taskeer.domain.auth.LogoutOutcome
 import com.simposio.taskeer.domain.auth.RecoveryCodes
 import com.simposio.taskeer.domain.auth.RegisterOutcome
+import com.simposio.taskeer.domain.auth.ResendVerificationOutcome
 import com.simposio.taskeer.domain.auth.SessionState
+import com.simposio.taskeer.domain.auth.VerifyEmailOutcome
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +29,13 @@ class FakeAuthRepository(initial: SessionState = SessionState.SignedOut()) : Aut
     val registerEmails = mutableListOf<String>()
     var lastRegisterPassword: CharArray? = null
     var registerPasswordAtCall: String? = null
+    var verifyResult: VerifyEmailOutcome = VerifyEmailOutcome.Verified
+    var verifyGate: CompletableDeferred<Unit>? = null
+    var verifyCalls = 0
+    val verifyTokens = mutableListOf<String>()
+    var resendResult: ResendVerificationOutcome = ResendVerificationOutcome.Sent
+    var resendGate: CompletableDeferred<Unit>? = null
+    var resendCalls = 0
     var loginGate: CompletableDeferred<Unit>? = null
     var logoutGate: CompletableDeferred<Unit>? = null
     var resumeCalls = 0
@@ -56,6 +65,19 @@ class FakeAuthRepository(initial: SessionState = SessionState.SignedOut()) : Aut
         lastRegisterPassword = password
         registerGate?.await()
         return registerResult
+    }
+
+    override suspend fun verifyEmail(token: String): VerifyEmailOutcome {
+        verifyCalls++
+        verifyTokens += token
+        verifyGate?.await()
+        return verifyResult
+    }
+
+    override suspend fun resendVerification(): ResendVerificationOutcome {
+        resendCalls++
+        resendGate?.await()
+        return resendResult
     }
 
     override suspend fun logout(): LogoutOutcome {
