@@ -1,8 +1,33 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
+
+// Única fuente de la versión: versionCode se deriva de versionName para que
+// nunca diverjan y siempre crezca de forma monótona (Play lo exige).
+// Supone minor y patch < 100.
+val appVersionName = providers.gradleProperty("taskeer.versionName").get()
+val appVersionCode = appVersionName.split(".").map { it.toInt() }
+    .let { (major, minor, patch) -> major * 10000 + minor * 100 + patch }
+
+// Las credenciales salen de un fichero local no versionado o, en su defecto,
+// del entorno; sin ninguna de las dos el release queda sin firmar.
+val keystoreProperties = providers.fileContents(rootProject.layout.projectDirectory.file("keystore.properties"))
+    .asText.map { text -> Properties().apply { load(text.reader()) } }
+    .orNull
+
+fun signingValue(propertyKey: String, envKey: String): String? =
+    keystoreProperties?.getProperty(propertyKey) ?: providers.environmentVariable(envKey).orNull
+
+val releaseStoreFile = signingValue("storeFile", "TASKEER_KEYSTORE_FILE")
+val releaseStorePassword = signingValue("storePassword", "TASKEER_KEYSTORE_PASSWORD")
+val releaseKeyAlias = signingValue("keyAlias", "TASKEER_KEY_ALIAS")
+val releaseKeyPassword = signingValue("keyPassword", "TASKEER_KEY_PASSWORD")
+val hasReleaseSigning = listOf(releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword)
+    .all { !it.isNullOrBlank() }
 
 android {
     namespace = "com.simposio.taskeer"
@@ -14,14 +39,26 @@ android {
         applicationId = "com.simposio.taskeer"
         minSdk = 24
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
