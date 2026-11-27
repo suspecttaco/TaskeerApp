@@ -178,28 +178,39 @@ class DebugHttpLogInterceptorTest {
     }
 
     @Test
-    fun syncOmiteElCuerpoConLaUrlRealConPrefijoDeApi() {
-        body = """{"results":[{"title":"Respuesta reservada"}]}"""
+    fun syncMuestraPeticionYRespuestaConLaUrlRealConPrefijoDeApi() {
+        body = """{"results":[{"title":"Respuesta visible"}]}"""
 
         call(client(), "/api/v1/sync/push", """{"mutations":[{"data":{"title":"Comprar leche"}}]}""")
-        call(client(), "/api/v1/sync/changes", """{"cursor":"x"}""")
 
         val text = logs.joinToString("\n")
-        assertFalse(text.contains("Comprar leche"))
-        assertFalse(text.contains("Respuesta reservada"))
-        assertTrue(text.contains("--> POST"))
+        assertTrue(text.contains("Comprar leche"))
+        assertTrue(text.contains("Respuesta visible"))
         assertFalse(text.contains("SECRET-BEARER"))
     }
 
     @Test
-    fun syncOmiteElCuerpoSinPrefijo() {
-        body = """{"results":[{"title":"Respuesta reservada"}]}"""
+    fun syncSigueEnmascarandoSecretos() {
+        body = """{"results":[],"access_token":"AT-SYNC"}"""
 
-        call(client(), "/sync/push", """{"mutations":[{"data":{"title":"Comprar leche"}}]}""")
+        call(client(), "/sync/push", """{"mutations":[],"refresh_token":"RT-SYNC"}""")
 
         val text = logs.joinToString("\n")
-        assertFalse(text.contains("Comprar leche"))
-        assertFalse(text.contains("Respuesta reservada"))
+        assertFalse(text.contains("AT-SYNC"))
+        assertFalse(text.contains("RT-SYNC"))
+    }
+
+    @Test
+    fun cuerpoGrandeDeSyncSeParteEnTrozosSinPerderContenido() {
+        val big = """{"results":[${(1..100).joinToString(",") { """{"clientMutationId":"m$it","pad":"${"x".repeat(150)}"}""" }}]}"""
+        body = big
+
+        call(client(), "/api/v1/sync/push", "{}")
+
+        val chunks = logs.filter { it.startsWith("[") && "/" in it.take(8) }
+        assertTrue(chunks.toString(), chunks.size > 1)
+        assertTrue(chunks.all { it.length < 3600 })
+        assertTrue(logs.joinToString("").contains("\"clientMutationId\":\"m100\""))
     }
 
     @Test
