@@ -23,6 +23,8 @@ class ServerBoardsViewModel(
     savedStateHandle: SavedStateHandle,
     private val boards: ServerBoardsRepository,
     private val workspaces: WorkspaceRepository,
+    // Ids de los tableros con copia local; la UI de tableros del servidor no conoce los repositorios locales.
+    private val localBoardIds: suspend () -> Set<String>,
     private val session: StateFlow<SessionState>,
 ) : ViewModel() {
 
@@ -66,7 +68,14 @@ class ServerBoardsViewModel(
     fun openBoard(boardId: String) {
         val state = boards.state.value
         if (state.workspaceId != workspaceId || state.items.none { it.id == boardId }) return
-        viewModelScope.launch { eventChannel.send(ServerBoardsEvent.OpenAccess(boardId)) }
+        viewModelScope.launch {
+            val route = ServerBoardRoutingRules.route(session.value is SessionState.SignedIn, boardId, localBoardIds())
+            when (route) {
+                is ServerBoardRoute.OpenKanban -> eventChannel.send(ServerBoardsEvent.OpenKanban(route.boardId))
+                ServerBoardRoute.SyncFirst -> eventChannel.send(ServerBoardsEvent.NeedsSync)
+                ServerBoardRoute.NotOffered -> Unit
+            }
+        }
     }
 
     private fun load() {

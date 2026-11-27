@@ -6,6 +6,8 @@ import com.simposio.taskeer.data.reminder.ReminderReconciler
 import com.simposio.taskeer.data.repository.AuthRepository
 import com.simposio.taskeer.data.repository.BoardAccessRepository
 import com.simposio.taskeer.data.repository.BoardRepository
+import com.simposio.taskeer.data.repository.BoardRoles
+import com.simposio.taskeer.data.repository.UnrestrictedBoardRoles
 import com.simposio.taskeer.data.repository.CalendarRepository
 import com.simposio.taskeer.data.repository.DayWindowSource
 import com.simposio.taskeer.data.repository.ColumnRepository
@@ -62,6 +64,7 @@ class AppContainer(
     val serverBoardsRepository: ServerBoardsRepository,
     val boardAccessRepository: BoardAccessRepository,
     val roleChangeSignals: RoleChangeSignals,
+    val boardRoles: BoardRoles = UnrestrictedBoardRoles,
     val syncRepository: SyncRepository = UnavailableSyncRepository,
     val runSync: suspend () -> Unit = {},
     val googleCredentialSource: GoogleCredentialSource = UnavailableGoogleCredentialSource,

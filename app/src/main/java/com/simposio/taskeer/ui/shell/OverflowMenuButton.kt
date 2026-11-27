@@ -116,6 +116,7 @@ private fun MenuItem.labelRes(): Int = when (this) {
     MenuItem.DELETE_LIST -> R.string.menu_delete_list
     MenuItem.RENAME_BOARD -> R.string.menu_rename_board
     MenuItem.DELETE_BOARD -> R.string.menu_delete_board
+    MenuItem.BOARD_ACCESS -> R.string.menu_board_access
 }
 
 @Preview(showBackground = true)

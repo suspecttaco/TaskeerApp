@@ -49,6 +49,7 @@ import com.simposio.taskeer.ui.workspaces.WorkspaceInvitationsViewModel
 import com.simposio.taskeer.ui.workspaces.WorkspaceMembersViewModel
 import com.simposio.taskeer.ui.workspaces.WorkspacesViewModel
 import java.time.Instant
+import kotlinx.coroutines.flow.first
 
 class AppViewModelFactory(private val container: AppContainer) : ViewModelProvider.Factory {
 
@@ -230,6 +231,7 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 extras.createSavedStateHandle(),
                 container.myDayRepository,
                 container.myDayRepository.observeMarkedTaskIds(),
+                roles = container.boardRoles,
             ) as T
 
         modelClass.isAssignableFrom(ListViewModel::class.java) ->
@@ -273,6 +275,7 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 extras.createSavedStateHandle(),
                 container.serverBoardsRepository,
                 container.workspaceRepository,
+                { container.boardRepository.observeBoards().first().map { it.id }.toSet() },
                 container.authRepository.sessionState,
             ) as T
 
