@@ -128,6 +128,110 @@ class SyncEnginePushTest {
     }
 
     @Test
+    fun applied_adoptaPositionYListDelRecord() = runTest {
+        dao.put(localList)
+        dao.put(syncList("list-2", name = "Otra", pending = false))
+        dao.baseline("list", "list-1", 1L)
+        dao.baseline("list", "list-2", 1L)
+        dao.put(syncTask("t1", position = 9, updatedAt = 4_321L))
+        backend.seed(SyncEntity.LIST, "list-2", mapOf("name" to "Otra"), Instant.EPOCH)
+        backend.serverRewrite = { _, sent -> sent + mapOf("position" to 2, "listId" to "list-2") }
+
+        engine().runCycle(manual = false)
+
+        val row = dao.tasks.value.getValue("t1")
+        assertEquals(2, row.position)
+        assertEquals("list-2", row.listId)
+        assertFalse(row.pending)
+        assertEquals(4_321L, row.updatedAt)
+        assertEquals(backend.serverNow.toEpochMilli(), dao.baseline("task", "t1")!!.serverUpdatedAt)
+    }
+
+    @Test
+    fun applied_conRecordParcial_adoptaLoQueTrae() = runTest {
+        dao.put(localList)
+        dao.baseline("list", "list-1", 1L)
+        dao.put(syncTask("t1", title = "local", position = 9))
+        backend.serverRewrite = { _, _ -> mapOf("position" to 3) }
+
+        engine().runCycle(manual = false)
+
+        val row = dao.tasks.value.getValue("t1")
+        assertEquals(3, row.position)
+        assertEquals("local", row.title)
+        assertEquals("list-1", row.listId)
+        assertFalse(row.pending)
+    }
+
+    @Test
+    fun applied_conEdicionEnVuelo_noPisaLaEdicionLocal() = runTest {
+        dao.put(localList)
+        dao.baseline("list", "list-1", 1L)
+        dao.put(syncTask("t1", position = 9, updatedAt = 1_000L))
+        backend.serverRewrite = { _, sent -> sent + mapOf("position" to 2) }
+        backend.onProcessing = { dao.put(syncTask("t1", title = "editada mientras viajaba", position = 9, updatedAt = 2_000L)) }
+
+        engine().runCycle(manual = false)
+
+        val row = dao.tasks.value.getValue("t1")
+        assertTrue(row.pending)
+        assertEquals("editada mientras viajaba", row.title)
+        assertEquals(9, row.position)
+        assertEquals(backend.serverNow.toEpochMilli(), dao.baseline("task", "t1")!!.serverUpdatedAt)
+    }
+
+    @Test
+    fun applied_deleteConfirmado_noCambiaLaFilaLocal() = runTest {
+        dao.put(localList)
+        dao.baseline("list", "list-1", 1L)
+        dao.put(syncTask("t1", pending = true, deletedAt = 3_000L, updatedAt = 3_000L))
+        dao.baseline("task", "t1", Instant.parse("2026-11-20T00:00:00Z").toEpochMilli())
+        backend.seed(SyncEntity.TASK, "t1", taskFields("servidor"), Instant.parse("2026-11-20T00:00:00Z"))
+
+        engine().runCycle(manual = false)
+
+        val row = dao.tasks.value.getValue("t1")
+        assertEquals(3_000L, row.deletedAt)
+        assertEquals("Comprar leche", row.title)
+        assertFalse(row.pending)
+        assertEquals(0, dao.queue().size)
+    }
+
+    @Test
+    fun nombreTomado_enRenombrado_conservaLaListaLocal() = runTest {
+        dao.put(localList)
+        dao.baseline("list", "list-1", 1L)
+        dao.put(syncList("list-2", name = "Tareas", pending = true))
+        dao.baseline("list", "list-2", 1L)
+        dao.put(syncTask("t2", listId = "list-2", pending = false))
+        backend.seed(SyncEntity.LIST, "list-2", mapOf("name" to "Compras"), Instant.EPOCH)
+        backend.rejectIds["list-2"] = FakeSyncBackend.Rejection("LIST_NAME_TAKEN", withRecord = true, recordId = "list-1")
+
+        engine().runCycle(manual = false)
+
+        val list = dao.lists.value.getValue("list-2")
+        assertEquals("Tareas", list.name)
+        assertTrue(list.pending)
+        assertNull(list.deletedAt)
+        assertEquals("list-2", dao.tasks.value.getValue("t2").listId)
+        assertEquals("LIST_NAME_TAKEN", dao.queue().single().lastErrorCode)
+    }
+
+    @Test
+    fun nombreTomado_enAlta_adoptaListaDelServidor() = runTest {
+        dao.put(syncList("list-nueva", name = "Tareas", pending = true))
+        dao.put(syncTask("t3", listId = "list-nueva", pending = false))
+        backend.rejectIds["list-nueva"] = FakeSyncBackend.Rejection("LIST_NAME_TAKEN", withRecord = true, recordId = "list-1")
+
+        engine().runCycle(manual = false)
+
+        assertNull(dao.lists.value["list-nueva"]?.takeIf { it.deletedAt == null })
+        assertFalse(dao.lists.value.getValue("list-1").pending)
+        assertEquals("list-1", dao.tasks.value.getValue("t3").listId)
+        assertEquals(0, dao.queue().count { it.entityId == "list-nueva" })
+    }
+
+    @Test
     fun mismoClientMutationIdEnReintento() = runTest {
         dao.put(localList)
         dao.baseline("list", "list-1", 1L)

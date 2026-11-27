@@ -40,12 +40,13 @@ class FakeSyncBackend(
 
     // Pierde la respuesta tras procesar: el servidor guarda el resultado pero el cliente solo ve un fallo de red.
     var dropNextResponse = false
-    class Rejection(val code: String, val withRecord: Boolean = false, val once: Boolean = false)
+    class Rejection(val code: String, val withRecord: Boolean = false, val once: Boolean = false, val recordId: String? = null)
 
     val rejectIds = mutableMapOf<String, Rejection>()
     var maxBatch: Int? = null
     var poisonedIds = mutableSetOf<String>()
     var onProcessing: suspend () -> Unit = {}
+    var serverRewrite: ((PushMutation, Map<String, Any?>) -> Map<String, Any?>)? = null
     var identifyResult: TransportResult<Identity>? = null
     var concurrent = 0
     var maxConcurrent = 0
@@ -143,7 +144,7 @@ class FakeSyncBackend(
         val id = m.clientMutationId
         rejectIds[m.id]?.let { rejection ->
             if (rejection.once) rejectIds.remove(m.id)
-            return PushOutcome.Rejected(id, rejection.code, if (rejection.withRecord) records[m.entity to m.id]?.record() else null)
+            return PushOutcome.Rejected(id, rejection.code, if (rejection.withRecord) records[m.entity to (rejection.recordId ?: m.id)]?.record() else null)
         }
         val key = m.entity to m.id
         val existing = records[key]
@@ -158,7 +159,7 @@ class FakeSyncBackend(
                 PushOutcome.Conflict(id, existing.record())
             }
         }
-        val data = m.data.orEmpty()
+        val data = m.data.orEmpty().let { sent -> serverRewrite?.invoke(m, sent) ?: sent }
         missingParent(m)?.let { return PushOutcome.Rejected(id, "DEPENDENCY_NOT_FOUND", null) }
         if (m.entity == SyncEntity.LIST && existing == null) {
             val clash = records.values.firstOrNull {

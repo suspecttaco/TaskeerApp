@@ -28,6 +28,7 @@ fun syncTask(
     completedAt: Long? = null,
     repeatUnit: String? = null,
     repeatInterval: Int? = null,
+    position: Int = 0,
 ) = TaskEntity(
     id = id,
     columnId = columnId,
@@ -36,7 +37,7 @@ fun syncTask(
     priority = "MEDIUM",
     dueAt = null,
     assigneeId = assigneeId,
-    position = 0,
+    position = position,
     createdAt = 0L,
     completedAt = completedAt,
     updatedAt = updatedAt,

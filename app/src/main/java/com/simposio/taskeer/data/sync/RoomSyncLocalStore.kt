@@ -203,13 +203,30 @@ class RoomSyncLocalStore(
     ): OutcomeEffect {
         val op = prepared.op
         return when (outcome) {
-            is PushOutcome.Applied -> {
-                dao.commitApplied(op.entity.wireName, op.entityId, outcome.record.updatedAt.toEpochMilli(), prepared.sentVersion, op.mutationId)
-                OutcomeEffect.APPLIED
-            }
+            is PushOutcome.Applied -> applied(prepared, outcome.record, me)
             is PushOutcome.Conflict -> adopt(prepared, outcome.record, me, OutcomeEffect.REPLACED_BY_SERVER)
             is PushOutcome.Rejected -> reject(prepared, outcome, me, now, retryDependency)
         }
+    }
+
+    // «Aplicado» no implica «tal como se envió»: el servidor renumera posiciones y puede aplicar solo una parte, así que
+    // la fila adopta su registro. La edición hecha mientras viajaba el envío manda y solo avanza la versión base; la
+    // versión local se conserva para que esa comparación siga valiendo en el siguiente ciclo.
+    private suspend fun applied(prepared: PreparedOp, record: ServerRecord, me: String): OutcomeEffect {
+        val op = prepared.op
+        val row = rowOf(op.entity, op.entityId)
+        val baseline = record.updatedAt.toEpochMilli()
+        if (op.op == SyncOp.DELETE || record.isDeleted || row == null || row.updatedAt != prepared.sentVersion || row.deletedAt != null) {
+            dao.commitApplied(op.entity.wireName, op.entityId, baseline, prepared.sentVersion, op.mutationId)
+            return OutcomeEffect.APPLIED
+        }
+        when (val adopted = row.adoptedFrom(record, me).stamped(row.updatedAt, pending = false, deletedAt = null)) {
+            is TaskListEntity -> dao.commitList(adopted, baseline, op.mutationId)
+            is TaskEntity -> dao.commitTask(adopted, baseline, op.mutationId)
+            is SubtaskEntity -> dao.commitSubtask(adopted, baseline, op.mutationId)
+            else -> dao.commitApplied(op.entity.wireName, op.entityId, baseline, prepared.sentVersion, op.mutationId)
+        }
+        return OutcomeEffect.APPLIED
     }
 
     private suspend fun reject(
@@ -224,8 +241,12 @@ class RoomSyncLocalStore(
         return when {
             outcome.code == SyncCodes.VALIDATION_ERROR -> keepForRetry(op, outcome.code)
             outcome.code == CODE_DEPENDENCY_NOT_FOUND && retryDependency -> reissue(op)
-            outcome.code == CODE_LIST_NAME_TAKEN && op.entity == SyncEntity.LIST && record != null && record.entity == SyncEntity.LIST ->
-                adoptList(prepared, record)
+            outcome.code == CODE_LIST_NAME_TAKEN && op.entity == SyncEntity.LIST ->
+                if (record != null && record.entity == SyncEntity.LIST && dao.baseline(op.entity.wireName, op.entityId) == null) {
+                    adoptList(prepared, record)
+                } else {
+                    keepForRetry(op, outcome.code)
+                }
             record != null -> adopt(prepared, record, me, OutcomeEffect.REVERTED)
             else -> discard(prepared, now)
         }
@@ -266,6 +287,8 @@ class RoomSyncLocalStore(
         return effect
     }
 
+    // Solo una lista que nunca llegó al servidor (alta, primer sync) se funde con la del mismo nombre. En un renombrado de
+    // una lista ya sincronizada el registro devuelto puede ser otra lista: fusionarla borraría la local y movería sus tareas.
     private suspend fun adoptList(prepared: PreparedOp, record: ServerRecord): OutcomeEffect {
         val op = prepared.op
         val local = dao.findList(op.entityId) ?: run {
