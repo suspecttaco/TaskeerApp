@@ -35,7 +35,7 @@ class LocalDataLayerRulesTest {
     @Test
     fun soloSyncDaoBorraFisicamenteYEnTablasAcotadas() {
         val allowed = setOf(
-            "sync_queue", "sync_baseline", "sync_meta", "task_lists",
+            "sync_queue", "sync_baseline", "sync_meta", "board_access", "sync_workspaces", "task_lists",
             "boards", "columns", "tasks", "subtasks", "my_day_tasks", "reminders", "app_notifications",
         )
         val tables = Regex("DELETE FROM (\\w+)").findAll(File(sourcesRoot, "data/local/SyncDao.kt").readText())
@@ -48,7 +48,9 @@ class LocalDataLayerRulesTest {
 
     @Test
     fun todaEntidadImplementaLaConvencion() {
-        val infrastructure = setOf("SyncQueueEntity.kt", "SyncBaselineEntity.kt", "SyncMetaEntity.kt")
+        val infrastructure = setOf(
+            "SyncQueueEntity.kt", "SyncBaselineEntity.kt", "SyncMetaEntity.kt", "BoardAccessEntity.kt", "SyncWorkspaceEntity.kt",
+        )
         val entitySources = dataLocalSources().filter { it.readText().contains("@Entity") && it.name !in infrastructure }
 
         assertTrue("debe existir al menos una entidad en data/local/", entitySources.isNotEmpty())

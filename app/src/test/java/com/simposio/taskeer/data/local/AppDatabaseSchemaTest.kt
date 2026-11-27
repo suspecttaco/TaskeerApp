@@ -22,6 +22,7 @@ class AppDatabaseSchemaTest {
     private val schemaV14: String = resolveSchema(version = 14).readText()
     private val schemaV15: String = resolveSchema(version = 15).readText()
     private val schemaV16: String = resolveSchema(version = 16).readText()
+    private val schemaV17: String = resolveSchema(version = 17).readText()
 
     @Test
     fun esquemaVersion1_sigueExportado() {
@@ -729,6 +730,43 @@ class AppDatabaseSchemaTest {
         assertTrue(
             Regex("\"name\": \"index_sync_queue_entity_entityId\",\\s*\"unique\": true,\\s*\"columnNames\": \\[\\s*\"entity\",\\s*\"entityId\"\\s*]")
                 .containsMatchIn(table),
+        )
+    }
+
+    @Test
+    fun version_es17() {
+        assertTrue(Regex("\"version\"\\s*:\\s*17\\b").containsMatchIn(schemaV17))
+    }
+
+    @Test
+    fun v17_soloAnadeBoardAccessSyncWorkspacesYWorkspaceId() {
+        val tables = { schema: String -> Regex("\"tableName\": \"(\\w+)\"").findAll(schema).map { it.groupValues[1] }.toSet() }
+
+        assertEquals(tables(schemaV16) + setOf("board_access", "sync_workspaces"), tables(schemaV17))
+        (tables(schemaV16) - "boards").forEach { table ->
+            assertEquals(table, tableOf(schemaV16, table).substringBefore("\n      }"), tableOf(schemaV17, table).substringBefore("\n      }"))
+        }
+        val boardColumns = { schema: String ->
+            Regex("\"columnName\": \"(\\w+)\"").findAll(tableOf(schema, "boards").substringBefore("\"primaryKey\"")).map { it.groupValues[1] }.toSet()
+        }
+        assertEquals(boardColumns(schemaV16) + "workspaceId", boardColumns(schemaV17))
+    }
+
+    @Test
+    fun v17_boardsWorkspaceId_admiteNull() {
+        val table = tableOf(schemaV17, "boards")
+
+        assertTrue(Regex("\"columnName\": \"workspaceId\",\\s*\"affinity\": \"TEXT\"\\s*}").containsMatchIn(table))
+    }
+
+    @Test
+    fun boardAccess_unicaPorTablero() {
+        val table = tableOf(schemaV17, "board_access")
+
+        assertTrue(Regex("\"primaryKey\": \\{\\s*\"autoGenerate\": false,\\s*\"columnNames\": \\[\\s*\"boardId\"\\s*]").containsMatchIn(table))
+        assertEquals(
+            setOf("boardId", "workspaceId", "effectiveRole", "updatedAt"),
+            Regex("\"columnName\": \"(\\w+)\"").findAll(table.substringBefore("\"primaryKey\"")).map { it.groupValues[1] }.toSet(),
         )
     }
 }

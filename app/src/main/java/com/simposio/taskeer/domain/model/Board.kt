@@ -6,6 +6,7 @@ data class Board(
     val name: String,
     val createdAt: Instant,
     val sync: SyncMetadata,
+    val workspaceId: String? = null,
 ) {
     val id: String get() = sync.clientId
     val isDeleted: Boolean get() = sync.isDeleted

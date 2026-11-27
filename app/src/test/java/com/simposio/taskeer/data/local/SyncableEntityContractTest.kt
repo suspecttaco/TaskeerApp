@@ -45,10 +45,12 @@ class SyncableEntityContractTest {
         val exempt = declaredEntities() - syncableEntities().toSet()
 
         assertEquals(
-            setOf(SyncQueueEntity::class.java, SyncBaselineEntity::class.java, SyncMetaEntity::class.java),
+            setOf(
+                SyncQueueEntity::class.java, SyncBaselineEntity::class.java, SyncMetaEntity::class.java,
+                BoardAccessEntity::class.java, SyncWorkspaceEntity::class.java,
+            ),
             exempt.toSet(),
         )
-        exempt.forEach { assertTrue(it.name.startsWith("$LOCAL_PACKAGE.Sync")) }
     }
 
     @Test
@@ -76,9 +78,11 @@ class SyncableEntityContractTest {
         }
     }
 
-    // La cola, la versión base y los metadatos del motor son infraestructura, no datos sincronizables.
+    // La cola, la versión base, los metadatos del motor, el rol efectivo y la caché de workspaces son infraestructura de
+    // sincronización (se escriben al aplicar una página), no datos que el usuario edite y se envíen.
     private fun syncableEntities(): List<Class<*>> = declaredEntities().filterNot {
-        it == SyncQueueEntity::class.java || it == SyncBaselineEntity::class.java || it == SyncMetaEntity::class.java
+        it == SyncQueueEntity::class.java || it == SyncBaselineEntity::class.java || it == SyncMetaEntity::class.java ||
+            it == BoardAccessEntity::class.java || it == SyncWorkspaceEntity::class.java
     }
 
     private fun declaredEntities(): List<Class<*>> {

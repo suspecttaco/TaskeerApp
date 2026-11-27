@@ -11,4 +11,6 @@ data class BoardEntity(
     override val updatedAt: Long,
     override val pending: Boolean,
     override val deletedAt: Long?,
+    // Nulo mientras el tablero es local y aún no se ha subido: al enviarlo va al workspace personal.
+    val workspaceId: String? = null,
 ) : SyncableEntity

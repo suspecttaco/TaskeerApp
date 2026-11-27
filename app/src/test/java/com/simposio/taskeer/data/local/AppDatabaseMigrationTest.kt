@@ -13,10 +13,10 @@ class AppDatabaseMigrationTest {
     private val source: String = File(resolveLocalRoot(), "AppDatabase.kt").readText()
 
     @Test
-    fun versionActual_esDieciseis() {
+    fun versionActual_esDiecisiete() {
         assertTrue(
-            "AppDatabase debe declarar la versión 16",
-            Regex("version\\s*=\\s*16\\b").containsMatchIn(source),
+            "AppDatabase debe declarar la versión 17",
+            Regex("version\\s*=\\s*17\\b").containsMatchIn(source),
         )
     }
 
@@ -148,12 +148,12 @@ class AppDatabaseMigrationTest {
     }
 
     @Test
-    fun migraciones_formanLaCadenaCompleta1a16() {
+    fun migraciones_formanLaCadenaCompleta1a17() {
         assertTrue(
-            "MIGRATIONS debe incluir de MIGRATION_1_2 a MIGRATION_15_16",
+            "MIGRATIONS debe incluir de MIGRATION_1_2 a MIGRATION_16_17",
             Regex(
                 "MIGRATIONS[^=]*=\\s*listOf\\(\\s*MIGRATION_1_2\\s*,\\s*MIGRATION_2_3\\s*,\\s*" +
-                    "MIGRATION_3_4\\s*,\\s*MIGRATION_4_5\\s*,\\s*MIGRATION_5_6\\s*,\\s*MIGRATION_6_7\\s*,\\s*MIGRATION_7_8\\s*,\\s*MIGRATION_8_9\\s*,\\s*MIGRATION_9_10\\s*,\\s*MIGRATION_10_11\\s*,\\s*MIGRATION_11_12\\s*,\\s*MIGRATION_12_13\\s*,\\s*MIGRATION_13_14\\s*,\\s*MIGRATION_14_15\\s*,\\s*MIGRATION_15_16\\s*,?\\s*\\)",
+                    "MIGRATION_3_4\\s*,\\s*MIGRATION_4_5\\s*,\\s*MIGRATION_5_6\\s*,\\s*MIGRATION_6_7\\s*,\\s*MIGRATION_7_8\\s*,\\s*MIGRATION_8_9\\s*,\\s*MIGRATION_9_10\\s*,\\s*MIGRATION_10_11\\s*,\\s*MIGRATION_11_12\\s*,\\s*MIGRATION_12_13\\s*,\\s*MIGRATION_13_14\\s*,\\s*MIGRATION_14_15\\s*,\\s*MIGRATION_15_16\\s*,\\s*MIGRATION_16_17\\s*,?\\s*\\)",
             ).containsMatchIn(source),
         )
         assertTrue("las migraciones se aplican con addMigrations", source.contains("addMigrations("))
@@ -646,7 +646,38 @@ class AppDatabaseMigrationTest {
     private fun migration15to16(): String {
         val start = source.indexOf("Migration(15, 16)")
         assertTrue("debe declarar una Migration(15, 16)", start >= 0)
+        return source.substring(start, source.indexOf("private val MIGRATION_16_17", start))
+            .replace(Regex("\"\\s*\\+\\s*\""), "")
+    }
+
+    private fun migration16to17(): String {
+        val start = source.indexOf("Migration(16, 17)")
+        assertTrue("debe declarar una Migration(16, 17)", start >= 0)
         return source.substring(start, source.indexOf("private val MIGRATIONS", start))
             .replace(Regex("\"\\s*\\+\\s*\""), "")
+    }
+
+    @Test
+    fun migra16a17_conservaTableros() {
+        val body = migration16to17()
+
+        assertEquals(3, Regex("execSQL\\(").findAll(body).count())
+        assertTrue(body.contains("CREATE TABLE IF NOT EXISTS `board_access`"))
+        assertTrue(body.contains("CREATE TABLE IF NOT EXISTS `sync_workspaces`"))
+        listOf("DROP", "DELETE", "UPDATE", "INSERT").forEach {
+            assertFalse("la migración no debe usar $it", Regex("execSQL\\(\\s*\"$it\\b").containsMatchIn(body.uppercase()))
+        }
+        listOf("`tasks`", "`columns`", "`task_lists`", "`subtasks`").forEach {
+            assertFalse("no debe nombrar la tabla $it", body.contains(it))
+        }
+    }
+
+    @Test
+    fun migra16a17_workspaceIdNulo() {
+        val body = migration16to17()
+
+        assertTrue(body.contains("ALTER TABLE `boards` ADD COLUMN `workspaceId` TEXT\""))
+        assertFalse(body.substringBefore("CREATE TABLE").uppercase().contains("NOT NULL"))
+        assertFalse("sin DEFAULT: los tableros previos quedan con null", body.substringBefore("CREATE TABLE").uppercase().contains("DEFAULT"))
     }
 }
