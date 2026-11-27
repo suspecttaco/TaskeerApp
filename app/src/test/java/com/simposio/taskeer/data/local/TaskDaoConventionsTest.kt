@@ -389,7 +389,7 @@ class TaskDaoConventionsTest {
     fun findReminderState_leeBorradoYCompletadaSinJoin() {
         val query = querySource("findReminderState")
 
-        assertTrue(query.contains("tasks.deletedAt IS NOT NULL AS deleted"))
+        assertTrue(query.contains("tasks.deletedAt IS NOT NULL OR NOT (\" + LIVE_COLUMN_OR_NONE + \")) AS deleted"))
         assertTrue(method("findReminderState").isSuspend())
     }
 
@@ -414,6 +414,23 @@ class TaskDaoConventionsTest {
     fun consultasDeRecordatorioYContadores_excluyenTareasDeListaInexistenteOBorrada() {
         listOf("observeReminderCandidates", "countActive", "observeCompletedCount", "findCompleted").forEach { name ->
             assertTrue("$name filtra por lista viva", querySource(name).contains("LIVE_LIST_OR_NONE"))
+        }
+    }
+
+    @Test
+    fun liveColumnOrNone_exigeColumnaYTableroVivosSoloCuandoHayColumnId() {
+        val source = taskDaoSource()
+        val predicate = source.substring(source.indexOf("const val LIVE_COLUMN_OR_NONE ="))
+
+        assertTrue(predicate.contains("tasks.columnId IS NULL OR EXISTS"))
+        assertTrue("columna existente y viva", predicate.contains("tc.id = tasks.columnId AND tc.deletedAt IS NULL"))
+        assertTrue("tablero vivo", predicate.contains("tb.deletedAt IS NULL"))
+    }
+
+    @Test
+    fun consultasDeRecordatorioYContadores_excluyenTareasDeColumnaOTableroBorrados() {
+        listOf("observeReminderCandidates", "countActive", "observeCompletedCount", "findCompleted", "findReminderState").forEach { name ->
+            assertTrue("$name filtra por columna viva", querySource(name).contains("LIVE_COLUMN_OR_NONE"))
         }
     }
 
