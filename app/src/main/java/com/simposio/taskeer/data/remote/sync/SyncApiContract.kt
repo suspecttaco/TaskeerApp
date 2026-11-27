@@ -25,6 +25,8 @@ object SyncApiContract {
 
     // Orden del servidor dentro de una página: padres antes que hijos.
     private val CHANGE_KEYS = listOf(
+        "workspaces" to SyncEntity.WORKSPACE,
+        "boardAccess" to SyncEntity.BOARD_ACCESS,
         "lists" to SyncEntity.LIST,
         "boards" to SyncEntity.BOARD,
         "columns" to SyncEntity.COLUMN,
@@ -84,8 +86,7 @@ object SyncApiContract {
         Parsed.Malformed
     }
 
-    // `changes` lleva siempre todas las claves, pero una ausente se lee como vacía; las claves que la app no conoce
-    // (o que aún no sincroniza, como workspaces y boardAccess) se ignoran.
+    // `changes` lleva siempre todas las claves, pero una ausente se lee como vacía; las claves que la app no conoce se ignoran.
     fun parsePull(body: String): Parsed<PullPage> = try {
         val root = JSONObject(body)
         val version = root.optString("contractVersion", VERSION)
@@ -142,11 +143,13 @@ object SyncApiContract {
     }
 
     private fun parseRecord(node: JSONObject, entity: SyncEntity): ServerRecord? {
-        val id = node.optString("id").takeIf { it.isNotEmpty() } ?: return null
+        // El acceso se identifica por su tablero: `boardAccess` no lleva `id` propio.
+        val idKey = if (entity == SyncEntity.BOARD_ACCESS) "boardId" else "id"
+        val id = node.optString(idKey).takeIf { it.isNotEmpty() } ?: return null
         val updatedAt = SyncTimestamps.parse(node.optString("updatedAt")) ?: return null
         val deletedAt = if (node.isNull("deletedAt")) null else SyncTimestamps.parse(node.optString("deletedAt")) ?: return null
         val fields = node.keys().asSequence()
-            .filterNot { it == "id" || it == "updatedAt" || it == "deletedAt" }
+            .filterNot { it == idKey || it == "updatedAt" || it == "deletedAt" }
             .associateWith { fromJson(node.get(it)) }
         return ServerRecord(entity, id, updatedAt, deletedAt, fields)
     }

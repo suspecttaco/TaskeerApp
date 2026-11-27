@@ -7,4 +7,6 @@ data class PendingCountsRow(
     val boardTasks: Int,
     val listSubtasks: Int,
     val boardSubtasks: Int,
+    val boards: Int = 0,
+    val columns: Int = 0,
 )

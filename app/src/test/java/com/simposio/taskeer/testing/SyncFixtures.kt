@@ -67,3 +67,23 @@ fun syncSubtask(
     pending = pending,
     deletedAt = deletedAt,
 )
+
+fun syncBoard(
+    id: String,
+    name: String = "Sprint",
+    workspaceId: String? = null,
+    updatedAt: Long = 1_000L,
+    pending: Boolean = true,
+    deletedAt: Long? = null,
+) = com.simposio.taskeer.data.local.BoardEntity(id, name, createdAt = 0L, updatedAt = updatedAt, pending = pending, deletedAt = deletedAt, workspaceId = workspaceId)
+
+fun syncColumn(
+    id: String,
+    boardId: String,
+    name: String = "Por hacer",
+    position: Int = 0,
+    isDone: Boolean = false,
+    updatedAt: Long = 1_000L,
+    pending: Boolean = true,
+    deletedAt: Long? = null,
+) = com.simposio.taskeer.data.local.ColumnEntity(id, boardId, name, position, wipLimit = null, isDoneColumn = isDone, createdAt = 0L, updatedAt = updatedAt, pending = pending, deletedAt = deletedAt)

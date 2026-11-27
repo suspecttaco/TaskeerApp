@@ -12,6 +12,7 @@ import com.simposio.taskeer.data.sync.TransportResult
 import com.simposio.taskeer.data.sync.TransportSource
 import com.simposio.taskeer.domain.sync.SyncEntity
 import com.simposio.taskeer.domain.sync.SyncOp
+import com.simposio.taskeer.domain.sync.SyncTimestamps
 import java.time.Duration
 import java.time.Instant
 
@@ -73,7 +74,7 @@ class FakeSyncBackend(
         val snapshot = cursor == null || forced || cursor.startsWith("s")
         val after = if (cursor == null || forced) null else position(cursor)
         val flow = records.values
-            .filter { it.entity in supported }
+            .filter { it.entity in supported || (SyncEntity.BOARD in supported && it.entity in READ_ONLY) }
             .sortedWith(compareBy({ it.updatedAt }, { it.entity.ordinal }, { it.id }))
             .filter { after == null || compare(it, after) > 0 }
         val size = minOf(limit, pageCap ?: limit)
@@ -167,6 +168,7 @@ class FakeSyncBackend(
             }
             if (clash != null) return PushOutcome.Rejected(id, "LIST_NAME_TAKEN", clash.record())
         }
+        if (existing == null && m.entity == SyncEntity.BOARD) return createBoard(m, data)
         if (existing == null) {
             val created = Stored(m.entity, m.id, data, serverNow, null)
             records[key] = created
@@ -183,6 +185,23 @@ class FakeSyncBackend(
         }
     }
 
+    // Un alta de tablero siembra las columnas del cliente con sus ids (contrato 1.0, sección 5.4) y las devuelve con su versión.
+    private fun createBoard(m: PushMutation, data: Map<String, Any?>): PushOutcome {
+        val columns = (data["columns"] as? List<*>).orEmpty().filterIsInstance<Map<*, *>>()
+        val board = Stored(SyncEntity.BOARD, m.id, data - "columns", serverNow, null)
+        records[SyncEntity.BOARD to m.id] = board
+        columns.forEach { column ->
+            val columnId = column["id"] as String
+            val fields = mapOf("boardId" to m.id) + column.entries.filter { it.key != "id" }.associate { it.key as String to it.value }
+            records[SyncEntity.COLUMN to columnId] = Stored(SyncEntity.COLUMN, columnId, fields, serverNow, null)
+        }
+        val seeded = columns.map { mapOf("id" to it["id"], "updatedAt" to SyncTimestamps.format(serverNow)) }
+        return PushOutcome.Applied(
+            m.clientMutationId,
+            ServerRecord(SyncEntity.BOARD, m.id, serverNow, null, board.fields + ("columns" to seeded)),
+        )
+    }
+
     // Contrato 1.0, secciones 4.3.2 y 4.3.3.
     private fun wins(existing: Stored, m: PushMutation): Boolean {
         val base = m.baseUpdatedAt
@@ -192,6 +211,7 @@ class FakeSyncBackend(
     }
 
     private companion object {
+        val READ_ONLY = setOf(SyncEntity.WORKSPACE, SyncEntity.BOARD_ACCESS)
         val CURSOR = Regex("[si]:[0-9]+:[0-9]+:.*")
     }
 
@@ -200,7 +220,10 @@ class FakeSyncBackend(
     private fun missingParent(m: PushMutation): Boolean? {
         val data = m.data.orEmpty()
         return when (m.entity) {
-            SyncEntity.TASK -> (data["listId"] as? String)?.let { records[SyncEntity.LIST to it]?.deletedAt != null || it !in listIds() }
+            SyncEntity.TASK ->
+                (data["listId"] as? String)?.let { records[SyncEntity.LIST to it]?.deletedAt != null || it !in listIds() }
+                    ?: (data["columnId"] as? String)?.let { records[SyncEntity.COLUMN to it]?.deletedAt != null || (SyncEntity.COLUMN to it) !in records }
+            SyncEntity.COLUMN -> (data["boardId"] as? String)?.let { (SyncEntity.BOARD to it) !in records }
             SyncEntity.SUBTASK -> (data["taskId"] as? String)?.let { records[SyncEntity.TASK to it] == null }
             else -> null
         }?.takeIf { it }

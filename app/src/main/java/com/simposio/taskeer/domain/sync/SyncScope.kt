@@ -7,6 +7,9 @@ object SyncScope {
     // S1 y S2 cubren listas, tareas y subtareas; cada fase posterior añade entidades.
     val APP_LISTS_AND_TASKS: Set<SyncEntity> = setOf(SyncEntity.LIST, SyncEntity.TASK, SyncEntity.SUBTASK)
 
+    // S3 añade tableros y columnas (y con ellos workspaces y acceso, que llegan junto a `board`).
+    val APP_WITH_BOARDS: Set<SyncEntity> = APP_LISTS_AND_TASKS + setOf(SyncEntity.BOARD, SyncEntity.COLUMN)
+
     fun effective(app: Set<SyncEntity>, supported: Set<SyncEntity>): Set<SyncEntity> = app intersect supported
 
     fun allows(entity: SyncEntity, row: ScopeRow, scope: Set<SyncEntity>): Boolean = when (entity) {

@@ -1,5 +1,7 @@
 package com.simposio.taskeer.data.sync
 
+import com.simposio.taskeer.data.local.BoardEntity
+import com.simposio.taskeer.data.local.ColumnEntity
 import com.simposio.taskeer.data.local.SubtaskEntity
 import com.simposio.taskeer.data.local.SyncableEntity
 import com.simposio.taskeer.data.local.TaskEntity
@@ -26,6 +28,33 @@ internal fun TaskListEntity.adoptedFrom(record: ServerRecord): TaskListEntity {
     return copy(
         name = f.orKeep("name", name) { it as? String ?: name },
         position = f.orKeep("position", position) { it.intOrNull() ?: position },
+        updatedAt = updated,
+        deletedAt = deleted,
+        pending = false,
+    )
+}
+
+internal fun BoardEntity.adoptedFrom(record: ServerRecord): BoardEntity {
+    val (updated, deleted) = record.stamp()
+    val f = record.fields
+    return copy(
+        name = f.orKeep("name", name) { it as? String ?: name },
+        workspaceId = f.orKeep("workspaceId", workspaceId) { it as? String ?: workspaceId },
+        updatedAt = updated,
+        deletedAt = deleted,
+        pending = false,
+    )
+}
+
+internal fun ColumnEntity.adoptedFrom(record: ServerRecord): ColumnEntity {
+    val (updated, deleted) = record.stamp()
+    val f = record.fields
+    return copy(
+        boardId = f.orKeep("boardId", boardId) { it as? String ?: boardId },
+        name = f.orKeep("name", name) { it as? String ?: name },
+        position = f.orKeep("position", position) { it.intOrNull() ?: position },
+        wipLimit = f.orKeep("wipLimit", wipLimit) { it.intOrNull() },
+        isDoneColumn = f.orKeep("isDoneColumn", isDoneColumn) { it as? Boolean ?: isDoneColumn },
         updatedAt = updated,
         deletedAt = deleted,
         pending = false,
@@ -88,6 +117,16 @@ internal fun ServerRecord.toNewRow(me: String): SyncableEntity? {
                 updatedAt = updatedAt.toEpochMilli(), pending = false, deletedAt = null,
             ).adoptedFrom(this, me)
         }
+        SyncEntity.BOARD -> BoardEntity(
+            id = id, name = "", createdAt = created, updatedAt = updatedAt.toEpochMilli(), pending = false, deletedAt = null,
+        ).adoptedFrom(this)
+        SyncEntity.COLUMN -> {
+            if ((fields["boardId"] as? String) == null) return null
+            ColumnEntity(
+                id = id, boardId = "", name = "", position = 0, wipLimit = null, isDoneColumn = false,
+                createdAt = created, updatedAt = updatedAt.toEpochMilli(), pending = false, deletedAt = null,
+            ).adoptedFrom(this)
+        }
         SyncEntity.SUBTASK -> {
             if ((fields["taskId"] as? String) == null) return null
             SubtaskEntity(
@@ -103,6 +142,8 @@ internal fun SyncableEntity.adoptedFrom(record: ServerRecord, me: String): Synca
     is TaskListEntity -> adoptedFrom(record)
     is TaskEntity -> adoptedFrom(record, me)
     is SubtaskEntity -> adoptedFrom(record, me)
+    is BoardEntity -> adoptedFrom(record)
+    is ColumnEntity -> adoptedFrom(record)
     else -> error("Entidad no sincronizable: ${this::class.simpleName}")
 }
 

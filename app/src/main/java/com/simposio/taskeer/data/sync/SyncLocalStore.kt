@@ -73,6 +73,9 @@ interface SyncLocalStore {
 
     suspend fun markAllUnsyncedPending()
 
+    // Id del workspace personal si ya llegó por sincronización: los tableros nuevos suben a él.
+    suspend fun personalWorkspaceId(): String?
+
     suspend fun rekeyList(oldId: String, newId: String)
 
     suspend fun meta(key: String): String?

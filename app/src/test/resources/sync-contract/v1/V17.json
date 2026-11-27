@@ -1,0 +1,58 @@
+{
+  "id": "V17",
+  "request": {
+    "mutations": [
+      {
+        "clientMutationId": "90000000-0000-4000-8000-000000000009",
+        "entity": "board",
+        "op": "upsert",
+        "id": "20000000-0000-4000-8000-000000000001",
+        "baseUpdatedAt": null,
+        "clientUpdatedAt": "2026-11-26T18:00:00.000Z",
+        "data": {
+          "workspaceId": "a0000000-0000-4000-8000-000000000001",
+          "name": "Sprint 12",
+          "columns": [
+            { "id": "40000000-0000-4000-8000-000000000001", "name": "Por hacer", "position": 0, "wipLimit": null, "isDoneColumn": false },
+            { "id": "40000000-0000-4000-8000-000000000002", "name": "Hecho", "position": 1, "wipLimit": null, "isDoneColumn": true }
+          ]
+        }
+      },
+      {
+        "clientMutationId": "90000000-0000-4000-8000-000000000010",
+        "entity": "column",
+        "op": "upsert",
+        "id": "40000000-0000-4000-8000-000000000001",
+        "baseUpdatedAt": null,
+        "clientUpdatedAt": "2026-11-26T18:00:00.000Z",
+        "data": { "boardId": "20000000-0000-4000-8000-000000000001", "name": "Por hacer", "position": 0, "wipLimit": null, "isDoneColumn": false }
+      }
+    ]
+  },
+  "response": {
+    "contractVersion": "1.0",
+    "serverTime": "2026-11-26T18:30:00.000Z",
+    "results": [
+      {
+        "clientMutationId": "90000000-0000-4000-8000-000000000009",
+        "status": "applied",
+        "record": {
+          "id": "20000000-0000-4000-8000-000000000001",
+          "workspaceId": "a0000000-0000-4000-8000-000000000001",
+          "name": "Sprint 12",
+          "updatedAt": "2026-11-26T18:30:00.000Z",
+          "deletedAt": null,
+          "columns": [
+            { "id": "40000000-0000-4000-8000-000000000001", "updatedAt": "2026-11-26T18:30:00.000Z" },
+            { "id": "40000000-0000-4000-8000-000000000002", "updatedAt": "2026-11-26T18:30:00.000Z" }
+          ]
+        }
+      },
+      {
+        "clientMutationId": "90000000-0000-4000-8000-000000000010",
+        "status": "applied",
+        "record": { "id": "40000000-0000-4000-8000-000000000001", "updatedAt": "2026-11-26T18:30:00.000Z" }
+      }
+    ]
+  }
+}

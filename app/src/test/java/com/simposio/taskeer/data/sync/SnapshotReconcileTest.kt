@@ -93,7 +93,7 @@ class SnapshotReconcileTest {
 
         cycle()
 
-        assertEquals("i:${at("2026-11-26T10:03:00Z").toEpochMilli()}:3:t3", dao.metas.value[SyncMetaKeys.CURSOR])
+        assertEquals("i:${at("2026-11-26T10:03:00Z").toEpochMilli()}:5:t3", dao.metas.value[SyncMetaKeys.CURSOR])
         assertEquals(setOf("t1", "t2", "t3"), dao.tasks.value.keys)
     }
 
