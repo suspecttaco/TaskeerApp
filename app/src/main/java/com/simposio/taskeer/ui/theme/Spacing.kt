@@ -17,6 +17,8 @@ internal object Spacing {
     val EmptyIconSize = 48.dp
     val FloatingControlSize = 56.dp
     val MinTouchTarget = 48.dp
+    val AvatarSize = 40.dp
+    val AvatarSizeLarge = 56.dp
     val TileMinWidth = 140.dp
     val TileHeight = 88.dp
     val PillCollapsedMinWidth = 144.dp
