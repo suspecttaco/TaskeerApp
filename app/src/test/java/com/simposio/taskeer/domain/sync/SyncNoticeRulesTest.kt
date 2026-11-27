@@ -33,4 +33,11 @@ class SyncNoticeRulesTest {
         assertFalse(notice.toString().contains("ACCESS_LOST"))
         assertTrue(notice.toString().contains("total=1"))
     }
+
+    @Test
+    fun perdidaDeAcceso_hablaDeTableros() {
+        assertTrue(SyncNoticeRules.message(SyncNoticeRules.summarize(listOf(SyncLoss.ACCESS_LOST))!!).contains("acceso a 1 tablero"))
+        val two = SyncNoticeRules.summarize(listOf(SyncLoss.ACCESS_LOST, SyncLoss.ACCESS_LOST))!!
+        assertTrue(SyncNoticeRules.message(two).contains("acceso a 2 tableros"))
+    }
 }
