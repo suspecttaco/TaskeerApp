@@ -84,12 +84,13 @@ internal class DebugHttpLogInterceptor(
         private const val MAX_REQUEST_BYTES = 65_536L
         private val CONTENT_SEGMENTS = setOf("sync", "lists", "tasks", "subtasks")
         private const val MASK = "***"
-        private val MASKED_HEADERS = setOf("authorization", "proxy-authorization", "cookie", "set-cookie")
+        private val MASKED_HEADERS = setOf("authorization", "proxy-authorization", "cookie", "set-cookie", "apikey")
         private val RESPONSE_HEADERS = setOf("content-type", "retry-after")
-        private val SECRET_KEY = "[^\"]*(?:token|password|secret|code|otp|nonce|authorization|cookie)[^\"]*"
+        private val SECRET_KEY = "[^\"]*(?:token|password|secret|code|otp|nonce|authorization|cookie|apikey)[^\"]*"
         private val STRING_FIELD = Regex("\"($SECRET_KEY)\"\\s*:\\s*\"(?:[^\"\\\\]|\\\\.)*\"", RegexOption.IGNORE_CASE)
         private val ARRAY_FIELD = Regex("\"($SECRET_KEY)\"\\s*:\\s*\\[[^\\]]*]", RegexOption.IGNORE_CASE)
         private val ERROR_CODE = Regex("[A-Z_]+")
+        private val GOTRUE_ERROR_CODE = Regex("[a-z_]+")
 
         // Longitud y bordes bastan para detectar una contraseña mal enviada (espacios, vacía) sin revelarla.
         private fun passwordShape(raw: String): String {
@@ -103,6 +104,8 @@ internal class DebugHttpLogInterceptor(
                 val value = match.value.substringAfter(':').trim().trim('"')
                 // Un «code» de error de negocio (INVALID_CREDENTIALS) no es secreto y es lo que se quiere ver.
                 if (key.equals("code", ignoreCase = true) && ERROR_CODE.matches(value)) match.value
+                // `error_code` de GoTrue (bad_id_token, provider_disabled…) es un identificador corto en minúsculas, no un secreto.
+                else if (key.equals("error_code", ignoreCase = true) && GOTRUE_ERROR_CODE.matches(value)) match.value
                 else if (key.contains("password", ignoreCase = true)) "\"$key\":\"${passwordShape(value)}\""
                 else "\"$key\":\"$MASK\""
             }
