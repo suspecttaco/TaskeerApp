@@ -115,4 +115,30 @@ class AccessLossTest {
         assertNotNull(dao.access.value["b2"])
         assertEquals(5L, dao.baseline("task", "t-b2")?.serverUpdatedAt)
     }
+
+    @Test
+    fun retiraMarcasYRecordatorios_conSusEntradasDeCola() = runTest {
+        rig.bound()
+        board("b1", pending = true)
+        board("b2")
+        dao.put(com.simposio.taskeer.testing.syncMyDay("t-b1", addedAt = 7L))
+        dao.put(com.simposio.taskeer.testing.syncReminder("r-b1", "t-b1", remindAt = 9L))
+        dao.put(com.simposio.taskeer.testing.syncMyDay("t-b2", addedAt = 7L, pending = false))
+        dao.put(com.simposio.taskeer.testing.syncReminder("r-b2", "t-b2", remindAt = 9L, pending = false))
+        dao.baseline("myDay", "t-b1", 5L)
+        dao.baseline("reminder", "r-b1", 5L)
+        rig.store.collect(rig.now)
+        assertTrue(dao.queueRows.value.values.any { it.entity == "myDay" })
+        assertTrue(dao.queueRows.value.values.any { it.entity == "reminder" })
+
+        apply(accessTombstone("b1"))
+
+        assertNull(dao.myDay.value["t-b1"])
+        assertNull(dao.reminders.value["r-b1"])
+        assertTrue(dao.queueRows.value.isEmpty())
+        assertNull(dao.baseline("myDay", "t-b1"))
+        assertNull(dao.baseline("reminder", "r-b1"))
+        assertNotNull(dao.myDay.value["t-b2"])
+        assertNotNull(dao.reminders.value["r-b2"])
+    }
 }

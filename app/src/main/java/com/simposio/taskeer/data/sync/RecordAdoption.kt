@@ -2,6 +2,9 @@ package com.simposio.taskeer.data.sync
 
 import com.simposio.taskeer.data.local.BoardEntity
 import com.simposio.taskeer.data.local.ColumnEntity
+import com.simposio.taskeer.data.local.DISMISSED_ADDED_AT
+import com.simposio.taskeer.data.local.MyDayEntryEntity
+import com.simposio.taskeer.data.local.ReminderEntity
 import com.simposio.taskeer.data.local.SubtaskEntity
 import com.simposio.taskeer.data.local.SyncableEntity
 import com.simposio.taskeer.data.local.TaskEntity
@@ -101,6 +104,40 @@ internal fun SubtaskEntity.adoptedFrom(record: ServerRecord, me: String): Subtas
     )
 }
 
+// Una sugerencia descartada solo existe en local (centinela en addedAt): el tombstone del servidor no la convierte en «quitada».
+internal fun MyDayEntryEntity.adoptedFrom(record: ServerRecord): MyDayEntryEntity {
+    val (updated, deleted) = record.stamp()
+    val keepDismissal = deleted != null && addedAt == DISMISSED_ADDED_AT
+    return copy(
+        addedAt = if (keepDismissal) addedAt else record.fields.orKeep("addedAt", addedAt) { it.millis() ?: addedAt },
+        updatedAt = updated,
+        deletedAt = deleted,
+        pending = false,
+    )
+}
+
+// Un SENT nunca vuelve a PENDING (el servidor lo rechaza igual) y un recordatorio borrado no puede seguir pendiente:
+// el reconciliador agenda la alarma desde las filas PENDING.
+internal fun ReminderEntity.adoptedFrom(record: ServerRecord): ReminderEntity {
+    val (updated, deleted) = record.stamp()
+    val f = record.fields
+    val incoming = f.orKeep("status", status) { it as? String ?: status }
+    val resolved = when {
+        status == STATUS_SENT && incoming == STATUS_PENDING -> status
+        deleted != null && incoming == STATUS_PENDING -> STATUS_DISMISSED
+        else -> incoming
+    }
+    return copy(
+        taskId = f.orKeep("taskId", taskId) { it as? String ?: taskId },
+        remindAt = f.orKeep("remindAt", remindAt) { it.millis() ?: remindAt },
+        status = resolved,
+        sentAt = f.orKeep("sentAt", sentAt) { it.millis() },
+        updatedAt = updated,
+        deletedAt = deleted,
+        pending = false,
+    )
+}
+
 // El servidor no manda createdAt en los registros que nacen de un envío: la versión del servidor lo sustituye.
 private fun ServerRecord.createdAtMillis(): Long = fields["createdAt"].millis() ?: updatedAt.toEpochMilli()
 
@@ -134,6 +171,17 @@ internal fun ServerRecord.toNewRow(me: String): SyncableEntity? {
                 createdAt = created, updatedAt = updatedAt.toEpochMilli(), pending = false, deletedAt = null,
             ).adoptedFrom(this, me)
         }
+        SyncEntity.MY_DAY -> {
+            if (fields["addedAt"].millis() == null) return null
+            MyDayEntryEntity(id, addedAt = 0L, updatedAt = updatedAt.toEpochMilli(), pending = false, deletedAt = null).adoptedFrom(this)
+        }
+        SyncEntity.REMINDER -> {
+            if ((fields["taskId"] as? String) == null || fields["remindAt"].millis() == null) return null
+            ReminderEntity(
+                id = id, taskId = "", remindAt = 0L, status = STATUS_PENDING, sentAt = null,
+                createdAt = created, updatedAt = updatedAt.toEpochMilli(), pending = false, deletedAt = null,
+            ).adoptedFrom(this)
+        }
         else -> null
     }
 }
@@ -144,7 +192,12 @@ internal fun SyncableEntity.adoptedFrom(record: ServerRecord, me: String): Synca
     is SubtaskEntity -> adoptedFrom(record, me)
     is BoardEntity -> adoptedFrom(record)
     is ColumnEntity -> adoptedFrom(record)
+    is MyDayEntryEntity -> adoptedFrom(record)
+    is ReminderEntity -> adoptedFrom(record)
     else -> error("Entidad no sincronizable: ${this::class.simpleName}")
 }
 
 private const val DEFAULT_PRIORITY = "MEDIUM"
+private const val STATUS_PENDING = "PENDING"
+private const val STATUS_SENT = "SENT"
+private const val STATUS_DISMISSED = "DISMISSED"

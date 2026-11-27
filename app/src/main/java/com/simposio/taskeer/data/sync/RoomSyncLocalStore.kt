@@ -3,6 +3,8 @@ package com.simposio.taskeer.data.sync
 import com.simposio.taskeer.data.local.BoardAccessEntity
 import com.simposio.taskeer.data.local.BoardEntity
 import com.simposio.taskeer.data.local.ColumnEntity
+import com.simposio.taskeer.data.local.MyDayEntryEntity
+import com.simposio.taskeer.data.local.ReminderEntity
 import com.simposio.taskeer.data.local.QUEUE_STATE_QUEUED
 import com.simposio.taskeer.data.local.QUEUE_STATE_STUCK
 import com.simposio.taskeer.data.local.SubtaskEntity
@@ -59,6 +61,14 @@ class RoomSyncLocalStore(
         dao.pendingSubtasks().forEach { subtask ->
             val parent = dao.findTask(subtask.taskId)?.shape() ?: return@forEach
             if (SyncScope.allows(SyncEntity.SUBTASK, parent, scope)) reconcile(SyncEntity.SUBTASK, subtask, now)
+        }
+        dao.pendingMyDay().forEach { entry ->
+            val shape = dao.findTask(entry.id)?.shape() ?: return@forEach
+            if (SyncScope.allows(SyncEntity.MY_DAY, shape, scope)) reconcile(SyncEntity.MY_DAY, entry, now)
+        }
+        dao.pendingReminders().forEach { reminder ->
+            val shape = dao.findTask(reminder.taskId)?.shape() ?: return@forEach
+            if (SyncScope.allows(SyncEntity.REMINDER, shape, scope)) reconcile(SyncEntity.REMINDER, reminder, now)
         }
     }
 
@@ -132,8 +142,18 @@ class RoomSyncLocalStore(
                 val parent = dao.findSubtask(entry.entityId)?.let { dao.findTask(it.taskId) }
                 parent?.shape()?.let { SyncScope.allows(entity, it, scope) && !taskAwaitsWorkspace(parent) } ?: false
             }
+            SyncEntity.MY_DAY, SyncEntity.REMINDER -> {
+                val task = personalTask(entity, entry.entityId)
+                task?.shape()?.let { SyncScope.allows(entity, it, scope) && !taskAwaitsWorkspace(task) } ?: false
+            }
             else -> false
         }
+    }
+
+    // Las marcas de Mi día usan el id de la tarea; el recordatorio guarda el suyo y apunta a la tarea.
+    private suspend fun personalTask(entity: SyncEntity, id: String): TaskEntity? = when (entity) {
+        SyncEntity.MY_DAY -> dao.findTask(id)
+        else -> dao.findReminder(id)?.let { dao.findTask(it.taskId) }
     }
 
     // Un tablero nuevo sube al workspace personal, que llega con la primera traída: hasta entonces ni él ni lo que cuelga
@@ -193,8 +213,18 @@ class RoomSyncLocalStore(
         SyncEntity.SUBTASK -> dao.findSubtask(id)?.let { subtaskData(it, me) }
         SyncEntity.BOARD -> dao.findBoard(id)?.let { boardData(it) }
         SyncEntity.COLUMN -> dao.findColumn(id)?.let { columnData(it) }
+        SyncEntity.MY_DAY -> dao.findMyDay(id)?.let { linkedMapOf("addedAt" to SyncTimestamps.format(Instant.ofEpochMilli(it.addedAt))) }
+        SyncEntity.REMINDER -> dao.findReminder(id)?.let { reminderData(it) }
         else -> null
     }
+
+    // Origen y creación los fija el servidor (`origin = MOBILE`); aquí solo viaja el estado.
+    private fun reminderData(reminder: ReminderEntity): Map<String, Any?> = linkedMapOf(
+        "taskId" to reminder.taskId,
+        "remindAt" to SyncTimestamps.format(Instant.ofEpochMilli(reminder.remindAt)),
+        "status" to reminder.status,
+        "sentAt" to reminder.sentAt?.let { SyncTimestamps.format(Instant.ofEpochMilli(it)) },
+    )
 
     // El alta lleva el workspace y las columnas del cliente (con sus ids) para que el servidor no siembre otras; después
     // solo viaja el nombre. Sin workspace personal conocido no hay alta posible.
@@ -292,6 +322,8 @@ class RoomSyncLocalStore(
             is SubtaskEntity -> dao.commitSubtask(row, baseline, mutationId)
             is BoardEntity -> dao.commitBoard(row, baseline, mutationId)
             is ColumnEntity -> dao.commitColumn(row, baseline, mutationId)
+            is MyDayEntryEntity -> dao.commitMyDay(row, baseline, mutationId)
+            is ReminderEntity -> dao.commitReminder(row, baseline, mutationId)
             else -> error("Entidad no sincronizable: ${row::class.simpleName}")
         }
     }
@@ -392,8 +424,9 @@ class RoomSyncLocalStore(
         // El alcance de la página es lo que el servidor declara completo: lo demás ni se aplica ni se reconcilia.
         val scope = scopeHolder.scope.value intersect page.supportedEntities
         val losses = mutableListOf<SyncLoss>()
+        var remindersChanged = false
         dao.inTransaction {
-            page.records.forEach { applyRecord(it, scope, me, now, losses) }
+            page.records.forEach { if (applyRecord(it, scope, me, now, losses) && it.entity == SyncEntity.REMINDER) remindersChanged = true }
             when (commit) {
                 PageCommit.KeepCursor -> Unit
                 PageCommit.SaveCursor -> dao.upsertMeta(SyncMetaEntity(SyncMetaKeys.CURSOR, page.nextCursor))
@@ -403,15 +436,16 @@ class RoomSyncLocalStore(
                 }
             }
         }
-        return PageEffect(losses)
+        return PageEffect(losses, remindersChanged)
     }
 
-    private suspend fun applyRecord(record: ServerRecord, scope: Set<SyncEntity>, me: String, now: Instant, losses: MutableList<SyncLoss>) {
-        if (record.entity !in PULLED || !recordInScope(record, scope)) return
+    // Verdadero si el registro se aplicó (no estaba fuera de alcance ni era una versión ya conocida).
+    private suspend fun applyRecord(record: ServerRecord, scope: Set<SyncEntity>, me: String, now: Instant, losses: MutableList<SyncLoss>): Boolean {
+        if (record.entity !in PULLED || !recordInScope(record, scope)) return false
         val serverMillis = record.updatedAt.toEpochMilli()
         val base = dao.baseline(record.entity.wireName, record.id)?.serverUpdatedAt
         // Una versión ya conocida (o más vieja) no cambia nada: así repetir una página no pisa ni resucita filas.
-        if (base != null && serverMillis <= base) return
+        if (base != null && serverMillis <= base) return false
         val usable = when (record.entity) {
             SyncEntity.WORKSPACE -> true.also { applyWorkspace(record, losses) }
             SyncEntity.BOARD_ACCESS -> true.also { applyAccess(record, losses) }
@@ -420,6 +454,7 @@ class RoomSyncLocalStore(
             else -> applyRow(record, base, me, now, losses)
         }
         if (usable) recordBaseline(record)
+        return usable
     }
 
     // El servidor retiró el tablero (o ya no lo vemos): no hay tombstone que conservar, solo se limpia todo lo suyo.
@@ -512,6 +547,8 @@ class RoomSyncLocalStore(
             is SubtaskEntity -> dao.upsertSubtask(row)
             is BoardEntity -> dao.upsertBoard(row)
             is ColumnEntity -> dao.upsertColumn(row)
+            is MyDayEntryEntity -> dao.upsertMyDay(row)
+            is ReminderEntity -> dao.upsertReminder(row)
         }
     }
 
@@ -529,6 +566,15 @@ class RoomSyncLocalStore(
             val parent = taskId?.let { dao.findTask(it) }?.shape()
             // Un hijo puede llegar antes que su padre: se guarda y no se muestra hasta que el padre exista.
             if (parent != null) SyncScope.allows(SyncEntity.SUBTASK, parent, scope) else SyncEntity.SUBTASK in scope
+        }
+        SyncEntity.MY_DAY -> {
+            val shape = dao.findTask(record.id)?.shape()
+            if (shape != null) SyncScope.allows(SyncEntity.MY_DAY, shape, scope) else SyncEntity.MY_DAY in scope
+        }
+        SyncEntity.REMINDER -> {
+            val taskId = record.fields["taskId"] as? String ?: dao.findReminder(record.id)?.taskId
+            val shape = taskId?.let { dao.findTask(it) }?.shape()
+            if (shape != null) SyncScope.allows(SyncEntity.REMINDER, shape, scope) else SyncEntity.REMINDER in scope
         }
         else -> false
     }
@@ -563,6 +609,18 @@ class RoomSyncLocalStore(
                 settleAbsent(SyncEntity.SUBTASK, subtask, now)
             }
         }
+        dao.liveMyDay().forEach { entry ->
+            val shape = dao.findTask(entry.id)?.shape() ?: return@forEach
+            if (SyncScope.allows(SyncEntity.MY_DAY, shape, scope) && (SyncEntity.MY_DAY to entry.id) !in seen) {
+                settleAbsent(SyncEntity.MY_DAY, entry, now)
+            }
+        }
+        dao.liveReminders().forEach { reminder ->
+            val shape = dao.findTask(reminder.taskId)?.shape() ?: return@forEach
+            if (SyncScope.allows(SyncEntity.REMINDER, shape, scope) && (SyncEntity.REMINDER to reminder.id) !in seen) {
+                settleAbsent(SyncEntity.REMINDER, reminder, now)
+            }
+        }
     }
 
     private suspend fun settleAbsent(entity: SyncEntity, row: SyncableEntity, now: Instant) {
@@ -579,6 +637,9 @@ class RoomSyncLocalStore(
         is SubtaskEntity -> copy(updatedAt = updatedAt, pending = pending, deletedAt = deletedAt)
         is BoardEntity -> copy(updatedAt = updatedAt, pending = pending, deletedAt = deletedAt)
         is ColumnEntity -> copy(updatedAt = updatedAt, pending = pending, deletedAt = deletedAt)
+        is MyDayEntryEntity -> copy(updatedAt = updatedAt, pending = pending, deletedAt = deletedAt)
+        is ReminderEntity ->
+            copy(updatedAt = updatedAt, pending = pending, deletedAt = deletedAt, status = if (deletedAt != null && status == "PENDING") "DISMISSED" else status)
         else -> this
     }
 
@@ -619,6 +680,10 @@ class RoomSyncLocalStore(
             if (SyncScope.allows(SyncEntity.SUBTASK, inBoard, scope)) total += counts.boardSubtasks
             if (SyncEntity.BOARD in scope) total += counts.boards
             if (SyncEntity.BOARD in scope && SyncEntity.COLUMN in scope) total += counts.columns
+            if (SyncScope.allows(SyncEntity.MY_DAY, inList, scope)) total += counts.listMyDay
+            if (SyncScope.allows(SyncEntity.MY_DAY, inBoard, scope)) total += counts.boardMyDay
+            if (SyncScope.allows(SyncEntity.REMINDER, inList, scope)) total += counts.listReminders
+            if (SyncScope.allows(SyncEntity.REMINDER, inBoard, scope)) total += counts.boardReminders
             total
         }.distinctUntilChanged()
 
@@ -630,6 +695,8 @@ class RoomSyncLocalStore(
         SyncEntity.SUBTASK -> dao.findSubtask(id)
         SyncEntity.BOARD -> dao.findBoard(id)
         SyncEntity.COLUMN -> dao.findColumn(id)
+        SyncEntity.MY_DAY -> dao.findMyDay(id)
+        SyncEntity.REMINDER -> dao.findReminder(id)
         else -> null
     }
 
@@ -658,7 +725,7 @@ class RoomSyncLocalStore(
     private companion object {
         val PULLED = setOf(
             SyncEntity.WORKSPACE, SyncEntity.BOARD_ACCESS, SyncEntity.BOARD, SyncEntity.COLUMN,
-            SyncEntity.LIST, SyncEntity.TASK, SyncEntity.SUBTASK,
+            SyncEntity.LIST, SyncEntity.TASK, SyncEntity.SUBTASK, SyncEntity.MY_DAY, SyncEntity.REMINDER,
         )
         const val CODE_DEPENDENCY_NOT_FOUND = "DEPENDENCY_NOT_FOUND"
         const val CODE_LIST_NAME_TAKEN = "LIST_NAME_TAKEN"

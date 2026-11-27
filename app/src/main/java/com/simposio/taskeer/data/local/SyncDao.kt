@@ -59,6 +59,48 @@ abstract class SyncDao {
     @Query("SELECT * FROM columns WHERE pending = 1")
     abstract suspend fun pendingColumns(): List<ColumnEntity>
 
+    @Query("SELECT * FROM my_day_tasks WHERE pending = 1")
+    abstract suspend fun pendingMyDay(): List<MyDayEntryEntity>
+
+    @Query("SELECT * FROM reminders WHERE pending = 1")
+    abstract suspend fun pendingReminders(): List<ReminderEntity>
+
+    @Query("SELECT * FROM my_day_tasks WHERE deletedAt IS NULL")
+    abstract suspend fun liveMyDay(): List<MyDayEntryEntity>
+
+    @Query("SELECT * FROM reminders WHERE deletedAt IS NULL")
+    abstract suspend fun liveReminders(): List<ReminderEntity>
+
+    @Query("SELECT * FROM my_day_tasks WHERE id = :id")
+    abstract suspend fun findMyDay(id: String): MyDayEntryEntity?
+
+    @Query("SELECT * FROM reminders WHERE id = :id")
+    abstract suspend fun findReminder(id: String): ReminderEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsertMyDay(entry: MyDayEntryEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsertReminder(reminder: ReminderEntity)
+
+    @Query("UPDATE my_day_tasks SET pending = 0 WHERE id = :id AND updatedAt = :version")
+    abstract suspend fun clearPendingMyDay(id: String, version: Long): Int
+
+    @Query("UPDATE reminders SET pending = 0 WHERE id = :id AND updatedAt = :version")
+    abstract suspend fun clearPendingReminder(id: String, version: Long): Int
+
+    @Query(
+        "UPDATE my_day_tasks SET pending = 1 WHERE deletedAt IS NULL AND id NOT IN " +
+            "(SELECT entityId FROM sync_baseline WHERE entity = 'myDay')",
+    )
+    abstract suspend fun markUnsyncedMyDayPending()
+
+    @Query(
+        "UPDATE reminders SET pending = 1 WHERE deletedAt IS NULL AND id NOT IN " +
+            "(SELECT entityId FROM sync_baseline WHERE entity = 'reminder')",
+    )
+    abstract suspend fun markUnsyncedRemindersPending()
+
     @Query("SELECT * FROM boards WHERE deletedAt IS NULL")
     abstract suspend fun liveBoards(): List<BoardEntity>
 
@@ -205,7 +247,15 @@ abstract class SyncDao {
             "(SELECT COUNT(*) FROM subtasks s WHERE s.pending = 1 AND EXISTS " +
             "(SELECT 1 FROM tasks t WHERE t.id = s.taskId AND t.columnId IS NOT NULL)) AS boardSubtasks, " +
             "(SELECT COUNT(*) FROM boards WHERE pending = 1) AS boards, " +
-            "(SELECT COUNT(*) FROM columns WHERE pending = 1) AS columns",
+            "(SELECT COUNT(*) FROM columns WHERE pending = 1) AS columns, " +
+            "(SELECT COUNT(*) FROM my_day_tasks m WHERE m.pending = 1 AND m.addedAt <> $DISMISSED_ADDED_AT AND EXISTS " +
+            "(SELECT 1 FROM tasks t WHERE t.id = m.id AND t.listId IS NOT NULL)) AS listMyDay, " +
+            "(SELECT COUNT(*) FROM my_day_tasks m WHERE m.pending = 1 AND m.addedAt <> $DISMISSED_ADDED_AT AND EXISTS " +
+            "(SELECT 1 FROM tasks t WHERE t.id = m.id AND t.columnId IS NOT NULL)) AS boardMyDay, " +
+            "(SELECT COUNT(*) FROM reminders r WHERE r.pending = 1 AND EXISTS " +
+            "(SELECT 1 FROM tasks t WHERE t.id = r.taskId AND t.listId IS NOT NULL)) AS listReminders, " +
+            "(SELECT COUNT(*) FROM reminders r WHERE r.pending = 1 AND EXISTS " +
+            "(SELECT 1 FROM tasks t WHERE t.id = r.taskId AND t.columnId IS NOT NULL)) AS boardReminders",
     )
     abstract fun observePendingCounts(): Flow<PendingCountsRow>
 
@@ -254,6 +304,8 @@ abstract class SyncDao {
         SyncEntity.SUBTASK.wireName -> clearPendingSubtask(id, version)
         SyncEntity.BOARD.wireName -> clearPendingBoard(id, version)
         SyncEntity.COLUMN.wireName -> clearPendingColumn(id, version)
+        SyncEntity.MY_DAY.wireName -> clearPendingMyDay(id, version)
+        SyncEntity.REMINDER.wireName -> clearPendingReminder(id, version)
         else -> 0
     }
 
@@ -300,6 +352,20 @@ abstract class SyncDao {
         mutationId?.let { removeQueue(it) }
     }
 
+    @Transaction
+    open suspend fun commitMyDay(entry: MyDayEntryEntity, baseline: Long?, mutationId: String?) {
+        upsertMyDay(entry)
+        baseline?.let { upsertBaseline(SyncBaselineEntity(SyncEntity.MY_DAY.wireName, entry.id, it)) }
+        mutationId?.let { removeQueue(it) }
+    }
+
+    @Transaction
+    open suspend fun commitReminder(reminder: ReminderEntity, baseline: Long?, mutationId: String?) {
+        upsertReminder(reminder)
+        baseline?.let { upsertBaseline(SyncBaselineEntity(SyncEntity.REMINDER.wireName, reminder.id, it)) }
+        mutationId?.let { removeQueue(it) }
+    }
+
     // Lectura, decisión y escritura de una página de cambios en un solo bloque: nada puede editarse entre medias.
     @Transaction
     open suspend fun inTransaction(block: suspend () -> Unit) {
@@ -313,6 +379,8 @@ abstract class SyncDao {
         markUnsyncedSubtasksPending()
         markUnsyncedBoardsPending()
         markUnsyncedColumnsPending()
+        markUnsyncedMyDayPending()
+        markUnsyncedRemindersPending()
     }
 
     // Una lista local pasa a ser la del servidor: sus tareas la siguen y la fila local desaparece sin enviar un borrado.
@@ -372,6 +440,10 @@ abstract class SyncDao {
             "(SELECT t.id FROM tasks t WHERE t.columnId IN (SELECT c.id FROM columns c WHERE c.boardId = :boardId)))) OR " +
             "(entity = 'task' AND entityId IN (SELECT t.id FROM tasks t WHERE t.columnId IN " +
             "(SELECT c.id FROM columns c WHERE c.boardId = :boardId))) OR " +
+            "(entity = 'myDay' AND entityId IN (SELECT t.id FROM tasks t WHERE t.columnId IN " +
+            "(SELECT c.id FROM columns c WHERE c.boardId = :boardId))) OR " +
+            "(entity = 'reminder' AND entityId IN (SELECT r.id FROM reminders r WHERE r.taskId IN " +
+            "(SELECT t.id FROM tasks t WHERE t.columnId IN (SELECT c.id FROM columns c WHERE c.boardId = :boardId)))) OR " +
             "(entity = 'column' AND entityId IN (SELECT c.id FROM columns c WHERE c.boardId = :boardId)) OR " +
             "(entity = 'board' AND entityId = :boardId)",
     )
@@ -383,6 +455,10 @@ abstract class SyncDao {
             "(SELECT t.id FROM tasks t WHERE t.columnId IN (SELECT c.id FROM columns c WHERE c.boardId = :boardId)))) OR " +
             "(entity = 'task' AND entityId IN (SELECT t.id FROM tasks t WHERE t.columnId IN " +
             "(SELECT c.id FROM columns c WHERE c.boardId = :boardId))) OR " +
+            "(entity = 'myDay' AND entityId IN (SELECT t.id FROM tasks t WHERE t.columnId IN " +
+            "(SELECT c.id FROM columns c WHERE c.boardId = :boardId))) OR " +
+            "(entity = 'reminder' AND entityId IN (SELECT r.id FROM reminders r WHERE r.taskId IN " +
+            "(SELECT t.id FROM tasks t WHERE t.columnId IN (SELECT c.id FROM columns c WHERE c.boardId = :boardId)))) OR " +
             "(entity = 'column' AND entityId IN (SELECT c.id FROM columns c WHERE c.boardId = :boardId)) OR " +
             "(entity = 'board' AND entityId = :boardId)",
     )

@@ -3,7 +3,10 @@ package com.simposio.taskeer.testing
 import com.simposio.taskeer.data.local.BoardAccessEntity
 import com.simposio.taskeer.data.local.BoardEntity
 import com.simposio.taskeer.data.local.ColumnEntity
+import com.simposio.taskeer.data.local.DISMISSED_ADDED_AT
+import com.simposio.taskeer.data.local.MyDayEntryEntity
 import com.simposio.taskeer.data.local.PendingCountsRow
+import com.simposio.taskeer.data.local.ReminderEntity
 import com.simposio.taskeer.data.local.SubtaskEntity
 import com.simposio.taskeer.data.local.SyncBaselineEntity
 import com.simposio.taskeer.data.local.SyncDao
@@ -31,8 +34,8 @@ class FakeSyncDao : SyncDao() {
     val columns = MutableStateFlow<Map<String, ColumnEntity>>(emptyMap())
     val workspaces = MutableStateFlow<Map<String, SyncWorkspaceEntity>>(emptyMap())
     val access = MutableStateFlow<Map<String, BoardAccessEntity>>(emptyMap())
-    val myDayIds = MutableStateFlow<Set<String>>(emptySet())
-    val reminderTaskIds = MutableStateFlow<Set<String>>(emptySet())
+    val myDay = MutableStateFlow<Map<String, MyDayEntryEntity>>(emptyMap())
+    val reminders = MutableStateFlow<Map<String, ReminderEntity>>(emptyMap())
 
     fun put(list: TaskListEntity) { lists.value = lists.value + (list.id to list) }
     fun put(task: TaskEntity) { tasks.value = tasks.value + (task.id to task) }
@@ -40,6 +43,8 @@ class FakeSyncDao : SyncDao() {
     fun put(board: BoardEntity) { boards.value = boards.value + (board.id to board) }
     fun put(column: ColumnEntity) { columns.value = columns.value + (column.id to column) }
     fun put(workspace: SyncWorkspaceEntity) { workspaces.value = workspaces.value + (workspace.id to workspace) }
+    fun put(entry: MyDayEntryEntity) { myDay.value = myDay.value + (entry.id to entry) }
+    fun put(reminder: ReminderEntity) { reminders.value = reminders.value + (reminder.id to reminder) }
     fun put(row: BoardAccessEntity) { access.value = access.value + (row.boardId to row) }
     fun baseline(entity: String, id: String, serverUpdatedAt: Long) =
         putBaseline(SyncBaselineEntity(entity, id, serverUpdatedAt))
@@ -82,6 +87,36 @@ class FakeSyncDao : SyncDao() {
 
     override suspend fun pendingSubtasks(): List<SubtaskEntity> = subtasks.value.values.filter { it.pending }
 
+    override suspend fun pendingMyDay(): List<MyDayEntryEntity> = myDay.value.values.filter { it.pending }
+
+    override suspend fun pendingReminders(): List<ReminderEntity> = reminders.value.values.filter { it.pending }
+
+    override suspend fun liveMyDay(): List<MyDayEntryEntity> = myDay.value.values.filter { it.deletedAt == null }
+
+    override suspend fun liveReminders(): List<ReminderEntity> = reminders.value.values.filter { it.deletedAt == null }
+
+    override suspend fun findMyDay(id: String): MyDayEntryEntity? = myDay.value[id]
+
+    override suspend fun findReminder(id: String): ReminderEntity? = reminders.value[id]
+
+    override suspend fun upsertMyDay(entry: MyDayEntryEntity) = put(entry)
+
+    override suspend fun upsertReminder(reminder: ReminderEntity) = put(reminder)
+
+    override suspend fun clearPendingMyDay(id: String, version: Long): Int =
+        myDay.value[id]?.takeIf { it.updatedAt == version }?.let { put(it.copy(pending = false)); 1 } ?: 0
+
+    override suspend fun clearPendingReminder(id: String, version: Long): Int =
+        reminders.value[id]?.takeIf { it.updatedAt == version }?.let { put(it.copy(pending = false)); 1 } ?: 0
+
+    override suspend fun markUnsyncedMyDayPending() {
+        myDay.value.values.filter { it.deletedAt == null && baselines.value[("myDay" to it.id)] == null }.forEach { put(it.copy(pending = true)) }
+    }
+
+    override suspend fun markUnsyncedRemindersPending() {
+        reminders.value.values.filter { it.deletedAt == null && baselines.value[("reminder" to it.id)] == null }.forEach { put(it.copy(pending = true)) }
+    }
+
     override suspend fun liveLists(): List<TaskListEntity> = lists.value.values.filter { it.deletedAt == null }
 
     override suspend fun liveTasks(): List<TaskEntity> = tasks.value.values.filter { it.deletedAt == null }
@@ -100,7 +135,7 @@ class FakeSyncDao : SyncDao() {
         transactions++
         val before = listOf(
             lists.value, tasks.value, subtasks.value, queueRows.value, baselines.value, metas.value,
-            boards.value, columns.value, workspaces.value, access.value,
+            boards.value, columns.value, workspaces.value, access.value, myDay.value, reminders.value,
         )
         try {
             super.inTransaction(block)
@@ -115,6 +150,8 @@ class FakeSyncDao : SyncDao() {
             columns.value = before[7] as Map<String, ColumnEntity>
             workspaces.value = before[8] as Map<String, SyncWorkspaceEntity>
             access.value = before[9] as Map<String, BoardAccessEntity>
+            myDay.value = before[10] as Map<String, MyDayEntryEntity>
+            reminders.value = before[11] as Map<String, ReminderEntity>
             throw error
         }
     }
@@ -178,10 +215,14 @@ class FakeSyncDao : SyncDao() {
 
     private fun subtaskIdsOf(boardId: String) = taskIdsOf(boardId).let { ids -> subtasks.value.values.filter { it.taskId in ids }.map { it.id }.toSet() }
 
+    private fun reminderIdsOf(boardId: String) = taskIdsOf(boardId).let { ids -> reminders.value.values.filter { it.taskId in ids }.map { it.id }.toSet() }
+
     override suspend fun purgeQueueOfBoard(boardId: String) {
         val doomed = mapOf(
             "subtask" to subtaskIdsOf(boardId),
             "task" to taskIdsOf(boardId),
+            "myDay" to taskIdsOf(boardId),
+            "reminder" to reminderIdsOf(boardId),
             "column" to columnIdsOf(boardId),
             "board" to setOf(boardId),
         )
@@ -192,6 +233,8 @@ class FakeSyncDao : SyncDao() {
         val doomed = mapOf(
             "subtask" to subtaskIdsOf(boardId),
             "task" to taskIdsOf(boardId),
+            "myDay" to taskIdsOf(boardId),
+            "reminder" to reminderIdsOf(boardId),
             "column" to columnIdsOf(boardId),
             "board" to setOf(boardId),
         )
@@ -203,9 +246,12 @@ class FakeSyncDao : SyncDao() {
         subtasks.value = subtasks.value.filterValues { it.taskId !in ids }
     }
 
-    override suspend fun purgeMyDayOfBoard(boardId: String) { myDayIds.value = myDayIds.value - taskIdsOf(boardId) }
+    override suspend fun purgeMyDayOfBoard(boardId: String) { myDay.value = myDay.value - taskIdsOf(boardId) }
 
-    override suspend fun purgeRemindersOfBoard(boardId: String) { reminderTaskIds.value = reminderTaskIds.value - taskIdsOf(boardId) }
+    override suspend fun purgeRemindersOfBoard(boardId: String) {
+        val ids = taskIdsOf(boardId)
+        reminders.value = reminders.value.filterValues { it.taskId !in ids }
+    }
 
     override suspend fun purgeTasksOfBoard(boardId: String) {
         val ids = taskIdsOf(boardId)
@@ -282,12 +328,14 @@ class FakeSyncDao : SyncDao() {
 
     override suspend fun purgeList(id: String) { lists.value = lists.value - id }
 
-    override fun observePendingCounts(): Flow<PendingCountsRow> = combine(listOf(lists, tasks, subtasks, boards, columns)) { values ->
+    override fun observePendingCounts(): Flow<PendingCountsRow> = combine(listOf(lists, tasks, subtasks, boards, columns, myDay, reminders)) { values ->
         val l = values[0] as Map<String, TaskListEntity>
         val t = values[1] as Map<String, TaskEntity>
         val s = values[2] as Map<String, SubtaskEntity>
         val pendingTasks = t.values.filter { it.pending }
         val pendingSubtasks = s.values.filter { it.pending }
+        val pendingMyDay = (values[5] as Map<String, MyDayEntryEntity>).values.filter { it.pending && it.addedAt != DISMISSED_ADDED_AT }
+        val pendingReminders = (values[6] as Map<String, ReminderEntity>).values.filter { it.pending }
         fun parentIsList(sub: SubtaskEntity) = t[sub.taskId]?.listId != null
         fun parentIsBoard(sub: SubtaskEntity) = t[sub.taskId]?.columnId != null
         PendingCountsRow(
@@ -298,6 +346,10 @@ class FakeSyncDao : SyncDao() {
             boardSubtasks = pendingSubtasks.count(::parentIsBoard),
             boards = boards.value.values.count { it.pending },
             columns = columns.value.values.count { it.pending },
+            listMyDay = pendingMyDay.count { t[it.id]?.listId != null },
+            boardMyDay = pendingMyDay.count { t[it.id]?.columnId != null },
+            listReminders = pendingReminders.count { t[it.taskId]?.listId != null },
+            boardReminders = pendingReminders.count { t[it.taskId]?.columnId != null },
         )
     }
 
@@ -311,9 +363,9 @@ class FakeSyncDao : SyncDao() {
 
     override suspend fun wipeSubtasks() { wipedBusinessTables += "subtasks"; subtasks.value = emptyMap() }
 
-    override suspend fun wipeMyDay() { wipedBusinessTables += "my_day_tasks" }
+    override suspend fun wipeMyDay() { wipedBusinessTables += "my_day_tasks"; myDay.value = emptyMap() }
 
-    override suspend fun wipeReminders() { wipedBusinessTables += "reminders" }
+    override suspend fun wipeReminders() { wipedBusinessTables += "reminders"; reminders.value = emptyMap() }
 
     override suspend fun wipeNotifications() { wipedBusinessTables += "app_notifications" }
 

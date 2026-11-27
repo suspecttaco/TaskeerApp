@@ -98,8 +98,21 @@ fun createAppContainer(context: Context): AppContainer {
     val calendarReadGranted = { isGranted(context, Manifest.permission.READ_CALENDAR) }
     val calendarWriteGranted = { isGranted(context, Manifest.permission.WRITE_CALENDAR) }
     val googleSignInConfig = GoogleSignInConfig(BuildConfig.GOOGLE_WEB_CLIENT_ID)
+    val reminderReconciler = ReminderReconciler(
+        tasks = taskRepository,
+        reminders = reminderRepository,
+        preferences = preferencesRepository,
+        checkpoints = ReminderCheckpointStoreImpl(dataStore),
+        scheduler = AlarmReminderScheduler(context),
+        notifier = HistoryRecordingNotifier(
+            delegate = NotificationReminderNotifier(context),
+            history = notificationHistoryRepository,
+        ),
+        timeZone = timeZoneProvider,
+        clock = Instant::now,
+    )
     val remote = createRemoteRepositories(context, CoroutineScope(SupervisorJob() + Dispatchers.Default))
-    val sync = createSync(context, database.syncDao(), remote)
+    val sync = createSync(context, database.syncDao(), remote) { reminderReconciler.reconcile() }
     val roleSignals = LiveRoleChangeSignals(remote.inbox, remote.live)
     val roleSignalSync = RoleSignalSync(roleSignals, sync)
     return AppContainer(
@@ -114,7 +127,12 @@ fun createAppContainer(context: Context): AppContainer {
         ),
         taskRepository = taskRepository,
         taskListRepository = taskListRepository,
-        subtaskRepository = SubtaskRepositoryImpl(database.subtaskDao(), database.taskDao()),
+        subtaskRepository = SubtaskRepositoryImpl(
+            database.subtaskDao(),
+            database.taskDao(),
+            boardOfColumn = { columnId -> database.columnDao().findById(columnId)?.boardId },
+            gate = gate,
+        ),
         myDayRepository = MyDayRepositoryImpl(
             database.myDayDao(),
             database.taskDao(),
@@ -123,19 +141,7 @@ fun createAppContainer(context: Context): AppContainer {
         ),
         plannedRepository = PlannedRepositoryImpl(database.myDayDao(), timeZoneProvider, dayWindowSource),
         reminderRepository = reminderRepository,
-        reminderReconciler = ReminderReconciler(
-            tasks = taskRepository,
-            reminders = reminderRepository,
-            preferences = preferencesRepository,
-            checkpoints = ReminderCheckpointStoreImpl(dataStore),
-            scheduler = AlarmReminderScheduler(context),
-            notifier = HistoryRecordingNotifier(
-                delegate = NotificationReminderNotifier(context),
-                history = notificationHistoryRepository,
-            ),
-            timeZone = timeZoneProvider,
-            clock = Instant::now,
-        ),
+        reminderReconciler = reminderReconciler,
         notificationHistoryRepository = notificationHistoryRepository,
         calendarRepository = DeviceCalendarRepository(
             resolver = context.contentResolver,
@@ -209,7 +215,12 @@ fun createTaskRepository(
 fun createTaskListRepository(taskListDao: TaskListDao, taskDao: TaskDao): TaskListRepository =
     TaskListRepositoryImpl(taskListDao, taskDao)
 
-private fun createSync(context: Context, dao: SyncDao, remote: RemoteRepositories): SyncRepositoryImpl {
+private fun createSync(
+    context: Context,
+    dao: SyncDao,
+    remote: RemoteRepositories,
+    onRemindersChanged: suspend () -> Unit,
+): SyncRepositoryImpl {
     val scopeHolder = SyncScopeHolder()
     val store = RoomSyncLocalStore(dao, scopeHolder)
     val triggers = SyncTriggers(
@@ -229,6 +240,7 @@ private fun createSync(context: Context, dao: SyncDao, remote: RemoteRepositorie
         triggers = triggers,
         retry = triggers,
         clock = Instant::now,
+        onRemindersChanged = onRemindersChanged,
     )
     return SyncRepositoryImpl(engine, triggers)
 }

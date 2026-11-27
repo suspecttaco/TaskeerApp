@@ -33,7 +33,8 @@ sealed interface PageCommit {
     }
 }
 
-class PageEffect(val losses: List<SyncLoss>)
+// `remindersChanged`: la página trajo recordatorios nuevos o cambiados; el motor avisa al reconciliador de alarmas.
+class PageEffect(val losses: List<SyncLoss>, val remindersChanged: Boolean = false)
 
 object SyncMetaKeys {
     const val BOUND_USER_ID = "boundUserId"

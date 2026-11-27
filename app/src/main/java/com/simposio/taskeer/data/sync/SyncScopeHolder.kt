@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 // Alcance efectivo (app ∩ supportedEntities). Antes del primer sondeo se asume el de la app; el motor lo ajusta en cuanto lo sabe.
-class SyncScopeHolder(initial: Set<SyncEntity> = SyncScope.APP_WITH_BOARDS) {
+class SyncScopeHolder(initial: Set<SyncEntity> = SyncScope.APP_FULL) {
     private val mutable = MutableStateFlow(initial)
 
     val scope: StateFlow<Set<SyncEntity>> = mutable.asStateFlow()

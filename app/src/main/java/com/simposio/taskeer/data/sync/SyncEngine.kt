@@ -48,8 +48,9 @@ class SyncEngine(
     private val retry: RetryScheduler,
     private val clock: () -> Instant,
     private val random: Random = Random.Default,
-    private val appScope: Set<SyncEntity> = SyncScope.APP_WITH_BOARDS,
+    private val appScope: Set<SyncEntity> = SyncScope.APP_FULL,
     private val minAutomaticSpacing: Duration = MIN_AUTOMATIC_SPACING,
+    private val onRemindersChanged: suspend () -> Unit = {},
 ) {
     private val cycleLock = Mutex()
     private val paused = MutableStateFlow<PauseReason?>(null)
@@ -293,7 +294,9 @@ class SyncEngine(
                         page.hasMore -> PageCommit.KeepCursor
                         else -> PageCommit.FinishSnapshot(seen.toSet())
                     }
-                    losses += store.applyPage(page, me, clock(), commit).losses
+                    val effect = store.applyPage(page, me, clock(), commit)
+                    losses += effect.losses
+                    if (effect.remindersChanged) onRemindersChanged()
                     if (!page.hasMore) return PullReport(losses, stopped = false)
                     cursor = page.nextCursor
                 }

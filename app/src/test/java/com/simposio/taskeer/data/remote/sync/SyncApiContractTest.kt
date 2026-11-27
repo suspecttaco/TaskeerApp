@@ -44,7 +44,7 @@ class SyncApiContractTest {
 
     @Test
     fun vectores_push_serializacionExacta() {
-        for (name in listOf("V05", "V11", "V14", "V16", "V17", "V20")) {
+        for (name in listOf("V05", "V11", "V14", "V16", "V17", "V18", "V19", "V20")) {
             val request = vector(name).getJSONObject("request")
 
             val sent = SyncApiContract.serializeBatch(mutationsOf(request))
@@ -55,7 +55,7 @@ class SyncApiContractTest {
 
     @Test
     fun vectores_parseoDeResultados() {
-        for (name in listOf("V05", "V11", "V14", "V16", "V17", "V20")) {
+        for (name in listOf("V05", "V11", "V14", "V16", "V17", "V18", "V19", "V20")) {
             val v = vector(name)
             val batch = mutationsOf(v.getJSONObject("request"))
             val expected = v.getJSONObject("response").getJSONArray("results")
@@ -293,5 +293,22 @@ class SyncApiContractTest {
         assertEquals(2, (board.fields["columns"] as List<*>).size)
         assertEquals("a0000000-0000-4000-8000-000000000001", board.fields["workspaceId"])
         assertEquals(SyncEntity.COLUMN, (parsed[1] as PushOutcome.Applied).record.entity)
+    }
+
+    @Test
+    fun v18v19_miDiaYRecordatorio_lecturaDeLaRespuesta() {
+        val v18 = vector("V18")
+        val mark = ((SyncApiContract.parsePush(v18.getJSONObject("response").toString(), mutationsOf(v18.getJSONObject("request"))) as SyncApiContract.Parsed.Ok)
+            .value.single() as PushOutcome.Applied).record
+        assertEquals(SyncEntity.MY_DAY, mark.entity)
+        assertEquals("30000000-0000-4000-8000-000000000001", mark.id)
+        assertEquals("2026-11-26T08:00:00.000Z", mark.fields["addedAt"])
+
+        val v19 = vector("V19")
+        val reminder = ((SyncApiContract.parsePush(v19.getJSONObject("response").toString(), mutationsOf(v19.getJSONObject("request"))) as SyncApiContract.Parsed.Ok)
+            .value.single() as PushOutcome.Applied).record
+        assertEquals(SyncEntity.REMINDER, reminder.entity)
+        assertEquals("MOBILE", reminder.fields["origin"])
+        assertEquals("PENDING", reminder.fields["status"])
     }
 }

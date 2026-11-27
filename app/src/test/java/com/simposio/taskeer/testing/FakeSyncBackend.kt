@@ -168,6 +168,15 @@ class FakeSyncBackend(
             }
             if (clash != null) return PushOutcome.Rejected(id, "LIST_NAME_TAKEN", clash.record())
         }
+        if (m.entity == SyncEntity.MY_DAY) return upsertMyDay(m, existing, data)
+        if (m.entity == SyncEntity.REMINDER && existing?.fields?.get("status") == "SENT" && data["status"] == "PENDING") {
+            return PushOutcome.Rejected(id, "INVALID_MUTATION", existing.record())
+        }
+        if (m.entity == SyncEntity.REMINDER && existing == null) {
+            val created = Stored(m.entity, m.id, data + ("origin" to "MOBILE"), serverNow, null)
+            records[key] = created
+            return PushOutcome.Applied(id, created.record())
+        }
         if (existing == null && m.entity == SyncEntity.BOARD) return createBoard(m, data)
         if (existing == null) {
             val created = Stored(m.entity, m.id, data, serverNow, null)
@@ -183,6 +192,20 @@ class FakeSyncBackend(
         } else {
             PushOutcome.Conflict(id, existing.record())
         }
+    }
+
+    // Contrato 1.0, sección 5.4: renovar solo con un `addedAt` posterior; un tombstone se reactiva; el instante se acota a `serverNow`.
+    private fun upsertMyDay(m: PushMutation, existing: Stored?, data: Map<String, Any?>): PushOutcome {
+        val sent = minOf(SyncTimestamps.parse(data["addedAt"] as String)!!, serverNow)
+        val fields = mapOf("taskId" to m.id, "addedAt" to SyncTimestamps.format(sent))
+        val stored = existing ?: Stored(SyncEntity.MY_DAY, m.id, fields, serverNow, null).also { records[SyncEntity.MY_DAY to m.id] = it }
+        val current = SyncTimestamps.parse(stored.fields["addedAt"] as String)!!
+        if (existing != null && (existing.deletedAt != null || sent.isAfter(current))) {
+            existing.fields = fields
+            existing.updatedAt = serverNow
+            existing.deletedAt = null
+        }
+        return PushOutcome.Applied(m.clientMutationId, stored.record())
     }
 
     // Un alta de tablero siembra las columnas del cliente con sus ids (contrato 1.0, sección 5.4) y las devuelve con su versión.
@@ -225,6 +248,8 @@ class FakeSyncBackend(
                     ?: (data["columnId"] as? String)?.let { records[SyncEntity.COLUMN to it]?.deletedAt != null || (SyncEntity.COLUMN to it) !in records }
             SyncEntity.COLUMN -> (data["boardId"] as? String)?.let { (SyncEntity.BOARD to it) !in records }
             SyncEntity.SUBTASK -> (data["taskId"] as? String)?.let { records[SyncEntity.TASK to it] == null }
+            SyncEntity.REMINDER -> (data["taskId"] as? String)?.let { records[SyncEntity.TASK to it] == null }
+            SyncEntity.MY_DAY -> records[SyncEntity.TASK to m.id] == null
             else -> null
         }?.takeIf { it }
     }

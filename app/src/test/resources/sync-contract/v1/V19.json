@@ -1,0 +1,66 @@
+{
+  "id": "V19",
+  "serverNow": "2026-11-26T18:30:00.000Z",
+  "task": "30000000-0000-4000-8000-000000000001",
+  "request": {
+    "mutations": [
+      {
+        "clientMutationId": "90000000-0000-4000-8000-000000000022",
+        "entity": "reminder",
+        "op": "upsert",
+        "id": "50000000-0000-4000-8000-000000000001",
+        "baseUpdatedAt": null,
+        "clientUpdatedAt": "2026-11-26T18:00:00.000Z",
+        "data": {
+          "taskId": "30000000-0000-4000-8000-000000000001",
+          "remindAt": "2026-11-27T08:00:00.000Z",
+          "status": "PENDING",
+          "sentAt": null
+        }
+      }
+    ]
+  },
+  "response": {
+    "contractVersion": "1.0",
+    "serverTime": "2026-11-26T18:30:00.000Z",
+    "results": [
+      {
+        "clientMutationId": "90000000-0000-4000-8000-000000000022",
+        "status": "applied",
+        "record": {
+          "id": "50000000-0000-4000-8000-000000000001",
+          "taskId": "30000000-0000-4000-8000-000000000001",
+          "remindAt": "2026-11-27T08:00:00.000Z",
+          "status": "PENDING",
+          "sentAt": null,
+          "origin": "MOBILE",
+          "createdAt": "2026-11-26T18:30:00.000Z",
+          "updatedAt": "2026-11-26T18:30:00.000Z",
+          "deletedAt": null
+        }
+      }
+    ]
+  },
+  "followUps": [
+    {
+      "name": "SENT con sentAt",
+      "mutation": {
+        "clientMutationId": "90000000-0000-4000-8000-000000000023",
+        "entity": "reminder", "op": "upsert", "id": "50000000-0000-4000-8000-000000000001",
+        "baseUpdatedAt": "2026-11-26T18:30:00.000Z", "clientUpdatedAt": "2026-11-27T08:00:05.000Z",
+        "data": { "taskId": "30000000-0000-4000-8000-000000000001", "remindAt": "2026-11-27T08:00:00.000Z", "status": "SENT", "sentAt": "2026-11-27T08:00:05.000Z" }
+      },
+      "expect": { "status": "applied" }
+    },
+    {
+      "name": "SENT no vuelve a PENDING",
+      "mutation": {
+        "clientMutationId": "90000000-0000-4000-8000-000000000024",
+        "entity": "reminder", "op": "upsert", "id": "50000000-0000-4000-8000-000000000001",
+        "baseUpdatedAt": "2026-11-26T18:30:00.000Z", "clientUpdatedAt": "2026-11-27T08:01:00.000Z",
+        "data": { "taskId": "30000000-0000-4000-8000-000000000001", "remindAt": "2026-11-27T09:00:00.000Z", "status": "PENDING", "sentAt": null }
+      },
+      "expect": { "status": "rejected", "code": "INVALID_MUTATION" }
+    }
+  ]
+}
