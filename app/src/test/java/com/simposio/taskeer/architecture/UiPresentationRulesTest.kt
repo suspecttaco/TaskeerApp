@@ -1575,6 +1575,7 @@ class UiPresentationRulesTest {
             "implementation(libs.androidx.lifecycle.viewmodel.ktx)",
             "implementation(libs.androidx.navigation.compose)",
             "implementation(libs.androidx.room.runtime)",
+            "implementation(libs.androidx.work.runtime)",
             "implementation(libs.googleid)",
             "implementation(libs.okhttp)",
             "ksp(libs.androidx.room.compiler)",
