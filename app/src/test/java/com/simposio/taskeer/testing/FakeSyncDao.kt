@@ -114,7 +114,7 @@ class FakeSyncDao : SyncDao() {
     }
 
     override suspend fun markUnsyncedRemindersPending() {
-        reminders.value.values.filter { it.deletedAt == null && baselines.value[("reminder" to it.id)] == null }.forEach { put(it.copy(pending = true)) }
+        reminders.value.values.filter { it.deletedAt == null && it.status == "PENDING" && baselines.value[("reminder" to it.id)] == null }.forEach { put(it.copy(pending = true)) }
     }
 
     override suspend fun liveLists(): List<TaskListEntity> = lists.value.values.filter { it.deletedAt == null }

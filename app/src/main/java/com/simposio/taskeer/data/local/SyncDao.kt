@@ -96,7 +96,7 @@ abstract class SyncDao {
     abstract suspend fun markUnsyncedMyDayPending()
 
     @Query(
-        "UPDATE reminders SET pending = 1 WHERE deletedAt IS NULL AND id NOT IN " +
+        "UPDATE reminders SET pending = 1 WHERE deletedAt IS NULL AND status = 'PENDING' AND id NOT IN " +
             "(SELECT entityId FROM sync_baseline WHERE entity = 'reminder')",
     )
     abstract suspend fun markUnsyncedRemindersPending()

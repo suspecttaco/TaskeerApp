@@ -426,7 +426,13 @@ class RoomSyncLocalStore(
         val losses = mutableListOf<SyncLoss>()
         var remindersChanged = false
         dao.inTransaction {
-            page.records.forEach { if (applyRecord(it, scope, me, now, losses) && it.entity == SyncEntity.REMINDER) remindersChanged = true }
+            page.records.forEach {
+                val alarmsBefore = if (it.entity == SyncEntity.TASK) alarmFingerprint(it.id) else null
+                val applied = applyRecord(it, scope, me, now, losses)
+                val reminderApplied = applied && it.entity == SyncEntity.REMINDER
+                val taskAlarmChanged = applied && it.entity == SyncEntity.TASK && alarmFingerprint(it.id) != alarmsBefore
+                if (reminderApplied || taskAlarmChanged) remindersChanged = true
+            }
             when (commit) {
                 PageCommit.KeepCursor -> Unit
                 PageCommit.SaveCursor -> dao.upsertMeta(SyncMetaEntity(SyncMetaKeys.CURSOR, page.nextCursor))
@@ -438,6 +444,11 @@ class RoomSyncLocalStore(
         }
         return PageEffect(losses, remindersChanged)
     }
+
+    // Lo que decide si una tarea tiene alarma de fecha límite: si cambia por pull, hay que reconciliar las alarmas.
+    private suspend fun alarmFingerprint(taskId: String): Triple<Long?, Long?, Long?>? =
+        dao.findTask(taskId)?.takeIf { it.dueAt != null || it.completedAt != null || it.deletedAt != null }
+            ?.let { Triple(it.dueAt, it.completedAt, it.deletedAt) }
 
     // Verdadero si el registro se aplicó (no estaba fuera de alcance ni era una versión ya conocida).
     private suspend fun applyRecord(record: ServerRecord, scope: Set<SyncEntity>, me: String, now: Instant, losses: MutableList<SyncLoss>): Boolean {

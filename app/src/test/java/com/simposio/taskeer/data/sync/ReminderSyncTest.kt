@@ -151,4 +151,71 @@ class ReminderSyncTest {
         assertTrue(dao.reminders.value.isEmpty())
         assertTrue(SyncEntity.entries.none { it.wireName.contains("notification", ignoreCase = true) })
     }
+
+    private fun seedTaskWith(overrides: Map<String, Any?>, deletedAt: java.time.Instant? = null, updated: String = "2026-11-26T12:00:00Z") =
+        backend.seed(SyncEntity.TASK, "t1", rig.taskFields("Tarea t1") + overrides, at(updated), deletedAt)
+
+    @Test
+    fun primeraSync_soloMarcaPendientesLosRecordatoriosPENDING() = runTest {
+        dao.put(syncReminder("rp", "t1", remindAt.toEpochMilli(), pending = false))
+        dao.put(syncReminder("rs", "t1", remindAt.toEpochMilli(), status = "SENT", sentAt = remindAt.toEpochMilli(), pending = false))
+        dao.put(syncReminder("rd", "t1", remindAt.toEpochMilli(), status = "DISMISSED", pending = false))
+
+        dao.markUnsyncedRemindersPending()
+
+        assertEquals(setOf("rp"), dao.reminders.value.values.filter { it.pending }.map { it.id }.toSet())
+    }
+
+    @Test
+    fun primeraSync_posponerSigueSubiendoLaNuevaYElSentConLineaBaseNoCambia() = runTest {
+        dao.put(syncReminder("r-original", "t1", remindAt.toEpochMilli(), status = "SENT", sentAt = remindAt.toEpochMilli(), updatedAt = 5L, pending = false))
+        dao.baseline("reminder", "r-original", 5L)
+        dao.put(syncReminder("r-snoozed", "t1", remindAt.toEpochMilli() + 3_600_000L, pending = false))
+
+        dao.markUnsyncedRemindersPending()
+
+        assertTrue(dao.reminders.value.getValue("r-snoozed").pending)
+        assertFalse(dao.reminders.value.getValue("r-original").pending)
+    }
+
+    @Test
+    fun pullDeTarea_conOtraDueAt_notificaAlConciliador() = runTest {
+        rig.boundWithPersonalData()
+        rig.syncedTaskOnServer("t1")
+        seedTaskWith(mapOf("dueAt" to "2026-11-28T08:00:00.000Z"))
+        var notified = 0
+
+        cycle { notified++ }
+
+        assertEquals(1, notified)
+        assertEquals(at("2026-11-28T08:00:00Z").toEpochMilli(), rig.taskRow("t1")?.dueAt)
+    }
+
+    @Test
+    fun pullDeTarea_completadaOBorrada_notificaAlConciliador() = runTest {
+        rig.boundWithPersonalData()
+        rig.syncedTaskOnServer("t1")
+        seedTaskWith(mapOf("completedAt" to "2026-11-26T12:00:00.000Z"))
+        var completed = 0
+        cycle { completed++ }
+        assertEquals(1, completed)
+
+        seedTaskWith(emptyMap(), deletedAt = at("2026-11-26T13:00:00Z"), updated = "2026-11-26T13:00:00Z")
+        var deleted = 0
+        cycle { deleted++ }
+        assertEquals(1, deleted)
+    }
+
+    @Test
+    fun pullDeTarea_soloTituloOTarea_sinCambioDeAlarma_noNotifica() = runTest {
+        rig.boundWithPersonalData()
+        rig.syncedTaskOnServer("t1")
+        backend.seed(SyncEntity.TASK, "t1", rig.taskFields("Otro título"), at("2026-11-26T12:00:00Z"))
+        var notified = 0
+
+        cycle { notified++ }
+
+        assertEquals(0, notified)
+        assertEquals("Otro título", rig.taskRow("t1")?.title)
+    }
 }

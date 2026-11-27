@@ -33,7 +33,7 @@ sealed interface PageCommit {
     }
 }
 
-// `remindersChanged`: la página trajo recordatorios nuevos o cambiados; el motor avisa al reconciliador de alarmas.
+// `remindersChanged`: la página trajo recordatorios nuevos o cambiados, o tareas con otra fecha límite o estado; el motor avisa al reconciliador de alarmas.
 class PageEffect(val losses: List<SyncLoss>, val remindersChanged: Boolean = false)
 
 object SyncMetaKeys {
