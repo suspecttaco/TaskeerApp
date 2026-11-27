@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.TaskPriority
+import com.simposio.taskeer.ui.theme.Motion
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 import kotlin.math.roundToInt
@@ -82,8 +83,8 @@ internal fun TaskRow(
     val peekPx = with(LocalDensity.current) { Spacing.SwipePeek.toPx() }
     LaunchedEffect(peek) {
         if (peek && actions.swipeStart != null) {
-            peekOffset.animateTo(-peekPx, tween(PEEK_HALF_MILLIS))
-            peekOffset.animateTo(0f, tween(PEEK_HALF_MILLIS))
+            peekOffset.animateTo(-peekPx, tween(Motion.PeekHalfMillis))
+            peekOffset.animateTo(0f, tween(Motion.PeekHalfMillis))
             onPeekDone()
         }
     }
@@ -241,7 +242,7 @@ private fun CompletableTitle(title: String, isCompleted: Boolean, animate: Boole
                     color = color,
                     start = Offset(left, y),
                     end = Offset(left + (right - left) * progress.value, y),
-                    strokeWidth = STRIKE_STROKE_DP.dp.toPx(),
+                    strokeWidth = Spacing.StrikeStrokeDp.dp.toPx(),
                 )
             }
         },
@@ -292,8 +293,6 @@ private fun SecondLine(row: TaskRowUi) {
 
 private const val SEPARATOR = "·"
 private const val TITLE_MAX_LINES = 2
-private const val PEEK_HALF_MILLIS = 300
-private const val STRIKE_STROKE_DP = 1.5f
 
 @Preview(showBackground = true)
 @Composable

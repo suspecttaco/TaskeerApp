@@ -86,6 +86,7 @@ class OkHttpTransport(private val config: ApiConfig) : HttpTransport {
             // La API no redirige: una 3xx es un fallo de configuración y no debe reenviar la petición en silencio.
             .followRedirects(false)
             .followSslRedirects(false)
+            .apply { if (config.httpLogging) addInterceptor(DebugHttpLogInterceptor()) }
             .build()
 
         fun classify(error: IOException): TransportFailureKind = when (error) {

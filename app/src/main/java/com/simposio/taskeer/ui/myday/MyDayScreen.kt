@@ -27,6 +27,7 @@ import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.domain.myday.MyDaySort
 import com.simposio.taskeer.ui.components.EmptyState
 import com.simposio.taskeer.ui.components.IconLabel
+import com.simposio.taskeer.ui.components.InlineError
 import com.simposio.taskeer.ui.components.RowAction
 import com.simposio.taskeer.ui.components.RowContext
 import com.simposio.taskeer.ui.components.rowItemModifier
@@ -174,10 +175,8 @@ private fun MyDayHeader(state: MyDayUiState, onSort: (MyDaySort) -> Unit) {
             )
         }
         state.error?.let { error ->
-            Text(
-                text = error.message,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
+            InlineError(
+                message = error.message,
             )
         }
         MyDaySortMenu(sort = state.sort, onSort = onSort)

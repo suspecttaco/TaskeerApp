@@ -1,13 +1,11 @@
 package com.simposio.taskeer.ui.workspaces
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -17,12 +15,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import com.simposio.taskeer.R
+import com.simposio.taskeer.ui.components.LoadingBody
 import com.simposio.taskeer.ui.theme.Spacing
 
 @Composable
@@ -96,9 +94,7 @@ fun ConfirmDeleteWorkspaceDialog(
 @Composable
 internal fun SubmittingIndicator() {
     val description = stringResource(R.string.workspaces_saving)
-    Row(modifier = Modifier.fillMaxWidth().padding(top = Spacing.ItemGap)) {
-        CircularProgressIndicator(modifier = Modifier.semantics { contentDescription = description })
-    }
+    LoadingBody(description, Modifier.fillMaxWidth().padding(top = Spacing.ItemGap), Alignment.TopStart)
 }
 
 @Composable

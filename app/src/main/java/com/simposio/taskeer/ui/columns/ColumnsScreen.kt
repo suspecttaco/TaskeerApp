@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.ViewColumn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -44,7 +45,10 @@ import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.ui.components.ActionIcon
 import com.simposio.taskeer.ui.components.AppDivider
 import com.simposio.taskeer.ui.components.DecorativeIcon
+import com.simposio.taskeer.ui.components.EmptyState
 import com.simposio.taskeer.ui.components.InlineAddField
+import com.simposio.taskeer.ui.components.InlineError
+import com.simposio.taskeer.ui.components.rowItemModifier
 import com.simposio.taskeer.ui.tasks.TasksViewModel
 import com.simposio.taskeer.ui.tasks.rememberTaskEditorHost
 import com.simposio.taskeer.ui.theme.Spacing
@@ -117,17 +121,16 @@ fun ColumnsContent(
         )
 
         state.error?.let { error ->
-            Text(
-                text = error.message,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
+            InlineError(
+                message = error.message,
             )
         }
 
         if (state.columns.isEmpty()) {
-            Text(
+            EmptyState(
+                icon = Icons.Filled.ViewColumn,
                 text = stringResource(R.string.columns_empty),
-                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.fillMaxWidth().weight(1f),
             )
         } else {
             LazyColumn(
@@ -135,7 +138,7 @@ fun ColumnsContent(
                 verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap),
             ) {
                 itemsIndexed(state.columns, key = { _, column -> column.id }) { index, column ->
-                    Column {
+                    Column(modifier = rowItemModifier()) {
                         ColumnRow(
                             column = column,
                             position = index,

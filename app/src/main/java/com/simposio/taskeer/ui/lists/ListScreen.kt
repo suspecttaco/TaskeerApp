@@ -8,8 +8,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Inbox
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -22,6 +20,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.ui.components.EmptyState
+import com.simposio.taskeer.ui.components.InlineError
 import com.simposio.taskeer.ui.components.RowAction
 import com.simposio.taskeer.ui.components.RowContext
 import com.simposio.taskeer.ui.components.rowItemModifier
@@ -127,10 +126,8 @@ fun ListContent(
 ) {
     Column(modifier = modifier.fillMaxSize()) {
         state.error?.let { error ->
-            Text(
-                text = error.message,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
+            InlineError(
+                message = error.message,
                 modifier = Modifier.padding(Spacing.ScreenPadding),
             )
         }

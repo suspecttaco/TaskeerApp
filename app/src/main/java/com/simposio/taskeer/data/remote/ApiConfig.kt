@@ -8,6 +8,7 @@ class ApiConfig(
     val readTimeoutMs: Long = 45_000,
     val writeTimeoutMs: Long = 30_000,
     val callTimeoutMs: Long = 60_000,
+    val httpLogging: Boolean = false,
 ) {
     val baseUrl: String = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
 

@@ -15,7 +15,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ViewColumn
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -35,7 +34,6 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -47,13 +45,12 @@ import com.simposio.taskeer.ui.components.ErrorPage
 import com.simposio.taskeer.ui.components.ErrorPageKind
 import com.simposio.taskeer.ui.boards.BoardDialogs
 import com.simposio.taskeer.ui.boards.BoardsViewModel
+import com.simposio.taskeer.ui.components.InlineError
 import com.simposio.taskeer.ui.tasks.rememberTaskEditorHost
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 import java.time.Instant
 import kotlin.math.roundToInt
-
-internal val ColumnWidth = 280.dp
 
 @Composable
 fun BoardScreen(
@@ -151,10 +148,8 @@ fun BoardContent(
             }
 
             state.error?.let { error ->
-                Text(
-                    text = error.message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
+                InlineError(
+                    message = error.message,
                     modifier = Modifier.padding(horizontal = Spacing.ScreenPadding),
                 )
             }
@@ -234,7 +229,7 @@ fun BoardContent(
             TaskCard(
                 card = current.card,
                 modifier = Modifier
-                    .width(ColumnWidth - 24.dp)
+                    .width(Spacing.BoardDragCardWidth)
                     .offset { IntOffset(topLeft.x.roundToInt(), topLeft.y.roundToInt()) },
                 elevated = true,
             )
@@ -299,10 +294,8 @@ private fun NewColumnDialog(
                     isError = state.error != null,
                 )
                 state.error?.let { error ->
-                    Text(
-                        text = error.message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
+                    InlineError(
+                        message = error.message,
                     )
                 }
             }

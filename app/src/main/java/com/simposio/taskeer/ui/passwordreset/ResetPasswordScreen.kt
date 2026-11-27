@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.KeyboardActionHandler
@@ -20,8 +19,6 @@ import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedSecureTextField
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -36,19 +33,18 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentType
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.simposio.taskeer.R
 import com.simposio.taskeer.ui.components.ActionIcon
+import com.simposio.taskeer.ui.components.ButtonProgress
+import com.simposio.taskeer.ui.components.InlineError
 import com.simposio.taskeer.ui.components.StatePage
 import com.simposio.taskeer.ui.components.StatePageAction
 import com.simposio.taskeer.ui.theme.Spacing
@@ -207,11 +203,8 @@ private fun ResetPasswordForm(
             trailingIcon = toggle,
         )
         state.error?.let { error ->
-            Text(
-                text = resetErrorText(error, state.retryMinutes),
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            InlineError(
+                message = resetErrorText(error, state.retryMinutes),
             )
         }
         Button(
@@ -219,11 +212,7 @@ private fun ResetPasswordForm(
             enabled = state.canSubmit,
             modifier = Modifier.fillMaxWidth().heightIn(min = Spacing.MinTouchTarget),
         ) {
-            if (state.isSubmitting) {
-                CircularProgressIndicator(modifier = Modifier.size(Spacing.IconSize), strokeWidth = 2.dp)
-            } else {
-                Text(stringResource(R.string.reset_action))
-            }
+            ButtonProgress(loading = state.isSubmitting, label = stringResource(R.string.reset_action))
         }
     }
 }

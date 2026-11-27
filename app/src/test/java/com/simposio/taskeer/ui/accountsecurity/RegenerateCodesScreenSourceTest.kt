@@ -11,7 +11,7 @@ class RegenerateCodesScreenSourceTest {
 
     @Test
     fun usaComponentesNativosDeMaterial3() {
-        listOf("OutlinedSecureTextField(", "Button(", "CircularProgressIndicator(", "AlertDialog(")
+        listOf("OutlinedSecureTextField(", "Button(", "ButtonProgress(", "AlertDialog(")
             .forEach { assertTrue("falta $it", screen.contains(it)) }
     }
 
@@ -36,7 +36,7 @@ class RegenerateCodesScreenSourceTest {
     @Test
     fun botonDeshabilitadoMientrasEnvia() {
         assertTrue(screen.contains("enabled = state.canSubmit"))
-        assertTrue(screen.contains("if (state.isSubmitting)"))
+        assertTrue(screen.contains("loading = state.isSubmitting"))
     }
 
     @Test

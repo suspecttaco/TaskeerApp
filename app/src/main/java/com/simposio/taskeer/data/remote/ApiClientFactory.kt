@@ -16,6 +16,7 @@ fun createApiClient(context: Context): RemoteApi {
     val config = ApiConfig(
         baseUrl = BuildConfig.API_BASE_URL,
         allowCleartext = BuildConfig.DEBUG,
+        httpLogging = BuildConfig.DEBUG,
         userAgent = "Taskeer-Android/${BuildConfig.VERSION_NAME}",
     )
     val transport = OkHttpTransport(config)

@@ -15,15 +15,16 @@ import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.unit.IntSize
+import com.simposio.taskeer.ui.theme.Motion
 
 internal object NavMotion {
-    const val ExitFadeMillis = 90
-    const val EnterFadeMillis = 210
-    const val ScaleMillis = 300
-    const val ExitScale = 0.92f
-    const val EnterScale = 1.08f
-    const val PanelEnterMillis = 180
-    const val PanelExitMillis = 120
+    const val ExitFadeMillis = Motion.ExitFadeMillis
+    const val EnterFadeMillis = Motion.EnterFadeMillis
+    const val ScaleMillis = Motion.ScaleMillis
+    const val ExitScale = Motion.ExitScale
+    const val EnterScale = Motion.EnterScale
+    const val PanelEnterMillis = Motion.PanelEnterMillis
+    const val PanelExitMillis = Motion.PanelExitMillis
 }
 
 // La entrada espera a que la saliente casi se haya fundido: así nunca se ven las dos pantallas a la vez.
@@ -62,8 +63,8 @@ internal object EditorMotion {
     const val PanelFadeOutMillis = NavMotion.ExitFadeMillis
     const val PanelFadeInMillis = NavMotion.EnterFadeMillis
     const val PanelScale = NavMotion.ExitScale
-    const val ValueFadeOutMillis = 90
-    const val ValueFadeInMillis = 150
+    const val ValueFadeOutMillis = Motion.ValueFadeOutMillis
+    const val ValueFadeInMillis = Motion.ValueFadeInMillis
     const val SizeMillis = NavMotion.PanelEnterMillis
     const val RowEnterMillis = NavMotion.PanelEnterMillis
     const val RowExitMillis = NavMotion.PanelExitMillis

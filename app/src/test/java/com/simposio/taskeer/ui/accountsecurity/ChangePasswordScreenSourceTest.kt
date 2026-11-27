@@ -12,7 +12,7 @@ class ChangePasswordScreenSourceTest {
 
     @Test
     fun usaComponentesNativosDeMaterial3() {
-        listOf("OutlinedSecureTextField(", "Button(", "CircularProgressIndicator(", "StatePage(")
+        listOf("OutlinedSecureTextField(", "Button(", "ButtonProgress(", "StatePage(")
             .forEach { assertTrue("falta $it", screen.contains(it)) }
     }
 
@@ -39,6 +39,6 @@ class ChangePasswordScreenSourceTest {
     @Test
     fun botonDeshabilitadoMientrasEnvia() {
         assertTrue(screen.contains("enabled = state.canSubmit"))
-        assertTrue(screen.contains("if (state.isSubmitting)"))
+        assertTrue(screen.contains("loading = state.isSubmitting"))
     }
 }

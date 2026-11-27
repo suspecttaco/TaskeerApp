@@ -23,15 +23,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import com.simposio.taskeer.domain.calendar.DayMarks
 import com.simposio.taskeer.domain.calendar.weekdayHeader
+import com.simposio.taskeer.ui.theme.Emphasis
 import com.simposio.taskeer.ui.theme.Spacing
+import com.simposio.taskeer.ui.theme.boldIf
 import java.time.LocalDate
 
 private const val MAX_MARKS = 3
-private const val OUT_OF_MONTH_ALPHA = 0.5f
 
 // A medida: el DatePicker de Material 3 no admite marcas por día ni selección sin diálogo, y esta rejilla
 // necesita ambas cosas. Cada celda sigue siendo una Surface nativa con objetivo táctil de 48 dp.
@@ -69,7 +69,7 @@ private fun DayCell(cell: GridCell, onClick: () -> Unit, modifier: Modifier = Mo
     val textColor = if (cell.inMonth) {
         MaterialTheme.colorScheme.onSurface
     } else {
-        MaterialTheme.colorScheme.onSurface.copy(alpha = OUT_OF_MONTH_ALPHA)
+        MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.OutOfMonth)
     }
     Surface(
         selected = cell.isAnchor,
@@ -89,8 +89,7 @@ private fun DayCell(cell: GridCell, onClick: () -> Unit, modifier: Modifier = Mo
         ) {
             Text(
                 text = cell.date.dayOfMonth.toString(),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (cell.isToday) FontWeight.Bold else FontWeight.Normal,
+                style = MaterialTheme.typography.bodyMedium.boldIf(cell.isToday),
                 color = textColor,
             )
             Marks(cell.marks)

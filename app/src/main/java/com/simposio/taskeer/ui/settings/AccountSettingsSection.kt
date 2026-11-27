@@ -10,7 +10,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -27,7 +26,6 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.auth.AccountSummary
 import com.simposio.taskeer.domain.auth.SessionState
@@ -37,7 +35,9 @@ import com.simposio.taskeer.ui.auth.AccountSecurityAction
 import com.simposio.taskeer.ui.auth.AccountStatus
 import com.simposio.taskeer.ui.auth.EmailVerification
 import com.simposio.taskeer.ui.auth.accountSectionFor
+import com.simposio.taskeer.ui.components.ButtonProgress
 import com.simposio.taskeer.ui.components.DecorativeIcon
+import com.simposio.taskeer.ui.components.InlineProgress
 import com.simposio.taskeer.ui.components.SectionHeader
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
@@ -128,11 +128,7 @@ private fun VerificationRows(
             ListItem(headlineContent = { Text(stringResource(R.string.verify_account_unverified)) })
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.InlineGap)) {
                 TextButton(onClick = actions.onResendVerification, enabled = resend.canResend) {
-                    if (resend.isSending) {
-                        CircularProgressIndicator(modifier = Modifier.size(Spacing.IconSize), strokeWidth = 2.dp)
-                    } else {
-                        Text(stringResource(R.string.verify_resend_action))
-                    }
+                    ButtonProgress(loading = resend.isSending, label = stringResource(R.string.verify_resend_action))
                 }
                 TextButton(onClick = actions.onHaveVerificationLink) {
                     Text(stringResource(R.string.verify_have_link))
@@ -184,7 +180,7 @@ private fun AccountStatusRow(model: AccountSectionModel, onSignIn: () -> Unit) {
         )
         AccountStatus.RESUMING -> ListItem(
             headlineContent = { Text(stringResource(R.string.auth_resuming)) },
-            leadingContent = { CircularProgressIndicator(modifier = Modifier.size(Spacing.ActionIconSize)) },
+            leadingContent = { InlineProgress(modifier = Modifier.size(Spacing.ActionIconSize)) },
         )
         AccountStatus.SIGNED_IN -> ListItem(
             headlineContent = { Text(stringResource(R.string.auth_signed_in)) },

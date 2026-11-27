@@ -36,6 +36,7 @@ import androidx.compose.ui.semantics.stateDescription
 import com.simposio.taskeer.R
 import com.simposio.taskeer.ui.components.ActionIcon
 import com.simposio.taskeer.ui.components.DecorativeIcon
+import com.simposio.taskeer.ui.components.EmptyHint
 import com.simposio.taskeer.ui.shell.TrackOpenSheet
 import com.simposio.taskeer.ui.theme.Spacing
 
@@ -209,9 +210,8 @@ private fun PickerRow(
 
 @Composable
 private fun EmptyResults() {
-    Text(
+    EmptyHint(
         text = stringResource(R.string.settings_region_empty),
-        style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier.padding(vertical = Spacing.RowVerticalPadding),
     )
 }

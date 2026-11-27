@@ -10,7 +10,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
@@ -21,6 +20,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import com.simposio.taskeer.R
 import com.simposio.taskeer.ui.components.ActionIcon
+import com.simposio.taskeer.ui.components.EmptyHint
 import com.simposio.taskeer.ui.components.InlineAddField
 import com.simposio.taskeer.ui.components.SectionHeader
 import com.simposio.taskeer.ui.components.rememberAnimationsEnabled
@@ -52,10 +52,7 @@ fun SubtaskDraftsSection(
             enter = editorRowEnter(animated),
             exit = editorRowExit(animated),
         ) {
-            Text(
-                text = stringResource(R.string.subtasks_empty),
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            EmptyHint(text = stringResource(R.string.subtasks_empty))
         }
         state.subtaskDrafts.forEach { draft ->
             key(draft.id) {

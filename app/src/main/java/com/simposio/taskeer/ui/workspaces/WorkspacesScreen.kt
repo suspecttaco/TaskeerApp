@@ -3,17 +3,19 @@ package com.simposio.taskeer.ui.workspaces
 import android.content.res.Resources
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,7 +33,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
@@ -45,9 +46,17 @@ import com.simposio.taskeer.R
 import com.simposio.taskeer.ui.components.ActionIcon
 import com.simposio.taskeer.ui.components.AppDivider
 import com.simposio.taskeer.ui.components.DecorativeIcon
+import com.simposio.taskeer.ui.components.EmptyState
+import com.simposio.taskeer.ui.components.LoadingBody
+import com.simposio.taskeer.ui.components.NoticeKind
+import com.simposio.taskeer.ui.components.PhaseCrossfade
+import com.simposio.taskeer.ui.components.PhaseKind
 import com.simposio.taskeer.ui.components.StatePage
 import com.simposio.taskeer.ui.components.StatePageAction
-import com.simposio.taskeer.ui.theme.Spacing
+import com.simposio.taskeer.ui.components.phaseKindOf
+import com.simposio.taskeer.ui.components.rememberWhile
+import com.simposio.taskeer.ui.components.rowItemModifier
+import com.simposio.taskeer.ui.components.showNotice
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 
 @Composable
@@ -67,7 +76,7 @@ fun WorkspacesScreen(
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
-                is WorkspacesEvent.ShowError -> snackbarHostState.showSnackbar(event.message.text(resources))
+                is WorkspacesEvent.ShowError -> snackbarHostState.showNotice(event.message.text(resources), NoticeKind.ERROR)
                 is WorkspacesEvent.OpenMembers -> onOpenMembers(event.workspaceId)
                 WorkspacesEvent.OpenInvitations -> onOpenInvitations()
                 WorkspacesEvent.LeaveScreen -> onLeave()
@@ -114,25 +123,23 @@ fun WorkspacesContent(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-            when (state.phase) {
-                WorkspacesPhase.LOADING -> LoadingBody()
-                WorkspacesPhase.ERROR -> StatePage(
-                    icon = Icons.Filled.CloudOff,
-                    title = stringResource(R.string.workspaces_error_title),
-                    message = (state.error ?: WorkspaceErrorMessage.Generic).text(),
-                    action = StatePageAction(stringResource(R.string.workspaces_retry), onRefresh),
-                )
-                WorkspacesPhase.EMPTY, WorkspacesPhase.LIST -> WorkspacesList(state, onRefresh, onRename, onDelete, onOpen, onOpenInvitations)
+            val shownError = rememberWhile(state.phase == WorkspacesPhase.ERROR, state.error)
+            PhaseCrossfade(
+                kind = phaseKindOf(loading = state.phase == WorkspacesPhase.LOADING, error = state.phase == WorkspacesPhase.ERROR),
+                modifier = Modifier.fillMaxSize(),
+            ) { kind ->
+                when (kind) {
+                    PhaseKind.LOADING -> LoadingBody(stringResource(R.string.workspaces_loading))
+                    PhaseKind.ERROR -> StatePage(
+                        icon = Icons.Filled.CloudOff,
+                        title = stringResource(R.string.workspaces_error_title),
+                        message = (shownError ?: WorkspaceErrorMessage.Generic).text(),
+                        action = StatePageAction(stringResource(R.string.workspaces_retry), onRefresh),
+                    )
+                    PhaseKind.CONTENT -> WorkspacesList(state, onRefresh, onRename, onDelete, onOpen, onOpenInvitations)
+                }
             }
         }
-    }
-}
-
-@Composable
-private fun LoadingBody() {
-    val description = stringResource(R.string.workspaces_loading)
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(modifier = Modifier.semantics { contentDescription = description })
     }
 }
 
@@ -160,16 +167,18 @@ private fun WorkspacesList(
             }
             if (state.phase == WorkspacesPhase.EMPTY) {
                 item {
-                    Text(
+                    EmptyState(
+                        icon = Icons.Filled.Groups,
                         text = stringResource(R.string.workspaces_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(Spacing.ScreenPadding),
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
             items(state.rows, key = { it.id }) { row ->
-                WorkspaceRow(row = row, onRename = onRename, onDelete = onDelete, onOpen = onOpen)
-                AppDivider()
+                Column(modifier = rowItemModifier()) {
+                    WorkspaceRow(row = row, onRename = onRename, onDelete = onDelete, onOpen = onOpen)
+                    AppDivider()
+                }
             }
         }
     }

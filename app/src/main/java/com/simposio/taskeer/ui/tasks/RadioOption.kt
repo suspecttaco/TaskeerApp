@@ -13,7 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.unit.dp
+import com.simposio.taskeer.ui.theme.Emphasis
 import com.simposio.taskeer.ui.theme.Spacing
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -28,22 +28,18 @@ internal fun RadioOption(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = MinTouchTarget)
+            .heightIn(min = Spacing.MinTouchTarget)
             .selectable(selected = selected, onClick = onSelect, enabled = enabled, role = Role.RadioButton),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioButton(selected = selected, onClick = null, enabled = enabled)
         Text(
             text = label,
-            color = if (enabled) Color.Unspecified else MaterialTheme.colorScheme.onSurface.copy(alpha = DISABLED_ALPHA),
+            color = if (enabled) Color.Unspecified else MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.Disabled),
             modifier = Modifier.padding(start = Spacing.InlineGap),
         )
     }
 }
-
-private val MinTouchTarget = 48.dp
-
-private const val DISABLED_ALPHA = 0.38f
 
 internal val DUE_DATE_TIME_FORMATTER: DateTimeFormatter =
     DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)

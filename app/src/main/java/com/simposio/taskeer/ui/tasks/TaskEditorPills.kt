@@ -23,7 +23,6 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,6 +43,7 @@ import com.simposio.taskeer.domain.model.LocalUser
 import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.domain.task.RepeatPreset
 import com.simposio.taskeer.ui.components.DecorativeIcon
+import com.simposio.taskeer.ui.components.InlineError
 import com.simposio.taskeer.ui.components.rememberAnimationsEnabled
 import com.simposio.taskeer.ui.navigation.editorRowEnter
 import com.simposio.taskeer.ui.navigation.editorRowExit
@@ -123,10 +123,8 @@ internal fun EditorPills(
             enter = panelEnter(animated),
             exit = panelExit(animated),
         ) {
-            Text(
-                text = shownReminderError.orEmpty(),
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
+            InlineError(
+                message = shownReminderError.orEmpty(),
             )
         }
         Box(Modifier.animateContentSize(editorSizeSpec(animated))) { permissionNotice() }

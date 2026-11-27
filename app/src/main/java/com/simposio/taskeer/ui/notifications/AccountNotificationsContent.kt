@@ -23,14 +23,15 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -44,17 +45,24 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.notification.ServerNotificationType
 import com.simposio.taskeer.ui.components.ActionIcon
 import com.simposio.taskeer.ui.components.AppDivider
 import com.simposio.taskeer.ui.components.DecorativeIcon
+import com.simposio.taskeer.ui.components.EmptyState
+import com.simposio.taskeer.ui.components.LoadingBody
+import com.simposio.taskeer.ui.components.PhaseCrossfade
+import com.simposio.taskeer.ui.components.PhaseKind
 import com.simposio.taskeer.ui.components.StatePage
 import com.simposio.taskeer.ui.components.StatePageAction
+import com.simposio.taskeer.ui.components.phaseKindOf
+import com.simposio.taskeer.ui.components.rememberWhile
+import com.simposio.taskeer.ui.components.rowItemModifier
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
+import com.simposio.taskeer.ui.theme.unread
 
 @Composable
 fun AccountNotificationsContent(
@@ -87,21 +95,27 @@ fun AccountNotificationsContent(
                 )
             }
         }
-        when (state.phase) {
-            AccountPhase.LOADING -> LoadingBody()
-            AccountPhase.ERROR -> StatePage(
-                icon = Icons.Filled.CloudOff,
-                title = stringResource(R.string.inbox_error_title),
-                message = (state.error ?: InboxErrorMessage.Generic).text(),
-                action = StatePageAction(stringResource(R.string.inbox_retry), onRefresh),
-            )
-            AccountPhase.EMPTY, AccountPhase.LIST -> AccountList(
-                state = state,
-                onRefresh = onRefresh,
-                onOpen = onOpen,
-                onMarkRead = onMarkRead,
-                onDelete = onDelete,
-            )
+        val shownError = rememberWhile(state.phase == AccountPhase.ERROR, state.error)
+        PhaseCrossfade(
+            kind = phaseKindOf(loading = state.phase == AccountPhase.LOADING, error = state.phase == AccountPhase.ERROR),
+            modifier = Modifier.fillMaxSize(),
+        ) { kind ->
+            when (kind) {
+                PhaseKind.LOADING -> LoadingBody(stringResource(R.string.inbox_loading))
+                PhaseKind.ERROR -> StatePage(
+                    icon = Icons.Filled.CloudOff,
+                    title = stringResource(R.string.inbox_error_title),
+                    message = (shownError ?: InboxErrorMessage.Generic).text(),
+                    action = StatePageAction(stringResource(R.string.inbox_retry), onRefresh),
+                )
+                PhaseKind.CONTENT -> AccountList(
+                    state = state,
+                    onRefresh = onRefresh,
+                    onOpen = onOpen,
+                    onMarkRead = onMarkRead,
+                    onDelete = onDelete,
+                )
+            }
         }
     }
     if (state.confirmDeleteRead) {
@@ -112,14 +126,6 @@ fun AccountNotificationsContent(
             confirmButton = { TextButton(onClick = onConfirmDeleteRead) { Text(stringResource(R.string.inbox_delete)) } },
             dismissButton = { TextButton(onClick = onCancelDeleteRead) { Text(stringResource(R.string.inbox_cancel)) } },
         )
-    }
-}
-
-@Composable
-private fun LoadingBody() {
-    val description = stringResource(R.string.inbox_loading)
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(modifier = Modifier.semantics { contentDescription = description })
     }
 }
 
@@ -136,16 +142,18 @@ private fun AccountList(
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             if (state.phase == AccountPhase.EMPTY) {
                 item {
-                    Text(
+                    EmptyState(
+                        icon = Icons.Filled.Inbox,
                         text = stringResource(R.string.inbox_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(Spacing.ScreenPadding),
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
             items(state.rows, key = { it.id }) { row ->
-                AccountNotificationRow(row = row, onOpen = onOpen, onMarkRead = onMarkRead, onDelete = onDelete)
-                AppDivider()
+                Column(modifier = rowItemModifier()) {
+                    AccountNotificationRow(row = row, onOpen = onOpen, onMarkRead = onMarkRead, onDelete = onDelete)
+                    AppDivider()
+                }
             }
         }
     }
@@ -173,7 +181,7 @@ private fun AccountNotificationRow(
             )
         },
         headlineContent = {
-            Text(text = row.title, fontWeight = if (row.unread) FontWeight.Bold else FontWeight.Normal)
+            Text(text = row.title, style = LocalTextStyle.current.unread(row.unread))
         },
         supportingContent = {
             Column {

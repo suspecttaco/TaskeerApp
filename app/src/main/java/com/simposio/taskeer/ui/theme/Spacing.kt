@@ -22,7 +22,11 @@ internal object Spacing {
     val PillCollapsedMinWidth = 144.dp
     val ChromeClearance = FloatingControlSize + ScreenPadding * 2
     val HubBarClearance = ChromeClearance + FloatingControlSize
-    val FloatingElevation = 6.dp
+    val SpinnerStroke = 2.dp
+    val CardBorder = 1.dp
+    val BoardColumnWidth = 280.dp
+    val BoardDragCardWidth = BoardColumnWidth - 24.dp
+    const val StrikeStrokeDp = 1.5f
     val PillListPanelMaxHeight = 240.dp
     val EditorPillMinHeight = MinTouchTarget
     val EditorTitleMinHeight = 56.dp

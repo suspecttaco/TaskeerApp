@@ -1,7 +1,7 @@
 package com.simposio.taskeer.ui.workspaces
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -20,12 +19,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import com.simposio.taskeer.R
 import com.simposio.taskeer.ui.components.AppDivider
 import com.simposio.taskeer.ui.components.DecorativeIcon
+import com.simposio.taskeer.ui.components.EmptyHint
+import com.simposio.taskeer.ui.components.InlineError
+import com.simposio.taskeer.ui.components.LoadingBody
+import com.simposio.taskeer.ui.components.rowItemModifier
 import com.simposio.taskeer.ui.theme.Spacing
 import java.time.Instant
 import java.time.ZoneId
@@ -46,16 +48,16 @@ fun LazyListScope.invitationsSection(
             InvitationsError((state.error ?: WorkspaceInvitationErrorMessage.Generic).text(), onRetry)
         }
         SectionVisibility.EMPTY -> item(key = "invitations-empty") {
-            Text(
+            EmptyHint(
                 text = stringResource(R.string.workspace_invitations_section_empty),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(Spacing.ScreenPadding),
             )
         }
         SectionVisibility.LIST, SectionVisibility.HIDDEN -> items(state.rows, key = { "invitation-${it.id}" }) { row ->
-            InvitationRow(row, onRevoke)
-            AppDivider()
+            Column(modifier = rowItemModifier()) {
+                InvitationRow(row, onRevoke)
+                AppDivider()
+            }
         }
     }
 }
@@ -79,9 +81,7 @@ private fun InvitationsHeader(onInvite: () -> Unit) {
 @Composable
 private fun InvitationsLoading() {
     val description = stringResource(R.string.workspace_invitations_loading)
-    Box(modifier = Modifier.fillMaxWidth().padding(Spacing.ScreenPadding), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(modifier = Modifier.semantics { contentDescription = description })
-    }
+    LoadingBody(description, Modifier.fillMaxWidth().padding(Spacing.ScreenPadding))
 }
 
 @Composable
@@ -91,10 +91,8 @@ private fun InvitationsError(message: String, onRetry: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.error,
+        InlineError(
+            message = message,
             modifier = Modifier.weight(1f),
         )
         TextButton(onClick = onRetry) { Text(stringResource(R.string.workspace_invitations_retry)) }
