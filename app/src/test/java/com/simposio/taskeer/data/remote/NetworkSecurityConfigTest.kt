@@ -17,8 +17,8 @@ class NetworkSecurityConfigTest {
     }
 
     @Test
-    fun manifiestoPrincipal_noDeclaraAccessNetworkState() {
-        assertFalse(mainManifest.contains("ACCESS_NETWORK_STATE"))
+    fun manifiestoPrincipal_declaraAccessNetworkStateParaLaSincronizacion() {
+        assertTrue(mainManifest.contains("android.permission.ACCESS_NETWORK_STATE"))
     }
 
     @Test

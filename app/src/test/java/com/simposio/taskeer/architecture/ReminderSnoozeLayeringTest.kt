@@ -56,8 +56,12 @@ class ReminderSnoozeLayeringTest {
     }
 
     @Test
-    fun noExisteDataSync() {
-        assertFalse(File(sourcesRoot, "data/sync").exists())
+    fun dataSync_noConoceElSnooze() {
+        val offenders = File(sourcesRoot, "data/sync").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" && it.readText().contains("nooze") }
+            .map { it.name }.toList()
+
+        assertTrue("data/sync no debe conocer el snooze: $offenders", offenders.isEmpty())
     }
 
     @Test

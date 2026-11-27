@@ -11,7 +11,7 @@ class LocalDataLayerRulesTest {
 
     @Test
     fun dataLocalSinBorradoFisico() {
-        val violations = dataLocalSources().flatMap { file ->
+        val violations = dataLocalSources().filterNot { it.name == "SyncDao.kt" }.flatMap { file ->
             listOf("@Delete", "DELETE FROM")
                 .filter { file.readText().contains(it) }
                 .map { "${file.relativeTo(sourcesRoot)} contiene $it" }
@@ -30,9 +30,26 @@ class LocalDataLayerRulesTest {
         assertFalse("no se permite borrado destructivo", source.contains("fallbackToDestructive"))
     }
 
+    // Solo el motor de sincronización puede borrar físicamente (su cola y el vaciado por cambio de cuenta confirmado)
+    // y únicamente en estas tablas; el borrado de datos de negocio sigue siendo lógico en todo lo demás.
+    @Test
+    fun soloSyncDaoBorraFisicamenteYEnTablasAcotadas() {
+        val allowed = setOf(
+            "sync_queue", "sync_baseline", "sync_meta", "task_lists",
+            "boards", "columns", "tasks", "subtasks", "my_day_tasks", "reminders", "app_notifications",
+        )
+        val tables = Regex("DELETE FROM (\\w+)").findAll(File(sourcesRoot, "data/local/SyncDao.kt").readText())
+            .map { it.groupValues[1] }.toSet()
+
+        assertTrue(tables.isNotEmpty())
+        assertTrue("tablas fuera de lo permitido: ${tables - allowed}", allowed.containsAll(tables))
+        assertFalse("sin @Delete ni siquiera en SyncDao", File(sourcesRoot, "data/local/SyncDao.kt").readText().contains("@Delete"))
+    }
+
     @Test
     fun todaEntidadImplementaLaConvencion() {
-        val entitySources = dataLocalSources().filter { it.readText().contains("@Entity") }
+        val infrastructure = setOf("SyncQueueEntity.kt", "SyncBaselineEntity.kt", "SyncMetaEntity.kt")
+        val entitySources = dataLocalSources().filter { it.readText().contains("@Entity") && it.name !in infrastructure }
 
         assertTrue("debe existir al menos una entidad en data/local/", entitySources.isNotEmpty())
         val violations = entitySources

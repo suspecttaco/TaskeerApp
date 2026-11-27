@@ -64,8 +64,13 @@ class RemoteLayerRulesTest {
     }
 
     @Test
-    fun noExisteDataSync() {
-        assertFalse(File(sourcesRoot, "data/sync").exists())
+    fun dataSync_noNombraDataRemote() {
+        val offenders = File(sourcesRoot, "data/sync").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .filter { it.readText().let { text -> text.contains("data.remote") || text.contains("data/remote") } }
+            .map { it.relativeTo(sourcesRoot).path }.toList()
+
+        assertTrue("data/sync conoce data/remote: $offenders", offenders.isEmpty())
     }
 
     @Test

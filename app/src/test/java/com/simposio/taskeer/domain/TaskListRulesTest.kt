@@ -189,8 +189,10 @@ class TaskListRulesTest {
             .flatMap { file -> file.readLines().filter { it.contains("SEEDED_TASK_LIST_ID") }.map { file.name to it } }
             .toList()
 
+        // El motor de sincronización la reemplaza por el id derivado del usuario al vincular y la resiembra al vaciar.
+        val syncFiles = setOf("SyncSessionGate.kt", "LocalDataWiper.kt")
         assertTrue("fuera de la siembra solo puede citarse en comentarios: $usages", usages.all { (file, line) ->
-            file == "AppDatabase.kt" && line.trimStart().startsWith("//")
+            (file == "AppDatabase.kt" && line.trimStart().startsWith("//")) || file in syncFiles
         })
     }
 

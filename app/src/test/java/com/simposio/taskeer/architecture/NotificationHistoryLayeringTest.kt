@@ -47,8 +47,12 @@ class NotificationHistoryLayeringTest {
     }
 
     @Test
-    fun noExisteDataSync() {
-        assertFalse(File(sourcesRoot, "data/sync").exists())
+    fun dataSync_noConoceElHistorialDeAvisos() {
+        val offenders = File(sourcesRoot, "data/sync").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" && it.readText().contains("NotificationHistory") }
+            .map { it.name }.toList()
+
+        assertTrue("data/sync no debe conocer el historial: $offenders", offenders.isEmpty())
     }
 
     @Test

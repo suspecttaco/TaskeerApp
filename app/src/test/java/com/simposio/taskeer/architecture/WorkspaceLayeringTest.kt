@@ -81,12 +81,11 @@ class WorkspaceLayeringTest {
     }
 
     @Test
-    fun elEsquemaDeRoomSigueEnLaVersion15() {
+    fun elEsquemaDeRoomConservaElJsonDeLaVersion15() {
         val schemas = MainSources.kotlinRoot.resolve("../../../../../../schemas").canonicalFile.walkTopDown()
             .filter { it.isFile && it.extension == "json" }.map(File::getName).toList()
 
         assertTrue(schemas.contains("15.json"))
-        assertTrue("no debe haber esquema 16: $schemas", !schemas.contains("16.json"))
     }
 
     @Test

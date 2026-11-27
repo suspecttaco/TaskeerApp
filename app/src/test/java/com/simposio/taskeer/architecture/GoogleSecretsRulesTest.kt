@@ -85,7 +85,7 @@ class GoogleSecretsRulesTest {
         assertFalse(manifest.contains("GET_ACCOUNTS"))
         assertFalse(manifest.contains("USE_CREDENTIALS"))
         assertFalse(manifest.contains("android:scheme"))
-        assertEquals(5, Regex("<uses-permission").findAll(manifest).count())
+        assertEquals(6, Regex("<uses-permission").findAll(manifest).count())
         assertFalse(manifest.contains("<queries>"))
     }
 }

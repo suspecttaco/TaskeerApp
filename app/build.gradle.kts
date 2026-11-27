@@ -68,8 +68,12 @@ android {
                 .getOrElse("https://backend-taskeerv3-preproduction.onrender.com/api/v1/")
             buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
             buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
+            // auto | bridge | b7: fuerza el transporte de sincronización al probar contra un servidor concreto.
+            val syncTransport = providers.gradleProperty("taskeer.syncTransport").getOrElse("auto")
+            buildConfigField("String", "SYNC_TRANSPORT", "\"$syncTransport\"")
         }
         release {
+            buildConfigField("String", "SYNC_TRANSPORT", "\"auto\"")
             buildConfigField(
                 "String",
                 "API_BASE_URL",
