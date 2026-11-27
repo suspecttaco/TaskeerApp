@@ -19,7 +19,11 @@ class RemoteLayerRulesTest {
             .sorted()
 
         assertEquals(
-            listOf("data/remote/transport/OkHttpStreamTransport.kt", "data/remote/transport/OkHttpTransport.kt"),
+            listOf(
+                "data/remote/transport/DebugHttpLogInterceptor.kt",
+                "data/remote/transport/OkHttpStreamTransport.kt",
+                "data/remote/transport/OkHttpTransport.kt",
+            ),
             offenders,
         )
     }
