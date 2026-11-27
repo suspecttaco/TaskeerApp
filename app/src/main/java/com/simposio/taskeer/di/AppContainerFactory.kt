@@ -27,13 +27,19 @@ import com.simposio.taskeer.data.reminder.ReminderReconciler
 import com.simposio.taskeer.data.auth.RemoteRepositories
 import com.simposio.taskeer.data.repository.SyncRepositoryImpl
 import com.simposio.taskeer.data.sync.AndroidConnectivitySource
+import com.simposio.taskeer.data.sync.BackgroundRetryScheduler
+import com.simposio.taskeer.data.sync.BackgroundSyncController
+import com.simposio.taskeer.data.sync.BackgroundSyncRunner
+import com.simposio.taskeer.data.sync.CompositeRetryScheduler
 import com.simposio.taskeer.data.sync.LocalDataWiper
 import com.simposio.taskeer.data.sync.RoomSyncLocalStore
 import com.simposio.taskeer.data.sync.SyncEngine
+import com.simposio.taskeer.data.sync.SyncMetaKeys
 import com.simposio.taskeer.data.sync.SyncScopeHolder
 import com.simposio.taskeer.data.sync.SyncSessionGate
 import com.simposio.taskeer.data.sync.SyncTransportSelector
 import com.simposio.taskeer.data.sync.SyncTriggers
+import com.simposio.taskeer.data.sync.WorkManagerBackgroundScheduler
 import com.simposio.taskeer.data.repository.BoardPermissionGate
 import com.simposio.taskeer.data.repository.BoardRepositoryImpl
 import com.simposio.taskeer.data.repository.RoleSignalSync
@@ -111,7 +117,8 @@ fun createAppContainer(context: Context): AppContainer {
         clock = Instant::now,
     )
     val remote = createRemoteRepositories(context, CoroutineScope(SupervisorJob() + Dispatchers.Default))
-    val sync = createSync(context, database.syncDao(), remote) { reminderReconciler.reconcile() }
+    val syncWiring = createSync(context, database.syncDao(), remote, preferencesRepository) { reminderReconciler.reconcile() }
+    val sync = syncWiring.repository
     val roleSignals = LiveRoleChangeSignals(remote.inbox, remote.live)
     val roleSignalSync = RoleSignalSync(roleSignals, sync)
     return AppContainer(
@@ -167,7 +174,14 @@ fun createAppContainer(context: Context): AppContainer {
         roleChangeSignals = roleSignals,
         boardRoles = boardRoles,
         syncRepository = sync,
-        runSync = { coroutineScope { launch { roleSignalSync.run() }; sync.run() } },
+        backgroundSyncRunner = syncWiring.runner,
+        runSync = {
+            coroutineScope {
+                launch { roleSignalSync.run() }
+                launch { syncWiring.controller.run() }
+                sync.run()
+            }
+        },
         googleCredentialSource = createGoogleCredentialSource(googleSignInConfig),
         googleSignInConfig = googleSignInConfig,
         zoneChanges = timeZoneProvider.changes,
@@ -218,14 +232,22 @@ private fun createSync(
     context: Context,
     dao: SyncDao,
     remote: RemoteRepositories,
+    preferences: PreferencesRepository,
     onRemindersChanged: suspend () -> Unit,
-): SyncRepositoryImpl {
+): SyncWiring {
     val scopeHolder = SyncScopeHolder()
     val store = RoomSyncLocalStore(dao, scopeHolder)
+    val scheduler = WorkManagerBackgroundScheduler(context)
     val triggers = SyncTriggers(
         connectivity = AndroidConnectivitySource(context).isOnline,
         pendingCount = store.observePendingCount(),
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    )
+    val controller = BackgroundSyncController(
+        session = remote.auth.sessionState,
+        enabled = preferences.backgroundSync,
+        pendingCount = store.observePendingCount(),
+        scheduler = scheduler,
     )
     val engine = SyncEngine(
         store = store,
@@ -235,9 +257,23 @@ private fun createSync(
         session = remote.auth.sessionState,
         scopeHolder = scopeHolder,
         triggers = triggers,
-        retry = triggers,
+        retry = CompositeRetryScheduler(triggers, BackgroundRetryScheduler(scheduler) { controller.active.value }),
         clock = Instant::now,
         onRemindersChanged = onRemindersChanged,
     )
-    return SyncRepositoryImpl(engine, triggers)
+    val runner = BackgroundSyncRunner(
+        session = remote.auth.sessionState,
+        enabled = { preferences.backgroundSync.first() },
+        pendingCount = { store.observePendingCount().first() },
+        lastSyncedAt = { store.meta(SyncMetaKeys.LAST_SYNCED_AT)?.toLongOrNull()?.let(Instant::ofEpochMilli) },
+        cycle = engine::runScheduledCycle,
+        clock = Instant::now,
+    )
+    return SyncWiring(SyncRepositoryImpl(engine, triggers), controller, runner)
 }
+
+private class SyncWiring(
+    val repository: SyncRepositoryImpl,
+    val controller: BackgroundSyncController,
+    val runner: BackgroundSyncRunner,
+)

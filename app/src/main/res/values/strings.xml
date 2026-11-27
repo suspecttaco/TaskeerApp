@@ -567,6 +567,8 @@
     <string name="menu_print">Imprimir, próximamente</string>
     <string name="menu_share">Compartir, próximamente</string>
     <string name="sync_title">Sincronización</string>
+    <string name="sync_background_title">Sincronizar en segundo plano</string>
+    <string name="sync_background_supporting">Envía y trae tus cambios cuando la app está cerrada y hay red</string>
     <string name="sync_action">Sincronizar</string>
     <string name="sync_status_idle">Todo sincronizado</string>
     <string name="sync_status_idle_at">Última sincronización: %1$s</string>

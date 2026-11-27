@@ -2,6 +2,8 @@ package com.simposio.taskeer
 
 import android.app.Application
 import com.simposio.taskeer.data.reminder.ReminderTriggers
+import com.simposio.taskeer.data.sync.BackgroundSyncRunner
+import com.simposio.taskeer.data.sync.BackgroundSyncRunnerProvider
 import com.simposio.taskeer.di.AppContainer
 import com.simposio.taskeer.di.createAppContainer
 import kotlinx.coroutines.CoroutineScope
@@ -9,9 +11,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
-class TaskeerApplication : Application() {
+class TaskeerApplication : Application(), BackgroundSyncRunnerProvider {
 
     val container: AppContainer by lazy { createAppContainer(this) }
+
+    override val backgroundSyncRunner: BackgroundSyncRunner
+        get() = checkNotNull(container.backgroundSyncRunner)
 
     // El sistema borra las alarmas al forzar la detención de la app, sin reinicio del dispositivo:
     // la primera emisión del colector concilia y vuelve a registrar la alarma.

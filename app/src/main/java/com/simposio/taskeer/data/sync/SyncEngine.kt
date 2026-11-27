@@ -2,6 +2,7 @@ package com.simposio.taskeer.data.sync
 
 import com.simposio.taskeer.domain.auth.SessionState
 import com.simposio.taskeer.domain.sync.BackoffRules
+import com.simposio.taskeer.domain.sync.CycleOutcome
 import com.simposio.taskeer.domain.sync.PauseReason
 import com.simposio.taskeer.domain.sync.SyncEntity
 import com.simposio.taskeer.domain.sync.SyncErrorKind
@@ -137,25 +138,35 @@ class SyncEngine(
         if (!wait.isNegative && !wait.isZero) delay(wait.toMillis())
     }
 
-    private suspend fun cycle(manual: Boolean) {
+    // Mismo ciclo que el primer plano, con el resultado para quien no observa el estado (el trabajo en segundo plano).
+    suspend fun runScheduledCycle(): CycleOutcome = cycleLock.withLock {
+        lastCycleStart = clock()
+        try {
+            cycle(manual = false)
+        } finally {
+            syncing.value = false
+        }
+    }
+
+    private suspend fun cycle(manual: Boolean): CycleOutcome {
         val ready = when (val acquisition = source.acquire()) {
             is Acquisition.Ready -> acquisition
             is Acquisition.Paused -> {
                 paused.value = acquisition.reason
-                return
+                return CycleOutcome.PAUSED
             }
             is Acquisition.Retry -> {
                 retry.schedule(acquisition.after ?: BackoffRules.INITIAL)
-                return
+                return CycleOutcome.DEFERRED
             }
-            Acquisition.Unauthorized -> return
+            Acquisition.Unauthorized -> return CycleOutcome.NO_SESSION
         }
         if (paused.value == PauseReason.SERVER_NOT_READY || paused.value == PauseReason.UPDATE_REQUIRED) paused.value = null
         when (val decision = gate.evaluate(ready.identity)) {
             is GateDecision.Mismatch -> {
                 paused.value = PauseReason.ACCOUNT_MISMATCH
                 accountPrompt.value = true
-                return
+                return CycleOutcome.PAUSED
             }
             GateDecision.NeedsBinding -> gate.bind(ready.identity.userId)
             GateDecision.Bound -> Unit
@@ -174,7 +185,7 @@ class SyncEngine(
             val second = push(ready, manual)
             pushReport = PushReport(pushReport.losses + second.losses, second.stopped)
         }
-        finish(pushReport, pullReport)
+        return finish(pushReport, pullReport)
     }
 
     // Lo que no estaba en alcance conserva pending; al entrar en alcance necesita una marca nueva, como un primer sync parcial.
@@ -333,13 +344,21 @@ class SyncEngine(
         store.recordTransientFailure(prepared.op, clock() + delay)
     }
 
-    private suspend fun finish(push: PushReport, pull: PullReport?) {
+    private suspend fun finish(push: PushReport, pull: PullReport?): CycleOutcome {
         SyncNoticeRules.summarize(push.losses + pull?.losses.orEmpty())?.let { mutableNotices.tryEmit(it) }
         val now = clock()
-        store.nextWake(now)?.let { retry.schedule(maxOf(Duration.between(now, it), Duration.ZERO)) }
-        if (pull != null && !pull.stopped && paused.value == null) {
+        val wake = store.nextWake(now)
+        wake?.let { retry.schedule(maxOf(Duration.between(now, it), Duration.ZERO)) }
+        val completed = pull != null && !pull.stopped && paused.value == null
+        if (completed) {
             lastSynced.value = now
             store.setMeta(SyncMetaKeys.LAST_SYNCED_AT, now.toEpochMilli().toString())
+        }
+        return when {
+            paused.value != null -> CycleOutcome.PAUSED
+            cycleError.value == SyncErrorKind.UNEXPECTED_RESPONSE -> CycleOutcome.STOPPED_BY_ERROR
+            wake != null || !completed -> CycleOutcome.DEFERRED
+            else -> CycleOutcome.COMPLETED
         }
     }
 

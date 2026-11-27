@@ -1,13 +1,16 @@
 package com.simposio.taskeer.ui.sync
 
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import com.simposio.taskeer.R
@@ -27,6 +30,16 @@ internal fun SyncSettingsSection(state: SyncUiState, onSync: () -> Unit, modifie
                 Text(stringResource(R.string.sync_action))
             }
         },
+    )
+}
+
+@Composable
+internal fun BackgroundSyncRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    ListItem(
+        modifier = modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
+        headlineContent = { Text(stringResource(R.string.sync_background_title)) },
+        supportingContent = { Text(stringResource(R.string.sync_background_supporting)) },
+        trailingContent = { Switch(checked = checked, onCheckedChange = null) },
     )
 }
 

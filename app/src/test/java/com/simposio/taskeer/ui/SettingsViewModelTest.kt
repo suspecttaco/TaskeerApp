@@ -15,6 +15,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -65,6 +66,17 @@ class SettingsViewModelTest {
         assertEquals(DeadlineReminderSettings(false, ReminderLead.ONE_HOUR), state.deadline)
         assertEquals(DigestSettings(false, DigestSettings.WEEKDAYS, LocalTime.of(9, 0)), state.digest)
         assertEquals(LocalTime.of(9, 0), state.defaultReminderTime)
+    }
+
+    @Test
+    fun sincronizacionEnSegundoPlano_porDefectoActivadaYEscribeAlCambiar() = runTest {
+        observe()
+        assertEquals(true, viewModel.uiState.value.backgroundSync)
+
+        viewModel.onBackgroundSyncChange(false)
+
+        assertEquals(false, viewModel.uiState.value.backgroundSync)
+        assertEquals(false, preferences.backgroundSync.first())
     }
 
     @Test

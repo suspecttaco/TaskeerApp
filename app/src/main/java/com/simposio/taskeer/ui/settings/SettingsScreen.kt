@@ -15,6 +15,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.simposio.taskeer.ui.auth.SessionViewModel
 import com.simposio.taskeer.ui.components.AppDivider
 import com.simposio.taskeer.ui.permission.NotificationPermissionNotice
+import com.simposio.taskeer.ui.sync.BackgroundSyncRow
 import com.simposio.taskeer.ui.sync.SyncSettingsSection
 import com.simposio.taskeer.ui.sync.SyncViewModel
 import com.simposio.taskeer.ui.theme.Spacing
@@ -59,6 +60,9 @@ fun SettingsScreen(
             ),
         )
         SyncSettingsSection(state = syncState, onSync = syncViewModel::sync)
+        if (syncState.visible) {
+            BackgroundSyncRow(checked = state.backgroundSync, onCheckedChange = viewModel::onBackgroundSyncChange)
+        }
         AppDivider()
         ThemeSettingsSection(
             themeMode = state.themeMode,

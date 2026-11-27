@@ -323,6 +323,21 @@ class PreferencesRepositoryImplTest {
         assertEquals("X/Y", raw[stringPreferencesKey("region_timezone_iana")])
     }
 
+    @Test
+    fun sincronizacionEnSegundoPlano_porDefectoActivada() = runTest {
+        val repository = PreferencesRepositoryImpl(newDataStore(backgroundScope))
+
+        assertEquals(true, repository.backgroundSync.first())
+    }
+
+    @Test
+    fun setBackgroundSyncEnabled_sePersisteAlRecrearElRepositorio() = runTest {
+        val store = newDataStore(backgroundScope)
+        PreferencesRepositoryImpl(store).setBackgroundSyncEnabled(false)
+
+        assertEquals(false, PreferencesRepositoryImpl(store).backgroundSync.first())
+    }
+
     private fun newDataStore(scope: CoroutineScope): DataStore<Preferences> =
         PreferenceDataStoreFactory.create(scope = scope) { preferencesFile() }
 

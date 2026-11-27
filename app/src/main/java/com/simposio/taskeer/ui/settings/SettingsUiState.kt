@@ -11,6 +11,7 @@ import java.time.LocalTime
 data class SettingsUiState(
     val themeMode: ThemeMode = ThemeMode.AUTO,
     val dynamicColor: Boolean = true,
+    val backgroundSync: Boolean = true,
     val deadline: DeadlineReminderSettings = DeadlineReminderSettings(),
     val digest: DigestSettings = DigestSettings(),
     val defaultReminderTime: LocalTime = DEFAULT_REMINDER_TIME,

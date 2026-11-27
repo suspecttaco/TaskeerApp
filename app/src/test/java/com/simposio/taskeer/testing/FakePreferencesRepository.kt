@@ -35,6 +35,7 @@ class FakePreferencesRepository(
     private val lastShownDayState = MutableStateFlow(lastShownDay)
     private val hiddenCalendarState = MutableStateFlow(hiddenCalendars)
     private val regionState = MutableStateFlow(region)
+    private val backgroundSyncState = MutableStateFlow(true)
 
     var failOnSetLastShownDay: Boolean = false
 
@@ -46,6 +47,11 @@ class FakePreferencesRepository(
     override val suggestionsLastShownDay: Flow<LocalDate?> = lastShownDayState
     override val hiddenCalendarIds: Flow<Set<Long>> = hiddenCalendarState
     override val region: Flow<RegionPreferences> = regionState
+    override val backgroundSync: Flow<Boolean> = backgroundSyncState
+
+    override suspend fun setBackgroundSyncEnabled(enabled: Boolean) {
+        backgroundSyncState.value = enabled
+    }
 
     override suspend fun setThemeMode(mode: ThemeMode) {
         this.mode.value = mode

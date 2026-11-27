@@ -29,22 +29,39 @@ class SyncWiringRulesTest {
     }
 
     @Test
-    fun sinWorkManagerNiServicios() {
-        val gradle = findUp("app/build.gradle.kts").readText() + findUp("gradle/libs.versions.toml").readText()
-
-        assertFalse(gradle.contains("androidx.work"))
+    fun manifestFuente_sinServiciosNiWorkManager() {
         assertFalse(MainSources.manifest().contains("<service"))
         assertFalse(MainSources.manifest().contains("androidx.work"))
     }
 
     @Test
-    fun soloLaFuenteDeConectividadTocaAndroid() {
+    fun soloLasFuentesDeAndroidTocanAndroidEnDataSync() {
+        val allowed = setOf("AndroidConnectivitySource.kt", "WorkManagerBackgroundScheduler.kt", "BackgroundSyncWorker.kt")
         val offenders = MainSources.kotlinFiles("data/sync")
             .filter { file -> file.readLines().any { it.trim().startsWith("import android.") || it.trim().startsWith("import androidx.") } }
             .map { it.name }
-            .filterNot { it == "AndroidConnectivitySource.kt" }
+            .filterNot { it in allowed }
 
-        assertTrue("data/sync con Android fuera de la fuente de conectividad: $offenders", offenders.isEmpty())
+        assertTrue("data/sync con Android fuera de las fuentes permitidas: $offenders", offenders.isEmpty())
+    }
+
+    @Test
+    fun existeUnaSolaLlamadaASyncEngineRun() {
+        val calls = MainSources.kotlinFiles("").filter { it.readText().contains("sync.run()") }.map { it.name }
+
+        assertEquals(listOf("AppContainerFactory.kt"), calls)
+    }
+
+    @Test
+    fun elMotorRecibeElRetrocesoCompuesto() {
+        val factory = MainSources.kotlin("di/AppContainerFactory.kt")
+
+        assertTrue(factory.contains("retry = CompositeRetryScheduler(triggers, BackgroundRetryScheduler("))
+    }
+
+    @Test
+    fun taskeerApplication_noImportaWorkManager() {
+        assertFalse(MainSources.kotlin("TaskeerApplication.kt").contains("androidx.work"))
     }
 
     private fun findUp(relative: String): File {

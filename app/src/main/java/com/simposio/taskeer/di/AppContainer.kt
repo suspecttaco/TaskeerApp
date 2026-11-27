@@ -30,6 +30,7 @@ import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.data.repository.WorkspaceInvitationsRepository
 import com.simposio.taskeer.data.repository.WorkspaceMembersRepository
 import com.simposio.taskeer.data.repository.WorkspaceRepository
+import com.simposio.taskeer.data.sync.BackgroundSyncRunner
 import com.simposio.taskeer.domain.auth.GoogleSignInConfig
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.date.FirstDayOfWeekProvider
@@ -66,6 +67,7 @@ class AppContainer(
     val roleChangeSignals: RoleChangeSignals,
     val boardRoles: BoardRoles = UnrestrictedBoardRoles,
     val syncRepository: SyncRepository = UnavailableSyncRepository,
+    val backgroundSyncRunner: BackgroundSyncRunner? = null,
     val runSync: suspend () -> Unit = {},
     val googleCredentialSource: GoogleCredentialSource = UnavailableGoogleCredentialSource,
     val googleSignInConfig: GoogleSignInConfig = GoogleSignInConfig(""),
