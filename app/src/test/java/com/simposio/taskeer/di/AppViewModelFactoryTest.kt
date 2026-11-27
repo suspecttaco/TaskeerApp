@@ -227,7 +227,8 @@ class AppViewModelFactoryTest {
         assertTrue(
             source.contains(
                 "ServerBoardsViewModel(extras.createSavedStateHandle(),container.serverBoardsRepository," +
-                    "container.workspaceRepository,container.authRepository.sessionState)",
+                    "container.workspaceRepository,{container.boardRepository.observeBoards().first().map{it.id}.toSet()}," +
+                    "container.authRepository.sessionState)",
             ),
         )
         assertTrue(

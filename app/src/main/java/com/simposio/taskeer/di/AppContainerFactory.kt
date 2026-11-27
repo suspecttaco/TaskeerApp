@@ -35,7 +35,10 @@ import com.simposio.taskeer.data.sync.SyncSessionGate
 import com.simposio.taskeer.data.sync.SyncTransportSelector
 import com.simposio.taskeer.data.sync.SyncTriggers
 import com.simposio.taskeer.data.sync.TransportMode
+import com.simposio.taskeer.data.repository.BoardPermissionGate
 import com.simposio.taskeer.data.repository.BoardRepositoryImpl
+import com.simposio.taskeer.data.repository.RoleSignalSync
+import com.simposio.taskeer.data.repository.RoomBoardRoles
 import com.simposio.taskeer.data.repository.ClockDayWindowSource
 import com.simposio.taskeer.data.repository.ColumnRepositoryImpl
 import com.simposio.taskeer.data.repository.LiveRoleChangeSignals
@@ -58,6 +61,7 @@ import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -76,6 +80,8 @@ fun createAppContainer(context: Context): AppContainer {
         CoroutineScope(Dispatchers.IO + SupervisorJob()),
     )
     val taskListRepository = createTaskListRepository(database.taskListDao(), database.taskDao())
+    val boardRoles = RoomBoardRoles(database.boardAccessDao())
+    val gate = BoardPermissionGate(boardRoles)
     val taskRepository = createTaskRepository(
         taskDao = database.taskDao(),
         columnDao = database.columnDao(),
@@ -84,6 +90,7 @@ fun createAppContainer(context: Context): AppContainer {
         taskListDao = database.taskListDao(),
         defaultListId = taskListRepository::defaultListId,
         timeZone = timeZoneProvider,
+        gate = gate,
     )
     val reminderRepository = ReminderRepositoryImpl(database.reminderDao(), database.taskDao())
     val notificationHistoryRepository = NotificationHistoryRepositoryImpl(database.appNotificationDao())
@@ -93,14 +100,17 @@ fun createAppContainer(context: Context): AppContainer {
     val googleSignInConfig = GoogleSignInConfig(BuildConfig.GOOGLE_WEB_CLIENT_ID)
     val remote = createRemoteRepositories(context, CoroutineScope(SupervisorJob() + Dispatchers.Default))
     val sync = createSync(context, database.syncDao(), remote)
+    val roleSignals = LiveRoleChangeSignals(remote.inbox, remote.live)
+    val roleSignalSync = RoleSignalSync(roleSignals, sync)
     return AppContainer(
         preferencesRepository = preferencesRepository,
         timeZoneProvider = timeZoneProvider,
-        boardRepository = BoardRepositoryImpl(database.boardDao(), database.columnDao()),
+        boardRepository = BoardRepositoryImpl(database.boardDao(), database.columnDao(), gate = gate),
         columnRepository = ColumnRepositoryImpl(
             database.boardDao(),
             database.columnDao(),
             columnTaskCount = taskCountByColumn(database.taskDao()),
+            gate = gate,
         ),
         taskRepository = taskRepository,
         taskListRepository = taskListRepository,
@@ -149,9 +159,10 @@ fun createAppContainer(context: Context): AppContainer {
         myInvitationsRepository = remote.myInvitations,
         serverBoardsRepository = remote.serverBoards,
         boardAccessRepository = remote.boardAccess,
-        roleChangeSignals = LiveRoleChangeSignals(remote.inbox, remote.live),
+        roleChangeSignals = roleSignals,
+        boardRoles = boardRoles,
         syncRepository = sync,
-        runSync = sync::run,
+        runSync = { coroutineScope { launch { roleSignalSync.run() }; sync.run() } },
         googleCredentialSource = createGoogleCredentialSource(googleSignInConfig),
         googleSignInConfig = googleSignInConfig,
         zoneChanges = timeZoneProvider.changes,
@@ -191,8 +202,9 @@ fun createTaskRepository(
     taskListDao: TaskListDao,
     defaultListId: suspend () -> String,
     timeZone: TimeZoneProvider,
+    gate: BoardPermissionGate = BoardPermissionGate(),
 ): TaskRepository =
-    TaskRepositoryImpl(taskDao, columnDao, subtaskDao, reminderDao, taskListDao, defaultListId, timeZone = timeZone)
+    TaskRepositoryImpl(taskDao, columnDao, subtaskDao, reminderDao, taskListDao, defaultListId, timeZone = timeZone, gate = gate)
 
 fun createTaskListRepository(taskListDao: TaskListDao, taskDao: TaskDao): TaskListRepository =
     TaskListRepositoryImpl(taskListDao, taskDao)

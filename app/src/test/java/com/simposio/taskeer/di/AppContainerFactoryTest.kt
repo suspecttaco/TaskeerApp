@@ -431,7 +431,8 @@ class AppContainerFactoryTest {
     fun createAppContainer_derivaLaSenalDeRolDelCanalExistente() {
         val body = factorySource().substringAfter("fun createAppContainer(").substringBefore("// La lectura inicial")
 
-        assertTrue(body.contains("roleChangeSignals = LiveRoleChangeSignals(remote.inbox, remote.live)"))
+        assertTrue(body.contains("LiveRoleChangeSignals(remote.inbox, remote.live)"))
+        assertTrue(body.contains("roleChangeSignals = roleSignals"))
         assertEquals(1, Regex("notificationLiveChannel = remote\\.live").findAll(body).count())
     }
 
