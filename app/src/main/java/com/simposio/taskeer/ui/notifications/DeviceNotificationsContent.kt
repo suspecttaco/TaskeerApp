@@ -11,8 +11,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -23,6 +23,8 @@ import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.reminder.SnoozeOption
 import com.simposio.taskeer.ui.components.ActionIcon
 import com.simposio.taskeer.ui.components.AppDivider
+import com.simposio.taskeer.ui.components.EmptyState
+import com.simposio.taskeer.ui.components.rowItemModifier
 import com.simposio.taskeer.ui.theme.Spacing
 
 @Composable
@@ -63,22 +65,25 @@ fun DeviceNotificationsContent(
             )
         }
         if (state.rows.isEmpty()) {
-            Text(
+            EmptyState(
+                icon = Icons.Filled.NotificationsNone,
                 text = stringResource(R.string.notifications_empty),
-                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
         LazyColumn {
             items(state.rows, key = { it.id }) { row ->
-                NotificationRow(
-                    row = row,
-                    onOpen = onOpen,
-                    onMarkRead = onMarkRead,
-                    onDelete = onDelete,
-                    onSnooze = onSnooze,
-                    onSnoozeCustom = onSnoozeCustom,
-                )
-                AppDivider()
+                Column(modifier = rowItemModifier()) {
+                    NotificationRow(
+                        row = row,
+                        onOpen = onOpen,
+                        onMarkRead = onMarkRead,
+                        onDelete = onDelete,
+                        onSnooze = onSnooze,
+                        onSnoozeCustom = onSnoozeCustom,
+                    )
+                    AppDivider()
+                }
             }
         }
     }

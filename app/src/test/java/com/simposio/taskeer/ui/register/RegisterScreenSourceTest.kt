@@ -20,7 +20,7 @@ class RegisterScreenSourceTest {
             "Button(",
             "Checkbox(",
             "AlertDialog(",
-            "CircularProgressIndicator(",
+            "ButtonProgress(",
         ).forEach { assertTrue("falta $it", all.contains(it)) }
     }
 

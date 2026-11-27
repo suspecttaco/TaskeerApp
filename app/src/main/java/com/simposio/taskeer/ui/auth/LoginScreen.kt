@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.KeyboardActionHandler
@@ -22,7 +21,6 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -49,12 +47,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.simposio.taskeer.R
 import com.simposio.taskeer.ui.components.ActionIcon
+import com.simposio.taskeer.ui.components.ButtonProgress
+import com.simposio.taskeer.ui.components.InlineError
 import com.simposio.taskeer.ui.components.StatePage
 import com.simposio.taskeer.ui.components.StatePageAction
 import com.simposio.taskeer.ui.theme.Spacing
@@ -222,11 +221,8 @@ private fun LoginForm(
             }
         }
         state.error?.let { error ->
-            Text(
-                text = loginErrorText(error, state.retryMinutes),
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            InlineError(
+                message = loginErrorText(error, state.retryMinutes),
             )
         }
         Button(
@@ -236,11 +232,7 @@ private fun LoginForm(
                 .fillMaxWidth()
                 .heightIn(min = Spacing.MinTouchTarget),
         ) {
-            if (state.isSubmitting) {
-                CircularProgressIndicator(modifier = Modifier.size(Spacing.IconSize), strokeWidth = 2.dp)
-            } else {
-                Text(stringResource(R.string.auth_login_action))
-            }
+            ButtonProgress(loading = state.isSubmitting, label = stringResource(R.string.auth_login_action))
         }
         if (state.googleAvailable) {
             GoogleSignInSection(state, onGoogle)
@@ -289,11 +281,7 @@ private fun GoogleSignInSection(state: LoginUiState, onGoogle: () -> Unit) {
             .heightIn(min = Spacing.MinTouchTarget)
             .semantics { if (state.googleInProgress) stateDescription = busy },
     ) {
-        if (state.googleInProgress) {
-            CircularProgressIndicator(modifier = Modifier.size(Spacing.IconSize), strokeWidth = 2.dp)
-        } else {
-            Text(stringResource(R.string.google_continue_action))
-        }
+        ButtonProgress(loading = state.googleInProgress, label = stringResource(R.string.google_continue_action))
     }
 }
 

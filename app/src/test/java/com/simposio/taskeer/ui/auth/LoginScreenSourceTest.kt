@@ -12,7 +12,7 @@ class LoginScreenSourceTest {
 
     @Test
     fun usaComponentesNativosDeMaterial3() {
-        listOf("OutlinedTextField(", "OutlinedSecureTextField(", "Button(", "CircularProgressIndicator(")
+        listOf("OutlinedTextField(", "OutlinedSecureTextField(", "Button(", "ButtonProgress(")
             .forEach { assertTrue("falta $it", screen.contains(it)) }
     }
 
@@ -51,7 +51,7 @@ class LoginScreenSourceTest {
 
         assertTrue(section.contains("OutlinedButton("))
         assertTrue(section.contains("heightIn(min = Spacing.MinTouchTarget)"))
-        assertTrue(section.contains("CircularProgressIndicator("))
+        assertTrue(section.contains("ButtonProgress("))
         assertTrue(section.contains("stateDescription"))
         assertFalse(section.contains("painterResource") || section.contains("Image("))
     }
@@ -84,7 +84,7 @@ class LoginScreenSourceTest {
         val notice = screen.indexOf("R.string.register_account_created_notice")
 
         assertTrue(notice >= 0)
-        assertTrue(screen.substring(notice).contains("liveRegion = LiveRegionMode.Polite"))
+        assertTrue(screen.substring(notice).contains("InlineError("))
     }
 
     @Test

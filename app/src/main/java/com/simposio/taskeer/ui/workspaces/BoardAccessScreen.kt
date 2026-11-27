@@ -2,6 +2,7 @@ package com.simposio.taskeer.ui.workspaces
 
 import android.content.res.Resources
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,7 +17,6 @@ import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,8 +51,16 @@ import com.simposio.taskeer.domain.workspace.BoardCapability
 import com.simposio.taskeer.ui.components.ActionIcon
 import com.simposio.taskeer.ui.components.AppDivider
 import com.simposio.taskeer.ui.components.DecorativeIcon
+import com.simposio.taskeer.ui.components.EmptyHint
+import com.simposio.taskeer.ui.components.LoadingBody
+import com.simposio.taskeer.ui.components.NoticeKind
+import com.simposio.taskeer.ui.components.PhaseCrossfade
+import com.simposio.taskeer.ui.components.PhaseKind
 import com.simposio.taskeer.ui.components.StatePage
 import com.simposio.taskeer.ui.components.StatePageAction
+import com.simposio.taskeer.ui.components.phaseKindOf
+import com.simposio.taskeer.ui.components.rememberWhile
+import com.simposio.taskeer.ui.components.rowItemModifier
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 
@@ -78,10 +86,11 @@ fun BoardAccessScreen(
                     scope,
                     snackbarHostState,
                     event.message.text(resources),
+                    NoticeKind.ERROR,
                     leaving = event.message == BoardRoleErrorMessage.BoardGone,
                 )
                 is BoardAccessEvent.ShowMessage ->
-                    announce(context, scope, snackbarHostState, event.notice.text(resources), leaving = false)
+                    announce(context, scope, snackbarHostState, event.notice.text(resources), NoticeKind.INFO, leaving = false)
                 BoardAccessEvent.LeaveScreen -> onLeave()
             }
         }
@@ -113,25 +122,23 @@ fun BoardAccessContent(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-            when (state.phase) {
-                BoardAccessPhase.LOADING -> LoadingBody()
-                BoardAccessPhase.ERROR -> StatePage(
-                    icon = Icons.Filled.CloudOff,
-                    title = stringResource(R.string.board_roles_access_error_title),
-                    message = (state.error ?: BoardRoleErrorMessage.Generic).text(),
-                    action = StatePageAction(stringResource(R.string.board_roles_retry), onRefresh),
-                )
-                BoardAccessPhase.READY -> AccessList(state, onRefresh, onSetRole, onRemove)
+            val shownError = rememberWhile(state.phase == BoardAccessPhase.ERROR, state.error)
+            PhaseCrossfade(
+                kind = phaseKindOf(loading = state.phase == BoardAccessPhase.LOADING, error = state.phase == BoardAccessPhase.ERROR),
+                modifier = Modifier.fillMaxSize(),
+            ) { kind ->
+                when (kind) {
+                    PhaseKind.LOADING -> LoadingBody(stringResource(R.string.board_roles_access_loading))
+                    PhaseKind.ERROR -> StatePage(
+                        icon = Icons.Filled.CloudOff,
+                        title = stringResource(R.string.board_roles_access_error_title),
+                        message = (shownError ?: BoardRoleErrorMessage.Generic).text(),
+                        action = StatePageAction(stringResource(R.string.board_roles_retry), onRefresh),
+                    )
+                    PhaseKind.CONTENT -> AccessList(state, onRefresh, onSetRole, onRemove)
+                }
             }
         }
-    }
-}
-
-@Composable
-private fun LoadingBody() {
-    val description = stringResource(R.string.board_roles_access_loading)
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(modifier = Modifier.semantics { contentDescription = description })
     }
 }
 
@@ -150,6 +157,7 @@ private fun AccessList(
                 item { SectionTitle(stringResource(R.string.board_roles_can_title)) }
                 items(state.capabilities, key = { it.name }) { capability ->
                     ListItem(
+                        modifier = rowItemModifier(),
                         leadingContent = { DecorativeIcon(Icons.Filled.Check) },
                         headlineContent = { Text(capability.text()) },
                     )
@@ -182,16 +190,6 @@ private fun SectionTitle(text: String) {
     )
 }
 
-@Composable
-private fun Hint(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(Spacing.ScreenPadding),
-    )
-}
-
 private fun LazyListScope.panelSection(
     state: BoardAccessUiState,
     onRetry: () -> Unit,
@@ -202,23 +200,23 @@ private fun LazyListScope.panelSection(
     if (state.panelLoading) {
         item {
             val description = stringResource(R.string.board_roles_panel_loading)
-            Box(modifier = Modifier.fillMaxWidth().padding(Spacing.ScreenPadding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(modifier = Modifier.semantics { contentDescription = description })
-            }
+            LoadingBody(description, Modifier.fillMaxWidth().padding(Spacing.ScreenPadding))
         }
     }
     if (state.panelError) {
         item {
-            Hint(stringResource(R.string.board_roles_panel_error))
+            EmptyHint(text = stringResource(R.string.board_roles_panel_error), modifier = Modifier.padding(Spacing.ScreenPadding))
             TextButton(onClick = onRetry, modifier = Modifier.padding(horizontal = Spacing.ScreenPadding)) {
                 Text(stringResource(R.string.board_roles_retry))
             }
         }
     }
-    if (state.noOtherMembers) item { Hint(stringResource(R.string.board_roles_panel_empty)) }
+    if (state.noOtherMembers) item { EmptyHint(text = stringResource(R.string.board_roles_panel_empty), modifier = Modifier.padding(Spacing.ScreenPadding)) }
     items(state.rows, key = { it.userId }) { row ->
-        OverrideRowItem(row, onSetRole, onRemove)
-        AppDivider()
+        Column(modifier = rowItemModifier()) {
+            OverrideRowItem(row, onSetRole, onRemove)
+            AppDivider()
+        }
     }
 }
 

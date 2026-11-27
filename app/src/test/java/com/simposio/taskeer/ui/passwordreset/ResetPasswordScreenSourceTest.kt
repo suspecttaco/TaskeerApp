@@ -11,7 +11,7 @@ class ResetPasswordScreenSourceTest {
 
     @Test
     fun usaComponentesNativosDeMaterial3() {
-        listOf("OutlinedTextField(", "OutlinedSecureTextField(", "Button(", "CircularProgressIndicator(")
+        listOf("OutlinedTextField(", "OutlinedSecureTextField(", "Button(", "ButtonProgress(")
             .forEach { assertTrue("falta $it", screen.contains(it)) }
     }
 
@@ -42,13 +42,13 @@ class ResetPasswordScreenSourceTest {
 
     @Test
     fun erroresConLiveRegion() {
-        assertTrue(screen.contains("liveRegion = LiveRegionMode.Polite"))
+        assertTrue(screen.contains("InlineError("))
     }
 
     @Test
     fun botonDeshabilitadoMientrasEnvia() {
         assertTrue(screen.contains("enabled = state.canSubmit"))
-        assertTrue(screen.contains("if (state.isSubmitting)"))
+        assertTrue(screen.contains("loading = state.isSubmitting"))
     }
 
     @Test

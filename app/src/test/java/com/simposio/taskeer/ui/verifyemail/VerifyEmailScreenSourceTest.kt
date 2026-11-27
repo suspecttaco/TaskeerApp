@@ -11,7 +11,7 @@ class VerifyEmailScreenSourceTest {
 
     @Test
     fun usaComponentesNativosDeMaterial3() {
-        listOf("OutlinedTextField(", "Button(", "CircularProgressIndicator(", "TextFieldLineLimits.MultiLine")
+        listOf("OutlinedTextField(", "Button(", "ButtonProgress(", "TextFieldLineLimits.MultiLine")
             .forEach { assertTrue("falta $it", screen.contains(it)) }
         assertTrue(screen.contains("ImeAction.Done"))
         assertTrue(screen.contains("autoCorrectEnabled = false"))
@@ -28,7 +28,7 @@ class VerifyEmailScreenSourceTest {
 
     @Test
     fun erroresYResultadosConLiveRegion() {
-        assertTrue(screen.contains("liveRegion = LiveRegionMode.Polite"))
+        assertTrue(screen.contains("InlineError("))
     }
 
     @Test
@@ -41,6 +41,6 @@ class VerifyEmailScreenSourceTest {
     @Test
     fun botonDeshabilitadoMientrasEnvia() {
         assertTrue(screen.contains("enabled = state.canSubmit"))
-        assertTrue(screen.contains("if (state.isSubmitting)"))
+        assertTrue(screen.contains("loading = state.isSubmitting"))
     }
 }

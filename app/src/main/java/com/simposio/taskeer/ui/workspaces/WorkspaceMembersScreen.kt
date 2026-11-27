@@ -5,6 +5,7 @@ import android.content.res.Resources
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,7 +18,6 @@ import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,8 +51,17 @@ import com.simposio.taskeer.R
 import com.simposio.taskeer.ui.components.ActionIcon
 import com.simposio.taskeer.ui.components.AppDivider
 import com.simposio.taskeer.ui.components.DecorativeIcon
+import com.simposio.taskeer.ui.components.EmptyHint
+import com.simposio.taskeer.ui.components.LoadingBody
+import com.simposio.taskeer.ui.components.NoticeKind
+import com.simposio.taskeer.ui.components.PhaseCrossfade
+import com.simposio.taskeer.ui.components.PhaseKind
 import com.simposio.taskeer.ui.components.StatePage
 import com.simposio.taskeer.ui.components.StatePageAction
+import com.simposio.taskeer.ui.components.phaseKindOf
+import com.simposio.taskeer.ui.components.rememberWhile
+import com.simposio.taskeer.ui.components.rowItemModifier
+import com.simposio.taskeer.ui.components.showNotice
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 import kotlinx.coroutines.CoroutineScope
@@ -90,9 +99,9 @@ fun WorkspaceMembersScreen(
         viewModel.events.collect { event ->
             when (event) {
                 is MembersEvent.ShowError ->
-                    announce(context, scope, snackbarHostState, event.message.text(resources), leaving = event.message == WorkspaceMemberErrorMessage.WorkspaceGone)
+                    announce(context, scope, snackbarHostState, event.message.text(resources), NoticeKind.ERROR, leaving = event.message == WorkspaceMemberErrorMessage.WorkspaceGone)
                 is MembersEvent.ShowMessage ->
-                    announce(context, scope, snackbarHostState, event.notice.text(resources), leaving = event.notice is MembersNotice.Left)
+                    announce(context, scope, snackbarHostState, event.notice.text(resources), NoticeKind.INFO, leaving = event.notice is MembersNotice.Left)
                 is MembersEvent.OpenBoards -> onOpenBoards(event.workspaceId)
                 MembersEvent.LeaveScreen -> leaveOnce()
             }
@@ -106,10 +115,11 @@ fun WorkspaceMembersScreen(
                     scope,
                     snackbarHostState,
                     event.message.text(resources),
+                    NoticeKind.ERROR,
                     leaving = event.message == WorkspaceInvitationErrorMessage.WorkspaceGone,
                 )
                 is InvitationEvent.ShowMessage ->
-                    announce(context, scope, snackbarHostState, event.notice.text(resources), leaving = false)
+                    announce(context, scope, snackbarHostState, event.notice.text(resources), NoticeKind.INFO, leaving = false)
                 InvitationEvent.OpenVerifyEmail -> onVerifyEmail()
                 InvitationEvent.LeaveScreen -> leaveOnce()
             }
@@ -144,12 +154,13 @@ internal fun announce(
     scope: CoroutineScope,
     snackbarHostState: SnackbarHostState,
     text: String,
+    kind: NoticeKind,
     leaving: Boolean,
 ) {
     if (leaving) {
         Toast.makeText(context, text, Toast.LENGTH_LONG).show()
     } else {
-        scope.launch { snackbarHostState.showSnackbar(text) }
+        scope.launch { snackbarHostState.showNotice(text, kind) }
     }
 }
 
@@ -175,29 +186,27 @@ fun WorkspaceMembersContent(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-            when (state.phase) {
-                MembersPhase.LOADING -> LoadingBody()
-                MembersPhase.ERROR -> StatePage(
-                    icon = Icons.Filled.CloudOff,
-                    title = stringResource(R.string.workspace_members_error_title),
-                    message = (state.error ?: WorkspaceMemberErrorMessage.Generic).text(),
-                    action = StatePageAction(stringResource(R.string.workspace_members_retry), onRefresh),
-                )
-                MembersPhase.EMPTY, MembersPhase.LIST ->
-                    MembersList(
-                        state, invitations, onRefresh, onChangeRole, onRemove, onLeave, onTransfer,
-                        onInvite, onRevokeInvitation, onRetryInvitations, onOpenBoards,
+            val shownError = rememberWhile(state.phase == MembersPhase.ERROR, state.error)
+            PhaseCrossfade(
+                kind = phaseKindOf(loading = state.phase == MembersPhase.LOADING, error = state.phase == MembersPhase.ERROR),
+                modifier = Modifier.fillMaxSize(),
+            ) { kind ->
+                when (kind) {
+                    PhaseKind.LOADING -> LoadingBody(stringResource(R.string.workspace_members_loading))
+                    PhaseKind.ERROR -> StatePage(
+                        icon = Icons.Filled.CloudOff,
+                        title = stringResource(R.string.workspace_members_error_title),
+                        message = (shownError ?: WorkspaceMemberErrorMessage.Generic).text(),
+                        action = StatePageAction(stringResource(R.string.workspace_members_retry), onRefresh),
                     )
+                    PhaseKind.CONTENT ->
+                        MembersList(
+                            state, invitations, onRefresh, onChangeRole, onRemove, onLeave, onTransfer,
+                            onInvite, onRevokeInvitation, onRetryInvitations, onOpenBoards,
+                        )
+                }
             }
         }
-    }
-}
-
-@Composable
-private fun LoadingBody() {
-    val description = stringResource(R.string.workspace_members_loading)
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(modifier = Modifier.semantics { contentDescription = description })
     }
 }
 
@@ -235,28 +244,20 @@ private fun MembersList(
                 )
             }
             if (state.phase == MembersPhase.EMPTY) {
-                item { Hint(stringResource(R.string.workspace_members_empty)) }
+                item { EmptyHint(text = stringResource(R.string.workspace_members_empty), modifier = Modifier.padding(Spacing.ScreenPadding)) }
             }
             if (state.ownerHint) {
-                item { Hint(stringResource(R.string.workspace_members_owner_hint)) }
+                item { EmptyHint(text = stringResource(R.string.workspace_members_owner_hint), modifier = Modifier.padding(Spacing.ScreenPadding)) }
             }
             items(state.rows, key = { it.userId }) { row ->
-                MemberRow(row, onChangeRole, onRemove, onLeave, onTransfer)
-                AppDivider()
+                Column(modifier = rowItemModifier()) {
+                    MemberRow(row, onChangeRole, onRemove, onLeave, onTransfer)
+                    AppDivider()
+                }
             }
             invitationsSection(invitations, onInvite, onRevokeInvitation, onRetryInvitations)
         }
     }
-}
-
-@Composable
-private fun Hint(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(Spacing.ScreenPadding),
-    )
 }
 
 @Composable

@@ -26,6 +26,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.notification.badgeLabel
+import com.simposio.taskeer.ui.components.NoticeKind
+import com.simposio.taskeer.ui.components.showNotice
 import com.simposio.taskeer.ui.permission.NotificationPermissionNotice
 import com.simposio.taskeer.ui.tasks.DueDatePickerDialog
 import com.simposio.taskeer.ui.tasks.DueTimePickerDialog
@@ -58,8 +60,8 @@ fun NotificationsScreen(
         viewModel.events.collect { event ->
             when (event) {
                 is NotificationsEvent.OpenTask -> editorHost.openForEdit(event.taskId)
-                NotificationsEvent.ShowTaskGone -> snackbarHostState.showSnackbar(taskGoneMessage)
-                is NotificationsEvent.ShowError -> snackbarHostState.showSnackbar(event.message)
+                NotificationsEvent.ShowTaskGone -> snackbarHostState.showNotice(taskGoneMessage, NoticeKind.INFO)
+                is NotificationsEvent.ShowError -> snackbarHostState.showNotice(event.message, NoticeKind.ERROR)
             }
         }
     }
@@ -67,8 +69,8 @@ fun NotificationsScreen(
         accountViewModel.events.collect { event ->
             when (event) {
                 is AccountNotificationsEvent.OpenTask -> editorHost.openForEdit(event.taskId)
-                AccountNotificationsEvent.ShowTaskGone -> snackbarHostState.showSnackbar(taskMissingMessage)
-                is AccountNotificationsEvent.ShowError -> snackbarHostState.showSnackbar(event.message.text(resources))
+                AccountNotificationsEvent.ShowTaskGone -> snackbarHostState.showNotice(taskMissingMessage, NoticeKind.INFO)
+                is AccountNotificationsEvent.ShowError -> snackbarHostState.showNotice(event.message.text(resources), NoticeKind.ERROR)
             }
         }
     }

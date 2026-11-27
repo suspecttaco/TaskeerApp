@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -37,11 +36,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
@@ -51,8 +48,18 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.simposio.taskeer.R
 import com.simposio.taskeer.ui.components.AppDivider
 import com.simposio.taskeer.ui.components.DecorativeIcon
+import com.simposio.taskeer.ui.components.EmptyState
+import com.simposio.taskeer.ui.components.InlineProgress
+import com.simposio.taskeer.ui.components.LoadingBody
+import com.simposio.taskeer.ui.components.NoticeKind
+import com.simposio.taskeer.ui.components.PhaseCrossfade
+import com.simposio.taskeer.ui.components.PhaseKind
 import com.simposio.taskeer.ui.components.StatePage
 import com.simposio.taskeer.ui.components.StatePageAction
+import com.simposio.taskeer.ui.components.phaseKindOf
+import com.simposio.taskeer.ui.components.rememberWhile
+import com.simposio.taskeer.ui.components.rowItemModifier
+import com.simposio.taskeer.ui.components.showNotice
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 import java.time.Instant
@@ -74,8 +81,8 @@ fun MyInvitationsScreen(
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
-                is InboxEvent.ShowError -> snackbarHostState.showSnackbar(event.message.text(resources))
-                is InboxEvent.ShowMessage -> snackbarHostState.showSnackbar(event.notice.text(resources))
+                is InboxEvent.ShowError -> snackbarHostState.showNotice(event.message.text(resources), NoticeKind.ERROR)
+                is InboxEvent.ShowMessage -> snackbarHostState.showNotice(event.notice.text(resources), NoticeKind.INFO)
                 InboxEvent.LeaveScreen -> onLeave()
             }
         }
@@ -117,25 +124,23 @@ fun MyInvitationsContent(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-            when (state.phase) {
-                InboxPhase.LOADING -> LoadingBody()
-                InboxPhase.ERROR -> StatePage(
-                    icon = Icons.Filled.CloudOff,
-                    title = stringResource(R.string.workspace_invitations_inbox_error_title),
-                    message = (state.error ?: WorkspaceInvitationErrorMessage.Generic).text(),
-                    action = StatePageAction(stringResource(R.string.workspace_invitations_retry), onRefresh),
-                )
-                InboxPhase.EMPTY, InboxPhase.LIST -> InboxList(state, onRefresh, onAccept, onAcceptWithLink)
+            val shownError = rememberWhile(state.phase == InboxPhase.ERROR, state.error)
+            PhaseCrossfade(
+                kind = phaseKindOf(loading = state.phase == InboxPhase.LOADING, error = state.phase == InboxPhase.ERROR),
+                modifier = Modifier.fillMaxSize(),
+            ) { kind ->
+                when (kind) {
+                    PhaseKind.LOADING -> LoadingBody(stringResource(R.string.workspace_invitations_inbox_loading))
+                    PhaseKind.ERROR -> StatePage(
+                        icon = Icons.Filled.CloudOff,
+                        title = stringResource(R.string.workspace_invitations_inbox_error_title),
+                        message = (shownError ?: WorkspaceInvitationErrorMessage.Generic).text(),
+                        action = StatePageAction(stringResource(R.string.workspace_invitations_retry), onRefresh),
+                    )
+                    PhaseKind.CONTENT -> InboxList(state, onRefresh, onAccept, onAcceptWithLink)
+                }
             }
         }
-    }
-}
-
-@Composable
-private fun LoadingBody() {
-    val description = stringResource(R.string.workspace_invitations_inbox_loading)
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(modifier = Modifier.semantics { contentDescription = description })
     }
 }
 
@@ -160,17 +165,18 @@ private fun InboxList(
             }
             if (state.phase == InboxPhase.EMPTY) {
                 item {
-                    Text(
+                    EmptyState(
+                        icon = Icons.Filled.Mail,
                         text = stringResource(R.string.workspace_invitations_inbox_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(Spacing.ScreenPadding),
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
             items(state.rows, key = { it.id }) { row ->
-                InboxRow(row, onAccept)
-                AppDivider()
+                Column(modifier = rowItemModifier()) {
+                    InboxRow(row, onAccept)
+                    AppDivider()
+                }
             }
         }
     }
@@ -188,7 +194,7 @@ private fun InboxRow(row: MyInvitationRowUi, onAccept: (String) -> Unit) {
         },
         trailingContent = {
             when {
-                row.accepting -> CircularProgressIndicator(modifier = Modifier.padding(Spacing.InlineGap))
+                row.accepting -> InlineProgress(modifier = Modifier.padding(Spacing.InlineGap))
                 row.canAccept -> TextButton(onClick = { onAccept(row.id) }) {
                     Text(stringResource(R.string.workspace_invitations_accept))
                 }
