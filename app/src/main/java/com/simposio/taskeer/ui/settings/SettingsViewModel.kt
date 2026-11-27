@@ -38,12 +38,16 @@ class SettingsViewModel(
         preferences.digest,
         preferences.defaultReminderTime,
     ) { themeMode, dynamicColor, deadline, digest, defaultTime ->
-        SettingsUiState(themeMode, dynamicColor, deadline, digest, defaultTime)
+        SettingsUiState(themeMode, dynamicColor, deadline = deadline, digest = digest, defaultReminderTime = defaultTime)
+    }
+
+    private val withBackgroundSync = combine(general, preferences.backgroundSync) { base, backgroundSync ->
+        base.copy(backgroundSync = backgroundSync)
     }
 
     private val regionState = combine(preferences.region, picker, query, ::RegionInputs)
 
-    val uiState: StateFlow<SettingsUiState> = combine(general, regionState) { base, inputs ->
+    val uiState: StateFlow<SettingsUiState> = combine(withBackgroundSync, regionState) { base, inputs ->
         withRegion(base, inputs)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), SettingsUiState())
 
@@ -80,6 +84,10 @@ class SettingsViewModel(
 
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch { preferences.setThemeMode(mode) }
+    }
+
+    fun onBackgroundSyncChange(enabled: Boolean) {
+        viewModelScope.launch { preferences.setBackgroundSyncEnabled(enabled) }
     }
 
     fun setDynamicColor(enabled: Boolean) {
