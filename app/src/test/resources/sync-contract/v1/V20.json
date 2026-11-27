@@ -1,0 +1,34 @@
+{
+  "id": "V20",
+  "request": {
+    "mutations": [
+      {
+        "clientMutationId": "90000000-0000-4000-8000-000000000012",
+        "entity": "task",
+        "op": "upsert",
+        "id": "30000000-0000-4000-8000-000000000001",
+        "baseUpdatedAt": null,
+        "clientUpdatedAt": "2026-11-26T18:00:00.000Z",
+        "data": {
+          "listId": "25ad9060-2206-569c-beab-fc24c3b923e5",
+          "columnId": "40000000-0000-4000-8000-000000000001"
+        }
+      }
+    ]
+  },
+  "response": {
+    "contractVersion": "1.0",
+    "serverTime": "2026-11-26T18:30:00.000Z",
+    "results": [
+      {
+        "clientMutationId": "90000000-0000-4000-8000-000000000012",
+        "status": "rejected",
+        "error": {
+          "code": "INVALID_MUTATION",
+          "message": "x"
+        },
+        "record": null
+      }
+    ]
+  }
+}

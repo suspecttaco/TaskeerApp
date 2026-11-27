@@ -1,0 +1,31 @@
+{
+  "id": "V21",
+  "cases": [
+    {
+      "status": 400,
+      "code": "VALIDATION_ERROR",
+      "expect": "INVALID"
+    },
+    {
+      "status": 413,
+      "code": "BATCH_TOO_LARGE",
+      "expect": "INVALID"
+    },
+    {
+      "status": 401,
+      "code": "UNAUTHENTICATED",
+      "expect": "UNAUTHORIZED"
+    },
+    {
+      "status": 429,
+      "code": "RATE_LIMITED",
+      "retryAfter": "30",
+      "expect": "RETRY"
+    },
+    {
+      "status": 426,
+      "code": "CONTRACT_VERSION_UNSUPPORTED",
+      "expect": "UPDATE_REQUIRED"
+    }
+  ]
+}

@@ -176,4 +176,45 @@ class DebugHttpLogInterceptorTest {
 
         assertTrue(client.interceptors.any { it is DebugHttpLogInterceptor })
     }
+
+    @Test
+    fun syncOmiteElCuerpoConLaUrlRealConPrefijoDeApi() {
+        body = """{"results":[{"title":"Respuesta reservada"}]}"""
+
+        call(client(), "/api/v1/sync/push", """{"mutations":[{"data":{"title":"Comprar leche"}}]}""")
+        call(client(), "/api/v1/sync/changes", """{"cursor":"x"}""")
+
+        val text = logs.joinToString("\n")
+        assertFalse(text.contains("Comprar leche"))
+        assertFalse(text.contains("Respuesta reservada"))
+        assertTrue(text.contains("--> POST"))
+        assertFalse(text.contains("SECRET-BEARER"))
+    }
+
+    @Test
+    fun syncOmiteElCuerpoSinPrefijo() {
+        body = """{"results":[{"title":"Respuesta reservada"}]}"""
+
+        call(client(), "/sync/push", """{"mutations":[{"data":{"title":"Comprar leche"}}]}""")
+
+        val text = logs.joinToString("\n")
+        assertFalse(text.contains("Comprar leche"))
+        assertFalse(text.contains("Respuesta reservada"))
+    }
+
+    @Test
+    fun rutasDelPuenteOmitenPeticionYRespuesta() {
+        body = """{"task":{"title":"Titulo del servidor"},"lists":[{"name":"Lista del servidor"}]}"""
+
+        call(client(), "/api/v1/tasks/abc", """{"title":"Llamar al banco"}""")
+        call(client(), "/api/v1/tasks/abc/subtasks/def", """{"title":"Subtarea privada"}""")
+        call(client(), "/api/v1/lists", """{"name":"Secreta"}""")
+
+        val text = logs.joinToString("\n")
+        assertFalse(text.contains("Llamar al banco"))
+        assertFalse(text.contains("Subtarea privada"))
+        assertFalse(text.contains("Secreta"))
+        assertFalse(text.contains("Titulo del servidor"))
+        assertFalse(text.contains("Lista del servidor"))
+    }
 }

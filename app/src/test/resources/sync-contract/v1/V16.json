@@ -1,0 +1,39 @@
+{
+  "id": "V16",
+  "request": {
+    "mutations": [
+      {
+        "clientMutationId": "90000000-0000-4000-8000-000000000011",
+        "entity": "list",
+        "op": "upsert",
+        "id": "60000000-0000-4000-8000-000000000002",
+        "baseUpdatedAt": null,
+        "clientUpdatedAt": "2026-11-26T18:00:00.000Z",
+        "data": {
+          "name": "Tareas",
+          "position": 1
+        }
+      }
+    ]
+  },
+  "response": {
+    "contractVersion": "1.0",
+    "serverTime": "2026-11-26T18:30:00.000Z",
+    "results": [
+      {
+        "clientMutationId": "90000000-0000-4000-8000-000000000011",
+        "status": "rejected",
+        "error": {
+          "code": "LIST_NAME_TAKEN",
+          "message": "x"
+        },
+        "record": {
+          "id": "25ad9060-2206-569c-beab-fc24c3b923e5",
+          "name": "Tareas",
+          "updatedAt": "2026-11-20T00:00:00.000Z",
+          "deletedAt": null
+        }
+      }
+    ]
+  }
+}

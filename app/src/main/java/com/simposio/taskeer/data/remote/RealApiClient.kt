@@ -58,6 +58,7 @@ class RealApiClient(
             "X-Client" to "mobile",
             "User-Agent" to config.userAgent,
         )
+        headers.putAll(request.headers)
         if (request.jsonBody != null) headers["Content-Type"] = "application/json; charset=utf-8"
         if (token != null) headers["Authorization"] = "Bearer $token"
         return HttpRequest(request.method, buildUrl(request), headers, request.jsonBody)

@@ -12,6 +12,7 @@ class ApiRequest(
     val query: List<Pair<String, String>> = emptyList(),
     val jsonBody: String? = null,
     val auth: AuthMode = AuthMode.BEARER,
+    val headers: Map<String, String> = emptyMap(),
 ) {
     override fun toString(): String = "ApiRequest($method $path)"
 }
@@ -23,7 +24,7 @@ class ApiResponse(val status: Int, val body: String) {
 sealed interface ApiResult {
     data class Success(val response: ApiResponse) : ApiResult
 
-    data class Failure(val error: DomainError, val retryAfterSeconds: Long? = null) : ApiResult
+    data class Failure(val error: DomainError, val retryAfterSeconds: Long? = null, val status: Int? = null) : ApiResult
 }
 
 interface ApiClient {

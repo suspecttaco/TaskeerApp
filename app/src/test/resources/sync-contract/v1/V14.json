@@ -1,0 +1,112 @@
+{
+  "id": "V14",
+  "request": {
+    "mutations": [
+      {
+        "clientMutationId": "90000000-0000-4000-8000-000000000006",
+        "entity": "task",
+        "op": "upsert",
+        "id": "30000000-0000-4000-8000-000000000003",
+        "baseUpdatedAt": null,
+        "clientUpdatedAt": "2026-11-26T18:00:00.000Z",
+        "data": {
+          "listId": null,
+          "columnId": "40000000-0000-4000-8000-000000000001",
+          "title": "De solo lectura",
+          "description": null,
+          "priority": "HIGH",
+          "dueAt": null,
+          "assigneeId": null,
+          "position": 0,
+          "completedAt": null,
+          "repeatUnit": null,
+          "repeatInterval": null,
+          "repeatWeekdays": null,
+          "repeatAnchorDay": null,
+          "repeatSuccessorId": null
+        }
+      },
+      {
+        "clientMutationId": "90000000-0000-4000-8000-000000000007",
+        "entity": "task",
+        "op": "upsert",
+        "id": "30000000-0000-4000-8000-000000000004",
+        "baseUpdatedAt": null,
+        "clientUpdatedAt": "2026-11-26T18:00:00.000Z",
+        "data": {
+          "listId": "60000000-0000-4000-8000-000000000002",
+          "columnId": null,
+          "title": "Lista inexistente",
+          "description": null,
+          "priority": "HIGH",
+          "dueAt": null,
+          "assigneeId": null,
+          "position": 0,
+          "completedAt": null,
+          "repeatUnit": null,
+          "repeatInterval": null,
+          "repeatWeekdays": null,
+          "repeatAnchorDay": null,
+          "repeatSuccessorId": null
+        }
+      },
+      {
+        "clientMutationId": "90000000-0000-4000-8000-000000000008",
+        "entity": "task",
+        "op": "upsert",
+        "id": "30000000-0000-4000-8000-000000000005",
+        "baseUpdatedAt": null,
+        "clientUpdatedAt": "2026-11-26T18:00:00.000Z",
+        "data": {
+          "listId": "2d409db8-03d9-5d09-a7c1-cc8cef5142eb",
+          "columnId": null,
+          "title": "Valida",
+          "description": null,
+          "priority": "HIGH",
+          "dueAt": null,
+          "assigneeId": null,
+          "position": 0,
+          "completedAt": null,
+          "repeatUnit": null,
+          "repeatInterval": null,
+          "repeatWeekdays": null,
+          "repeatAnchorDay": null,
+          "repeatSuccessorId": null
+        }
+      }
+    ]
+  },
+  "response": {
+    "contractVersion": "1.0",
+    "serverTime": "2026-11-26T18:30:00.000Z",
+    "results": [
+      {
+        "clientMutationId": "90000000-0000-4000-8000-000000000006",
+        "status": "rejected",
+        "error": {
+          "code": "FORBIDDEN",
+          "message": "x"
+        },
+        "record": null
+      },
+      {
+        "clientMutationId": "90000000-0000-4000-8000-000000000007",
+        "status": "rejected",
+        "error": {
+          "code": "DEPENDENCY_NOT_FOUND",
+          "message": "x"
+        },
+        "record": null
+      },
+      {
+        "clientMutationId": "90000000-0000-4000-8000-000000000008",
+        "status": "applied",
+        "record": {
+          "id": "30000000-0000-4000-8000-000000000005",
+          "updatedAt": "2026-11-26T18:30:00.000Z",
+          "deletedAt": null
+        }
+      }
+    ]
+  }
+}

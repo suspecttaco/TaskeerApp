@@ -1,0 +1,167 @@
+{
+  "id": "V10",
+  "cases": [
+    {
+      "name": "empate gana servidor",
+      "serverNow": "2026-11-26T18:30:00.000Z",
+      "list": "25ad9060-2206-569c-beab-fc24c3b923e5",
+      "server": {
+        "id": "30000000-0000-4000-8000-000000000001",
+        "updatedAt": "2026-11-26T12:00:00.000Z",
+        "deletedAt": null,
+        "fields": {
+          "listId": "25ad9060-2206-569c-beab-fc24c3b923e5",
+          "columnId": null,
+          "title": "Comprar leche",
+          "description": null,
+          "priority": "HIGH",
+          "dueAt": null,
+          "assigneeId": null,
+          "position": 0,
+          "completedAt": null,
+          "repeatUnit": null,
+          "repeatInterval": null,
+          "repeatWeekdays": null,
+          "repeatAnchorDay": null,
+          "repeatSuccessorId": null
+        }
+      },
+      "mutation": {
+        "clientMutationId": "90000000-0000-4000-8000-000000000106",
+        "entity": "task",
+        "op": "upsert",
+        "id": "30000000-0000-4000-8000-000000000001",
+        "baseUpdatedAt": "2026-11-26T10:00:00.000Z",
+        "clientUpdatedAt": "2026-11-26T12:00:00.000Z",
+        "data": {
+          "listId": "25ad9060-2206-569c-beab-fc24c3b923e5",
+          "columnId": null,
+          "title": "Comprar pan",
+          "description": null,
+          "priority": "HIGH",
+          "dueAt": null,
+          "assigneeId": null,
+          "position": 0,
+          "completedAt": null,
+          "repeatUnit": null,
+          "repeatInterval": null,
+          "repeatWeekdays": null,
+          "repeatAnchorDay": null,
+          "repeatSuccessorId": null
+        }
+      },
+      "expect": {
+        "status": "conflict",
+        "updatedAt": "2026-11-26T12:00:00.000Z"
+      }
+    },
+    {
+      "name": "reloj adelantado acotado a +5 min, aplica",
+      "serverNow": "2026-11-26T18:30:00.000Z",
+      "list": "25ad9060-2206-569c-beab-fc24c3b923e5",
+      "server": {
+        "id": "30000000-0000-4000-8000-000000000001",
+        "updatedAt": "2026-11-26T18:34:00.000Z",
+        "deletedAt": null,
+        "fields": {
+          "listId": "25ad9060-2206-569c-beab-fc24c3b923e5",
+          "columnId": null,
+          "title": "Comprar leche",
+          "description": null,
+          "priority": "HIGH",
+          "dueAt": null,
+          "assigneeId": null,
+          "position": 0,
+          "completedAt": null,
+          "repeatUnit": null,
+          "repeatInterval": null,
+          "repeatWeekdays": null,
+          "repeatAnchorDay": null,
+          "repeatSuccessorId": null
+        }
+      },
+      "mutation": {
+        "clientMutationId": "90000000-0000-4000-8000-000000000107",
+        "entity": "task",
+        "op": "upsert",
+        "id": "30000000-0000-4000-8000-000000000001",
+        "baseUpdatedAt": "2026-11-26T10:00:00.000Z",
+        "clientUpdatedAt": "2027-01-01T00:00:00.000Z",
+        "data": {
+          "listId": "25ad9060-2206-569c-beab-fc24c3b923e5",
+          "columnId": null,
+          "title": "Comprar pan",
+          "description": null,
+          "priority": "HIGH",
+          "dueAt": null,
+          "assigneeId": null,
+          "position": 0,
+          "completedAt": null,
+          "repeatUnit": null,
+          "repeatInterval": null,
+          "repeatWeekdays": null,
+          "repeatAnchorDay": null,
+          "repeatSuccessorId": null
+        }
+      },
+      "expect": {
+        "status": "applied",
+        "updatedAt": "2026-11-26T18:30:00.000Z"
+      }
+    },
+    {
+      "name": "reloj adelantado, servidor posterior al limite",
+      "serverNow": "2026-11-26T18:30:00.000Z",
+      "list": "25ad9060-2206-569c-beab-fc24c3b923e5",
+      "server": {
+        "id": "30000000-0000-4000-8000-000000000001",
+        "updatedAt": "2026-11-26T18:40:00.000Z",
+        "deletedAt": null,
+        "fields": {
+          "listId": "25ad9060-2206-569c-beab-fc24c3b923e5",
+          "columnId": null,
+          "title": "Comprar leche",
+          "description": null,
+          "priority": "HIGH",
+          "dueAt": null,
+          "assigneeId": null,
+          "position": 0,
+          "completedAt": null,
+          "repeatUnit": null,
+          "repeatInterval": null,
+          "repeatWeekdays": null,
+          "repeatAnchorDay": null,
+          "repeatSuccessorId": null
+        }
+      },
+      "mutation": {
+        "clientMutationId": "90000000-0000-4000-8000-000000000108",
+        "entity": "task",
+        "op": "upsert",
+        "id": "30000000-0000-4000-8000-000000000001",
+        "baseUpdatedAt": "2026-11-26T10:00:00.000Z",
+        "clientUpdatedAt": "2027-01-01T00:00:00.000Z",
+        "data": {
+          "listId": "25ad9060-2206-569c-beab-fc24c3b923e5",
+          "columnId": null,
+          "title": "Comprar pan",
+          "description": null,
+          "priority": "HIGH",
+          "dueAt": null,
+          "assigneeId": null,
+          "position": 0,
+          "completedAt": null,
+          "repeatUnit": null,
+          "repeatInterval": null,
+          "repeatWeekdays": null,
+          "repeatAnchorDay": null,
+          "repeatSuccessorId": null
+        }
+      },
+      "expect": {
+        "status": "conflict",
+        "updatedAt": "2026-11-26T18:40:00.000Z"
+      }
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "id": "V06",
+  "list": "25ad9060-2206-569c-beab-fc24c3b923e5",
+  "request": {
+    "mutations": [
+      {
+        "clientMutationId": "90000000-0000-4000-8000-000000000001",
+        "entity": "task",
+        "op": "upsert",
+        "id": "30000000-0000-4000-8000-000000000001",
+        "baseUpdatedAt": null,
+        "clientUpdatedAt": "2026-11-26T18:29:10.000Z",
+        "data": {
+          "listId": "25ad9060-2206-569c-beab-fc24c3b923e5",
+          "columnId": null,
+          "title": "Comprar leche",
+          "description": null,
+          "priority": "HIGH",
+          "dueAt": null,
+          "assigneeId": null,
+          "position": 0,
+          "completedAt": null,
+          "repeatUnit": null,
+          "repeatInterval": null,
+          "repeatWeekdays": null,
+          "repeatAnchorDay": null,
+          "repeatSuccessorId": null
+        }
+      }
+    ]
+  },
+  "expect": {
+    "sends": 2,
+    "sameResult": true,
+    "taskRows": 1
+  }
+}

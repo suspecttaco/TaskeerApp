@@ -16,9 +16,10 @@ internal class DebugHttpLogInterceptor(
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
         val url = safeUrl(request.url)
+        val hideBodies = carriesTaskContent(request.url.encodedPath)
         sink("--> ${request.method} $url")
         logHeaders(request.headers, null)
-        logRequestBody(request)
+        if (hideBodies) request.body?.let { sink("<omitido: contenido de tareas>") } else logRequestBody(request)
         val start = nanoTime()
         val response = try {
             chain.proceed(request)
@@ -28,7 +29,9 @@ internal class DebugHttpLogInterceptor(
         }
         sink("<-- ${response.code} $url (${elapsedMs(start)} ms)")
         logHeaders(response.headers, RESPONSE_HEADERS)
-        if (!isEventStream(response)) {
+        if (hideBodies) {
+            sink("<cuerpo omitido: contenido de tareas>")
+        } else if (!isEventStream(response)) {
             val body = runCatching { response.peekBody(PEEK_BYTES).string() }.getOrDefault("")
             if (body.isNotEmpty()) sink(mask(body).take(MAX_BODY_CHARS))
         }
@@ -62,6 +65,13 @@ internal class DebugHttpLogInterceptor(
     private fun isEventStream(response: Response) =
         response.header("Content-Type")?.contains("text/event-stream", ignoreCase = true) == true
 
+    // La URL real lleva el prefijo /api/v1/, así que «sync» no es el primer segmento: se busca en cualquier posición.
+    // Sincronización, listas, tareas y subtareas llevan títulos y descripciones del usuario.
+    private fun carriesTaskContent(path: String): Boolean {
+        val segments = path.trim('/').split('/')
+        return segments.any { it in CONTENT_SEGMENTS }
+    }
+
     private fun elapsedMs(start: Long) = (nanoTime() - start) / 1_000_000
 
     // La query puede llevar tokens de verificación o recuperación.
@@ -72,6 +82,7 @@ internal class DebugHttpLogInterceptor(
         private const val MAX_BODY_CHARS = 2000
         private const val PEEK_BYTES = 8192L
         private const val MAX_REQUEST_BYTES = 65_536L
+        private val CONTENT_SEGMENTS = setOf("sync", "lists", "tasks", "subtasks")
         private const val MASK = "***"
         private val MASKED_HEADERS = setOf("authorization", "proxy-authorization", "cookie", "set-cookie")
         private val RESPONSE_HEADERS = setOf("content-type", "retry-after")

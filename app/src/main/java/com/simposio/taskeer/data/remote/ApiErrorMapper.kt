@@ -12,7 +12,7 @@ object ApiErrorMapper {
         "El servidor no admite todavía esta versión de la app. Actualiza la aplicación o inténtalo más tarde."
 
     fun map(status: Int, headers: Map<String, String>, body: String): ApiResult.Failure =
-        ApiResult.Failure(mapError(status, body), retryAfterSeconds(headers))
+        ApiResult.Failure(mapError(status, body), retryAfterSeconds(headers), status)
 
     fun mapError(status: Int, body: String): DomainError {
         val envelope = parseEnvelope(body)
