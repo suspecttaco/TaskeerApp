@@ -11,7 +11,7 @@ class SyncableEntityContractTest {
 
     @Test
     fun todaEntidadDelDatabase_implementaSyncableEntity() {
-        val entities = declaredEntities()
+        val entities = syncableEntities()
 
         assertTrue("el @Database debe declarar al menos una entidad", entities.isNotEmpty())
         entities.forEach { entityClass ->
@@ -41,8 +41,19 @@ class SyncableEntityContractTest {
     }
 
     @Test
+    fun soloLaInfraestructuraDeSincronizacionQuedaFueraDeLaConvencion() {
+        val exempt = declaredEntities() - syncableEntities().toSet()
+
+        assertEquals(
+            setOf(SyncQueueEntity::class.java, SyncBaselineEntity::class.java, SyncMetaEntity::class.java),
+            exempt.toSet(),
+        )
+        exempt.forEach { assertTrue(it.name.startsWith("$LOCAL_PACKAGE.Sync")) }
+    }
+
+    @Test
     fun entidades_exponenLosCuatroAccesoresConElTipoEsperado() {
-        declaredEntities().forEach { entityClass ->
+        syncableEntities().forEach { entityClass ->
             assertEquals(String::class.java, entityClass.getMethod("getId").returnType)
             assertEquals(Long::class.java, entityClass.getMethod("getUpdatedAt").returnType)
             assertEquals(Boolean::class.java, entityClass.getMethod("getPending").returnType)
@@ -63,6 +74,11 @@ class SyncableEntityContractTest {
                 !Regex("autoGenerate\\s*=\\s*true").containsMatchIn(file.readText()),
             )
         }
+    }
+
+    // La cola, la versión base y los metadatos del motor son infraestructura, no datos sincronizables.
+    private fun syncableEntities(): List<Class<*>> = declaredEntities().filterNot {
+        it == SyncQueueEntity::class.java || it == SyncBaselineEntity::class.java || it == SyncMetaEntity::class.java
     }
 
     private fun declaredEntities(): List<Class<*>> {

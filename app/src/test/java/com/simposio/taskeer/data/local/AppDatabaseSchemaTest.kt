@@ -21,6 +21,7 @@ class AppDatabaseSchemaTest {
     private val schemaV13: String = resolveSchema(version = 13).readText()
     private val schemaV14: String = resolveSchema(version = 14).readText()
     private val schemaV15: String = resolveSchema(version = 15).readText()
+    private val schemaV16: String = resolveSchema(version = 16).readText()
 
     @Test
     fun esquemaVersion1_sigueExportado() {
@@ -690,5 +691,44 @@ class AppDatabaseSchemaTest {
         assertTrue("el esquema debe declarar la tabla $name", start >= 0)
         val nextTable = schema.indexOf("\"tableName\":", start + 1)
         return schema.substring(start, if (nextTable < 0) schema.length else nextTable)
+    }
+
+    @Test
+    fun version_es16() {
+        assertTrue(Regex("\"version\"\\s*:\\s*16\\b").containsMatchIn(schemaV16))
+    }
+
+    @Test
+    fun v16_soloAnadeLasTablasDeSincronizacion() {
+        val tables = { schema: String -> Regex("\"tableName\": \"(\\w+)\"").findAll(schema).map { it.groupValues[1] }.toSet() }
+
+        assertEquals(tables(schemaV15) + setOf("sync_queue", "sync_baseline", "sync_meta"), tables(schemaV16))
+        tables(schemaV15).forEach { table ->
+            assertEquals(table, tableOf(schemaV15, table).substringBefore("\n      }"), tableOf(schemaV16, table).substringBefore("\n      }"))
+        }
+    }
+
+    @Test
+    fun syncQueue_sinColumnasDeContenido() {
+        val columns = Regex("\"columnName\": \"(\\w+)\"").findAll(tableOf(schemaV16, "sync_queue").substringBefore("\"primaryKey\""))
+            .map { it.groupValues[1] }.toSet()
+
+        assertEquals(
+            setOf("mutationId", "entity", "entityId", "op", "enqueuedAt", "payloadVersion", "attempts", "failures", "nextAttemptAt", "lastErrorCode", "state"),
+            columns,
+        )
+        listOf("title", "description", "name", "email", "data", "payload", "body").forEach {
+            assertFalse("sync_queue no debe guardar contenido: $it", it in columns)
+        }
+    }
+
+    @Test
+    fun syncQueue_unicaPorEntidad() {
+        val table = tableOf(schemaV16, "sync_queue")
+
+        assertTrue(
+            Regex("\"name\": \"index_sync_queue_entity_entityId\",\\s*\"unique\": true,\\s*\"columnNames\": \\[\\s*\"entity\",\\s*\"entityId\"\\s*]")
+                .containsMatchIn(table),
+        )
     }
 }

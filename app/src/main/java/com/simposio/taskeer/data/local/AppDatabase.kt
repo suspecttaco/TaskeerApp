@@ -22,8 +22,11 @@ private const val SEED_DEFAULT_LIST_SQL =
         ReminderEntity::class,
         AppNotificationEntity::class,
         TaskListEntity::class,
+        SyncQueueEntity::class,
+        SyncBaselineEntity::class,
+        SyncMetaEntity::class,
     ],
-    version = 15,
+    version = 16,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -35,6 +38,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun reminderDao(): ReminderDao
     abstract fun appNotificationDao(): AppNotificationDao
     abstract fun taskListDao(): TaskListDao
+    abstract fun syncDao(): SyncDao
 
     companion object {
         const val DATABASE_NAME: String = "taskeer.db"
@@ -300,6 +304,48 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_15_16: Migration = object : Migration(15, 16) {
+            // Solo tablas nuevas y sin relleno: el primer ciclo con sesión marca lo que haga falta.
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `sync_queue` (" +
+                        "`mutationId` TEXT NOT NULL, " +
+                        "`entity` TEXT NOT NULL, " +
+                        "`entityId` TEXT NOT NULL, " +
+                        "`op` TEXT NOT NULL, " +
+                        "`enqueuedAt` INTEGER NOT NULL, " +
+                        "`payloadVersion` INTEGER NOT NULL, " +
+                        "`attempts` INTEGER NOT NULL, " +
+                        "`failures` INTEGER NOT NULL, " +
+                        "`nextAttemptAt` INTEGER, " +
+                        "`lastErrorCode` TEXT, " +
+                        "`state` TEXT NOT NULL, " +
+                        "PRIMARY KEY(`mutationId`))",
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_sync_queue_entity_entityId` " +
+                        "ON `sync_queue` (`entity`, `entityId`)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_sync_queue_state_nextAttemptAt` " +
+                        "ON `sync_queue` (`state`, `nextAttemptAt`)",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `sync_baseline` (" +
+                        "`entity` TEXT NOT NULL, " +
+                        "`entityId` TEXT NOT NULL, " +
+                        "`serverUpdatedAt` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`entity`, `entityId`))",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `sync_meta` (" +
+                        "`key` TEXT NOT NULL, " +
+                        "`value` TEXT NOT NULL, " +
+                        "PRIMARY KEY(`key`))",
+                )
+            }
+        }
+
         private val MIGRATIONS: List<Migration> = listOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -315,6 +361,7 @@ abstract class AppDatabase : RoomDatabase() {
             MIGRATION_12_13,
             MIGRATION_13_14,
             MIGRATION_14_15,
+            MIGRATION_15_16,
         )
 
         fun create(context: Context): AppDatabase =

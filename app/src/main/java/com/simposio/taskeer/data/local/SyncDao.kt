@@ -1,0 +1,253 @@
+package com.simposio.taskeer.data.local
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Transaction
+import com.simposio.taskeer.domain.sync.SyncEntity
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+abstract class SyncDao {
+
+    @Query("SELECT * FROM sync_queue ORDER BY enqueuedAt ASC, mutationId ASC")
+    abstract suspend fun queue(): List<SyncQueueEntity>
+
+    @Query("SELECT * FROM sync_queue WHERE entity = :entity AND entityId = :entityId")
+    abstract suspend fun queueEntry(entity: String, entityId: String): SyncQueueEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsertQueue(entry: SyncQueueEntity)
+
+    @Query("DELETE FROM sync_queue WHERE mutationId = :mutationId")
+    abstract suspend fun removeQueue(mutationId: String)
+
+    @Query("SELECT COUNT(*) FROM sync_queue WHERE state = '$QUEUE_STATE_STUCK'")
+    abstract fun observeStuckCount(): Flow<Int>
+
+    @Query("SELECT * FROM sync_baseline WHERE entity = :entity AND entityId = :entityId")
+    abstract suspend fun baseline(entity: String, entityId: String): SyncBaselineEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsertBaseline(baseline: SyncBaselineEntity)
+
+    @Query("DELETE FROM sync_baseline WHERE entity = :entity AND entityId = :entityId")
+    abstract suspend fun removeBaseline(entity: String, entityId: String)
+
+    @Query("SELECT value FROM sync_meta WHERE `key` = :key")
+    abstract suspend fun meta(key: String): String?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsertMeta(meta: SyncMetaEntity)
+
+    @Query("DELETE FROM sync_meta WHERE `key` = :key")
+    abstract suspend fun removeMeta(key: String)
+
+    @Query("SELECT * FROM task_lists WHERE pending = 1")
+    abstract suspend fun pendingLists(): List<TaskListEntity>
+
+    @Query("SELECT * FROM tasks WHERE pending = 1")
+    abstract suspend fun pendingTasks(): List<TaskEntity>
+
+    @Query("SELECT * FROM subtasks WHERE pending = 1")
+    abstract suspend fun pendingSubtasks(): List<SubtaskEntity>
+
+    @Query("SELECT * FROM task_lists WHERE id = :id")
+    abstract suspend fun findList(id: String): TaskListEntity?
+
+    @Query("SELECT * FROM tasks WHERE id = :id")
+    abstract suspend fun findTask(id: String): TaskEntity?
+
+    @Query("SELECT * FROM subtasks WHERE id = :id")
+    abstract suspend fun findSubtask(id: String): SubtaskEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsertList(list: TaskListEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsertTask(task: TaskEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsertSubtask(subtask: SubtaskEntity)
+
+    // updatedAt = version: si el usuario editó mientras viajaba el envío, la fila sigue pendiente.
+    @Query("UPDATE task_lists SET pending = 0 WHERE id = :id AND updatedAt = :version")
+    abstract suspend fun clearPendingList(id: String, version: Long): Int
+
+    @Query("UPDATE tasks SET pending = 0 WHERE id = :id AND updatedAt = :version")
+    abstract suspend fun clearPendingTask(id: String, version: Long): Int
+
+    @Query("UPDATE subtasks SET pending = 0 WHERE id = :id AND updatedAt = :version")
+    abstract suspend fun clearPendingSubtask(id: String, version: Long): Int
+
+    @Query(
+        "UPDATE task_lists SET pending = 1 WHERE deletedAt IS NULL AND id NOT IN " +
+            "(SELECT entityId FROM sync_baseline WHERE entity = 'list')",
+    )
+    abstract suspend fun markUnsyncedListsPending()
+
+    @Query(
+        "UPDATE tasks SET pending = 1 WHERE deletedAt IS NULL AND id NOT IN " +
+            "(SELECT entityId FROM sync_baseline WHERE entity = 'task')",
+    )
+    abstract suspend fun markUnsyncedTasksPending()
+
+    @Query(
+        "UPDATE subtasks SET pending = 1 WHERE deletedAt IS NULL AND id NOT IN " +
+            "(SELECT entityId FROM sync_baseline WHERE entity = 'subtask')",
+    )
+    abstract suspend fun markUnsyncedSubtasksPending()
+
+    @Query("UPDATE tasks SET listId = :newId WHERE listId = :oldId")
+    abstract suspend fun repointTasks(oldId: String, newId: String)
+
+    @Query("UPDATE tasks SET listId = :newId, pending = 1 WHERE listId = :oldId")
+    abstract suspend fun moveTasksToList(oldId: String, newId: String)
+
+    @Query("UPDATE task_lists SET id = :newId WHERE id = :oldId")
+    abstract suspend fun renameList(oldId: String, newId: String)
+
+    @Query("UPDATE sync_queue SET entityId = :newId WHERE entity = 'list' AND entityId = :oldId")
+    abstract suspend fun renameListInQueue(oldId: String, newId: String)
+
+    @Query("UPDATE sync_baseline SET entityId = :newId WHERE entity = 'list' AND entityId = :oldId")
+    abstract suspend fun renameListInBaseline(oldId: String, newId: String)
+
+    @Query("DELETE FROM task_lists WHERE id = :id")
+    abstract suspend fun purgeList(id: String)
+
+    @Query(
+        "SELECT " +
+            "(SELECT COUNT(*) FROM task_lists WHERE pending = 1) AS lists, " +
+            "(SELECT COUNT(*) FROM tasks WHERE pending = 1 AND listId IS NOT NULL) AS listTasks, " +
+            "(SELECT COUNT(*) FROM tasks WHERE pending = 1 AND columnId IS NOT NULL) AS boardTasks, " +
+            "(SELECT COUNT(*) FROM subtasks s WHERE s.pending = 1 AND EXISTS " +
+            "(SELECT 1 FROM tasks t WHERE t.id = s.taskId AND t.listId IS NOT NULL)) AS listSubtasks, " +
+            "(SELECT COUNT(*) FROM subtasks s WHERE s.pending = 1 AND EXISTS " +
+            "(SELECT 1 FROM tasks t WHERE t.id = s.taskId AND t.columnId IS NOT NULL)) AS boardSubtasks",
+    )
+    abstract fun observePendingCounts(): Flow<PendingCountsRow>
+
+    @Query("DELETE FROM boards")
+    abstract suspend fun wipeBoards()
+
+    @Query("DELETE FROM columns")
+    abstract suspend fun wipeColumns()
+
+    @Query("DELETE FROM tasks")
+    abstract suspend fun wipeTasks()
+
+    @Query("DELETE FROM subtasks")
+    abstract suspend fun wipeSubtasks()
+
+    @Query("DELETE FROM my_day_tasks")
+    abstract suspend fun wipeMyDay()
+
+    @Query("DELETE FROM reminders")
+    abstract suspend fun wipeReminders()
+
+    @Query("DELETE FROM app_notifications")
+    abstract suspend fun wipeNotifications()
+
+    @Query("DELETE FROM task_lists")
+    abstract suspend fun wipeLists()
+
+    @Query("DELETE FROM sync_queue")
+    abstract suspend fun wipeQueue()
+
+    @Query("DELETE FROM sync_baseline")
+    abstract suspend fun wipeBaseline()
+
+    @Query("DELETE FROM sync_meta")
+    abstract suspend fun wipeMeta()
+
+    open suspend fun clearPending(entity: String, id: String, version: Long): Int = when (entity) {
+        SyncEntity.LIST.wireName -> clearPendingList(id, version)
+        SyncEntity.TASK.wireName -> clearPendingTask(id, version)
+        SyncEntity.SUBTASK.wireName -> clearPendingSubtask(id, version)
+        else -> 0
+    }
+
+    @Transaction
+    open suspend fun commitApplied(entity: String, id: String, serverUpdatedAt: Long, sentVersion: Long, mutationId: String) {
+        upsertBaseline(SyncBaselineEntity(entity, id, serverUpdatedAt))
+        clearPending(entity, id, sentVersion)
+        removeQueue(mutationId)
+    }
+
+    // Sin sentVersion: la fila adoptada o descartada sustituye a la local aunque haya cambiado.
+    @Transaction
+    open suspend fun commitList(list: TaskListEntity, baseline: Long?, mutationId: String?) {
+        upsertList(list)
+        baseline?.let { upsertBaseline(SyncBaselineEntity(SyncEntity.LIST.wireName, list.id, it)) }
+        mutationId?.let { removeQueue(it) }
+    }
+
+    @Transaction
+    open suspend fun commitTask(task: TaskEntity, baseline: Long?, mutationId: String?) {
+        upsertTask(task)
+        baseline?.let { upsertBaseline(SyncBaselineEntity(SyncEntity.TASK.wireName, task.id, it)) }
+        mutationId?.let { removeQueue(it) }
+    }
+
+    @Transaction
+    open suspend fun commitSubtask(subtask: SubtaskEntity, baseline: Long?, mutationId: String?) {
+        upsertSubtask(subtask)
+        baseline?.let { upsertBaseline(SyncBaselineEntity(SyncEntity.SUBTASK.wireName, subtask.id, it)) }
+        mutationId?.let { removeQueue(it) }
+    }
+
+    @Transaction
+    open suspend fun markAllUnsyncedPending() {
+        markUnsyncedListsPending()
+        markUnsyncedTasksPending()
+        markUnsyncedSubtasksPending()
+    }
+
+    // Una lista local pasa a ser la del servidor: sus tareas la siguen y la fila local desaparece sin enviar un borrado.
+    @Transaction
+    open suspend fun adoptList(localId: String, server: TaskListEntity, serverUpdatedAt: Long, mutationId: String?) {
+        if (localId != server.id) {
+            moveTasksToList(localId, server.id)
+            purgeList(localId)
+            removeBaseline(SyncEntity.LIST.wireName, localId)
+        }
+        upsertList(server)
+        upsertBaseline(SyncBaselineEntity(SyncEntity.LIST.wireName, server.id, serverUpdatedAt))
+        mutationId?.let { removeQueue(it) }
+    }
+
+    // Si el id nuevo ya existe (otro dispositivo o una pasada anterior), las tareas se funden en esa fila.
+    @Transaction
+    open suspend fun rekeyList(oldId: String, newId: String) {
+        if (oldId == newId || findList(oldId) == null) return
+        repointTasks(oldId, newId)
+        if (findList(newId) == null) {
+            renameList(oldId, newId)
+            if (queueEntry(SyncEntity.LIST.wireName, newId) == null) renameListInQueue(oldId, newId)
+            if (baseline(SyncEntity.LIST.wireName, newId) == null) renameListInBaseline(oldId, newId)
+        } else {
+            purgeList(oldId)
+        }
+        queueEntry(SyncEntity.LIST.wireName, oldId)?.let { removeQueue(it.mutationId) }
+        removeBaseline(SyncEntity.LIST.wireName, oldId)
+    }
+
+    // Cambio de cuenta confirmado: ningún dato de la cuenta anterior sobrevive. Resiembra «Tareas» con el id fijo.
+    @Transaction
+    open suspend fun wipe(seed: TaskListEntity) {
+        wipeSubtasks()
+        wipeReminders()
+        wipeMyDay()
+        wipeTasks()
+        wipeColumns()
+        wipeBoards()
+        wipeLists()
+        wipeNotifications()
+        wipeQueue()
+        wipeBaseline()
+        wipeMeta()
+        upsertList(seed)
+    }
+}
