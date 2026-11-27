@@ -217,4 +217,60 @@ class DebugHttpLogInterceptorTest {
         assertFalse(text.contains("Titulo del servidor"))
         assertFalse(text.contains("Lista del servidor"))
     }
+
+    @Test
+    fun enmascaraIdTokenAccessTokenNonceYSupabaseAccessToken() {
+        body = """{"access_token":"AT-9","refresh_token":"RT-9","user":{"id":"u","access_token":"AT-NESTED"}}"""
+
+        call(client(), "/auth/v1/token", """{"provider":"google","id_token":"IT-9","nonce":"NN-9","supabaseAccessToken":"SB-9"}""")
+
+        val text = logs.joinToString("\n")
+        listOf("AT-9", "RT-9", "IT-9", "NN-9", "SB-9", "AT-NESTED").forEach { assertFalse("filtra $it: $text", it in text) }
+        assertTrue(text, "\"provider\":\"google\"" in text)
+    }
+
+    @Test
+    fun enmascaraLaCabeceraApikey() {
+        val request = Request.Builder().url(url("/auth/v1/token")).header("apikey", "ANON-KEY-SECRETA").build()
+
+        client().newCall(request).execute().close()
+
+        assertTrue(logs.toString(), "apikey: ***" in logs)
+        assertFalse(logs.toString(), logs.any { "ANON-KEY-SECRETA" in it })
+    }
+
+    @Test
+    fun enmascaraApikeyComoClaveJson() {
+        call(client(), "/x", """{"apikey":"ANON-JSON"}""")
+
+        assertFalse(logs.joinToString("\n"), logs.any { "ANON-JSON" in it })
+    }
+
+    @Test
+    fun noEnmascaraErrorCodeCorto() {
+        status = 400
+        body = """{"error_code":"bad_id_token","msg":"Token inválido"}"""
+
+        call(client(), "/auth/v1/token")
+
+        assertTrue(logs.joinToString("\n"), logs.any { "\"error_code\":\"bad_id_token\"" in it })
+    }
+
+    @Test
+    fun enmascaraErrorCodeQueNoEsUnIdentificadorCorto() {
+        status = 400
+        body = """{"error_code":"ey.JWT-LARGO-1234"}"""
+
+        call(client(), "/auth/v1/token")
+
+        assertFalse(logs.joinToString("\n"), logs.any { "JWT-LARGO" in it })
+    }
+
+    @Test
+    fun laUrlDelCanjeSeLogueaSinQuery() {
+        call(client(), "/auth/v1/token?grant_type=id_token&secret=QQ")
+
+        val line = logs.first { it.startsWith("--> POST") }
+        assertFalse(line, "grant_type" in line || "QQ" in line)
+    }
 }

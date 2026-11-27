@@ -19,25 +19,20 @@ import com.simposio.taskeer.ui.sync.BackgroundSyncRow
 import com.simposio.taskeer.ui.sync.SyncSettingsSection
 import com.simposio.taskeer.ui.sync.SyncViewModel
 import com.simposio.taskeer.ui.theme.Spacing
-import com.simposio.taskeer.ui.verifyemail.ResendVerificationViewModel
 
 @Composable
 fun SettingsScreen(
     viewModelFactory: ViewModelProvider.Factory,
     session: SessionViewModel,
     onSignIn: () -> Unit,
-    onHaveVerificationLink: () -> Unit,
-    onChangePassword: () -> Unit,
-    onRegenerateCodes: () -> Unit,
+    onOpenAccount: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: SettingsViewModel = viewModel(factory = viewModelFactory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val sessionState by session.state.collectAsStateWithLifecycle()
-    val resendViewModel: ResendVerificationViewModel = viewModel(factory = viewModelFactory)
     val syncViewModel: SyncViewModel = viewModel(factory = viewModelFactory)
     val syncState by syncViewModel.state.collectAsStateWithLifecycle()
-    val resendState by resendViewModel.uiState.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier
@@ -48,16 +43,8 @@ fun SettingsScreen(
     ) {
         AccountSettingsSection(
             state = sessionState,
-            resend = resendState,
-            actions = AccountSectionActions(
-                onSignIn = onSignIn,
-                onRetry = session::retryResume,
-                onSignOut = session::logout,
-                onResendVerification = resendViewModel::resend,
-                onHaveVerificationLink = onHaveVerificationLink,
-                onChangePassword = onChangePassword,
-                onRegenerateCodes = onRegenerateCodes,
-            ),
+            onSignIn = onSignIn,
+            onOpenAccount = onOpenAccount,
         )
         SyncSettingsSection(state = syncState, onSync = syncViewModel::sync)
         if (syncState.visible) {

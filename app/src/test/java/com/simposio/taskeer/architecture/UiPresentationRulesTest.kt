@@ -719,7 +719,7 @@ class UiPresentationRulesTest {
         assertEquals(
             setOf(
                 "TaskActionsSheet.kt", "AssignToBoardHost.kt", "MoveToListHost.kt", "TaskEditorSheet.kt", "SuggestionsSheet.kt",
-                "CalendarsSheet.kt", "EventEditorSheet.kt", "RegionPickerSheet.kt",
+                "CalendarsSheet.kt", "EventEditorSheet.kt", "RegionPickerSheet.kt", "AccountSheet.kt",
             ),
             names,
         )

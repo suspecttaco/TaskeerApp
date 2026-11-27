@@ -5,7 +5,7 @@ import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 
-// Contrato B8 provisional: ruta y claves JSON se confirmarán con el backend.
+// Rutas y claves JSON del backend. Google móvil recibe el token de Supabase (`supabaseAccessToken`); el backend lo verifica.
 // Es el único sitio que conoce la forma del login, el logout y el registro.
 internal object AuthApiContract {
     const val LOGIN_PATH = "auth/login"
@@ -57,8 +57,8 @@ internal object AuthApiContract {
     fun loginBody(email: String, password: CharArray): String =
         JSONObject().put("email", email).put("password", String(password)).toString()
 
-    fun googleBody(idToken: String, nonce: String): String =
-        JSONObject().put("idToken", idToken).put("nonce", nonce).toString()
+    fun supabaseBody(accessToken: String): String =
+        JSONObject().put("supabaseAccessToken", accessToken).toString()
 
     fun registerBody(displayName: String, email: String, password: CharArray): String =
         JSONObject().put("email", email).put("password", String(password)).put("displayName", displayName).toString()
@@ -103,6 +103,7 @@ internal object AuthApiContract {
     }
 
     // `recoveryCodes` ausente o ilegible es lista vacía: solo el servidor sabe si esta sesión creó la cuenta.
+    // `refreshTokenExpiresAt` también llega, pero la renovación va por rechazo del servidor, no por reloj: no se lee.
     fun parseGoogle(body: String): GoogleResponse = when (val login = parseLogin(body)) {
         null -> GoogleResponse.Unreadable
         LoginResponse.NoRefreshToken -> GoogleResponse.NoRefreshToken

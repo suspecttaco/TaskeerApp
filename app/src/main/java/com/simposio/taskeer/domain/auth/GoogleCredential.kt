@@ -21,6 +21,7 @@ sealed interface GoogleCredentialResult {
     data object Failed : GoogleCredentialResult
 }
 
-data class GoogleSignInConfig(val webClientId: String) {
-    val isAvailable: Boolean get() = webClientId.isNotBlank()
+// `exchangeConfigured`: la capa remota pudo armar el canje con Supabase (URL válida y anon key); sin ello el botón no se ofrece.
+data class GoogleSignInConfig(val webClientId: String, val exchangeConfigured: Boolean = true) {
+    val isAvailable: Boolean get() = webClientId.isNotBlank() && exchangeConfigured
 }

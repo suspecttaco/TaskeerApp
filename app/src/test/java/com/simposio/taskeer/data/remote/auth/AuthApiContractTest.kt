@@ -250,16 +250,43 @@ class AuthApiContractTest {
     }
 
     @Test
-    fun googleBody_llevaIdTokenYNonce() {
-        val body = JSONObject(AuthApiContract.googleBody("tok", "non"))
+    fun supabaseBody_tieneSoloSupabaseAccessToken() {
+        val body = JSONObject(AuthApiContract.supabaseBody("jwt-supabase"))
 
-        assertEquals("tok", body.getString("idToken"))
-        assertEquals("non", body.getString("nonce"))
-        assertEquals(2, body.length())
+        assertEquals("jwt-supabase", body.getString("supabaseAccessToken"))
+        assertEquals(1, body.length())
     }
 
     @Test
-    fun googlePath_esLaRutaProvisionalDelEndpointMovil() {
+    fun parseGoogle_conRefreshTokenExpiresAt_loTolera() {
+        val parsed = AuthApiContract.parseGoogle(
+            """{"accessToken":"a1","refreshToken":"r1","refreshTokenExpiresAt":"2026-12-26T00:00:00.000Z","user":{"email":"a@b.c"}}""",
+        )
+
+        assertTrue(parsed is AuthApiContract.GoogleResponse.Tokens)
+        assertEquals("r1", (parsed as AuthApiContract.GoogleResponse.Tokens).refreshToken)
+    }
+
+    @Test
+    fun parseGoogle_cuentaNueva_devuelveCodigos() {
+        val parsed = AuthApiContract.parseGoogle(
+            """{"accessToken":"a1","refreshToken":"r1","user":{"email":"a@b.c"},"recoveryCodes":["AAAA-0001"]}""",
+        ) as AuthApiContract.GoogleResponse.Tokens
+
+        assertEquals(listOf("AAAA-0001"), parsed.codes)
+    }
+
+    @Test
+    fun parseGoogle_sinCodigos_listaVacia() {
+        val parsed = AuthApiContract.parseGoogle(
+            """{"accessToken":"a1","refreshToken":"r1","user":{"email":"a@b.c"}}""",
+        ) as AuthApiContract.GoogleResponse.Tokens
+
+        assertTrue(parsed.codes.isEmpty())
+    }
+
+    @Test
+    fun googlePath_esLaRutaDelEndpointMovil() {
         assertEquals("auth/google/mobile", AuthApiContract.GOOGLE_PATH)
     }
 

@@ -35,6 +35,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.auth.SessionState
+import com.simposio.taskeer.ui.account.AccountSheetHost
+import com.simposio.taskeer.ui.account.accountEntryFor
 import com.simposio.taskeer.ui.auth.SessionMessage
 import com.simposio.taskeer.ui.auth.SessionViewModel
 import com.simposio.taskeer.ui.sync.AccountSwitchDialog
@@ -63,6 +65,7 @@ import com.simposio.taskeer.ui.navigation.chromeFor
 import com.simposio.taskeer.ui.navigation.navigateHome
 import com.simposio.taskeer.ui.navigation.overflowMenuFor
 import com.simposio.taskeer.ui.navigation.quickAddContextFor
+import com.simposio.taskeer.ui.navigation.showsAccountEntry
 import com.simposio.taskeer.ui.navigation.withBoardAccess
 import com.simposio.taskeer.ui.navigation.withBoardPresent
 import com.simposio.taskeer.ui.navigation.withListCount
@@ -115,6 +118,7 @@ fun AppShell(
     val suggestions: MySuggestionsViewModel = viewModel(factory = viewModelFactory)
     val suggestionsBadge by suggestions.badge.collectAsStateWithLifecycle()
     var suggestionsOpen by rememberSaveable { mutableStateOf(false) }
+    var accountSheetRequested by rememberSaveable { mutableStateOf(false) }
     val sheetGate = remember { SheetGate() }
     val backGuard = remember { BackGuard() }
     val eventEditor: EventEditorViewModel = viewModel(factory = viewModelFactory)
@@ -288,6 +292,7 @@ fun AppShell(
                         menu = menu,
                         clearEnabled = clearState.clearEnabled,
                         calendarsEnabled = calendarsReadable,
+                        accountEntry = if (chrome.topBar.showsAccountEntry()) accountEntryFor(sessionState) else null,
                         actions = TopBarActions(
                             onOpenSearch = {
                                 navController.navigate(AppDestination.SEARCH.route) { launchSingleTop = true }
@@ -322,6 +327,10 @@ fun AppShell(
                                 }
                             },
                             onSync = syncViewModel::sync,
+                            onSignIn = {
+                                navController.navigate(AppDestination.LOGIN.route) { launchSingleTop = true }
+                            },
+                            onOpenAccount = { accountSheetRequested = true },
                         ),
                     )
                 },
@@ -336,6 +345,7 @@ fun AppShell(
                         suggestionCount = suggestionsBadge.count,
                         onOpenSuggestions = { suggestionsOpen = true },
                         session = session,
+                        onOpenAccount = { accountSheetRequested = true },
                         modifier = Modifier
                             .fillMaxSize()
                             .navigationBarsPadding()
@@ -343,6 +353,13 @@ fun AppShell(
                     )
                 }
             }
+            AccountSheetHost(
+                session = session,
+                viewModelFactory = viewModelFactory,
+                requested = accountSheetRequested,
+                onDismiss = { accountSheetRequested = false },
+                navigate = { route -> navController.navigate(route) { launchSingleTop = true } },
+            )
             if (syncState.accountDialogOpen) {
                 AccountSwitchDialog(onConfirm = syncViewModel::confirmAccountWipe, onDismiss = syncViewModel::cancelAccountSwitch)
             }

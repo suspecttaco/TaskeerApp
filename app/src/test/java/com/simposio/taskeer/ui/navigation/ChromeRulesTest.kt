@@ -332,4 +332,13 @@ class ChromeRulesTest {
     fun tresRutas_noTienenMenu() {
         securityRoutes.forEach { assertEquals(OverflowMenu(emptyList(), emptyList()), overflowMenuFor(it)) }
     }
+
+    @Test
+    fun soloElHubMuestraLaEntradaDeCuenta() {
+        assertTrue(TopBarKind.HUB.showsAccountEntry())
+        listOf(TopBarKind.SECTION, TopBarKind.DETAIL, TopBarKind.DETAIL_WITH_MENU).forEach {
+            assertFalse(it.toString(), it.showsAccountEntry())
+        }
+        assertTrue(chromeFor(AppDestination.HOME).topBar.showsAccountEntry())
+    }
 }

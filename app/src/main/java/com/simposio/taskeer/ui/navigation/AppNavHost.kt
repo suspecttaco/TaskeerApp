@@ -57,11 +57,20 @@ fun AppNavHost(
     suggestionCount: Int,
     onOpenSuggestions: () -> Unit,
     session: SessionViewModel,
+    onOpenAccount: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val animated = rememberAnimationsEnabled()
     // El correo no es secreto pero no se persiste: si se pierde al rotar, el usuario lo escribe.
     var pendingLogin by remember { mutableStateOf<LoginHandoff?>(null) }
+    // `currentBackStack` es API restringida: se sondea con `getBackStackEntry`, que lanza si la ruta no está apilada.
+    val flowAnchor = {
+        accountFlowAnchor(
+            listOf(AppDestination.SETTINGS.route, AppDestination.HOME.route).filter { route ->
+                runCatching { navController.getBackStackEntry(route) }.isSuccess
+            },
+        )
+    }
     NavHost(
         navController = navController,
         startDestination = AppDestination.START.route,
@@ -121,15 +130,7 @@ fun AppNavHost(
                 viewModelFactory = viewModelFactory,
                 session = session,
                 onSignIn = { navController.navigate(AppDestination.LOGIN.route) { launchSingleTop = true } },
-                onHaveVerificationLink = {
-                    navController.navigate(AppDestination.VERIFY_EMAIL.route) { launchSingleTop = true }
-                },
-                onChangePassword = {
-                    navController.navigate(AppDestination.CHANGE_PASSWORD.route) { launchSingleTop = true }
-                },
-                onRegenerateCodes = {
-                    navController.navigate(AppDestination.REGENERATE_CODES.route) { launchSingleTop = true }
-                },
+                onOpenAccount = onOpenAccount,
             )
         }
         composable(AppDestination.LOGIN.route) {
@@ -153,7 +154,7 @@ fun AppNavHost(
                 onFinished = { email ->
                     pendingLogin = email?.let { LoginHandoff(it, LoginNotice.ACCOUNT_CREATED) }
                     navController.navigate(AppDestination.LOGIN.route) {
-                        popUpTo(AppDestination.SETTINGS.route)
+                        popUpTo(flowAnchor())
                         launchSingleTop = true
                     }
                 },
@@ -175,7 +176,7 @@ fun AppNavHost(
                 onDone = { navController.popBackStack() },
                 onSignIn = {
                     navController.navigate(AppDestination.LOGIN.route) {
-                        popUpTo(AppDestination.SETTINGS.route)
+                        popUpTo(flowAnchor())
                         launchSingleTop = true
                     }
                 },
@@ -187,7 +188,7 @@ fun AppNavHost(
                 onFinished = { navController.popBackStack() },
                 onSignIn = {
                     navController.navigate(AppDestination.LOGIN.route) {
-                        popUpTo(AppDestination.SETTINGS.route)
+                        popUpTo(flowAnchor())
                         launchSingleTop = true
                     }
                 },

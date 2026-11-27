@@ -4,6 +4,8 @@ import com.simposio.taskeer.ui.quickadd.QuickAddContext
 
 enum class TopBarKind { SECTION, HUB, DETAIL, DETAIL_WITH_MENU }
 
+fun TopBarKind.showsAccountEntry(): Boolean = this == TopBarKind.HUB
+
 enum class PillKind { TASK, EVENT }
 
 data class Chrome(

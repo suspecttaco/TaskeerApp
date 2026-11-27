@@ -674,6 +674,10 @@
     <string name="auth_login_optional_hint">Es opcional: tus datos siguen guardados en este dispositivo</string>
     <string name="auth_signed_out_support">Opcional. Tus datos siguen en este dispositivo</string>
     <string name="auth_resuming">Comprobando sesión…</string>
+    <string name="account_avatar_description">Cuenta de %1$s</string>
+    <string name="account_avatar_description_unknown">Cuenta</string>
+    <string name="account_entry_resuming">Comprobando sesión</string>
+    <string name="settings_account_row">Cuenta y seguridad</string>
     <string name="auth_signed_in">Sesión iniciada</string>
     <string name="auth_signed_in_offline">Sesión iniciada · sin conexión con el servidor</string>
     <string name="auth_retry">Reintentar</string>

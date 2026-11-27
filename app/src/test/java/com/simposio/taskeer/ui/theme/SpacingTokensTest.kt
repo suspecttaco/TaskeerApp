@@ -28,4 +28,10 @@ class SpacingTokensTest {
         assertEquals(0.38f, Emphasis.Disabled)
         assertEquals(0.5f, Emphasis.OutOfMonth)
     }
+
+    @Test
+    fun avatar_tieneDosTamanos() {
+        assertEquals(40.dp, Spacing.AvatarSize)
+        assertEquals(56.dp, Spacing.AvatarSizeLarge)
+    }
 }

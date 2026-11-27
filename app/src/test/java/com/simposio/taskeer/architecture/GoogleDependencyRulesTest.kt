@@ -80,6 +80,6 @@ class GoogleDependencyRulesTest {
         assertTrue("ID de cliente de Google en el repositorio: $offenders", offenders.isEmpty())
         assertTrue(appBuild.contains("providers.gradleProperty(\"taskeer.googleWebClientId\").getOrElse(\"\")"))
         assertEquals(2, Regex("buildConfigField\\(\"String\", \"GOOGLE_WEB_CLIENT_ID\"").findAll(appBuild).count())
-        assertTrue(MainSources.kotlin("di/AppContainerFactory.kt").contains("GoogleSignInConfig(BuildConfig.GOOGLE_WEB_CLIENT_ID)"))
+        assertTrue(MainSources.kotlin("di/AppContainerFactory.kt").contains("GoogleSignInConfig(BuildConfig.GOOGLE_WEB_CLIENT_ID, exchangeConfigured = remote.googleExchangeConfigured)"))
     }
 }

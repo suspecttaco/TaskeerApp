@@ -17,6 +17,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.notification.badgeLabel
+import com.simposio.taskeer.ui.account.AccountEntry
+import com.simposio.taskeer.ui.account.AccountEntryAction
 import com.simposio.taskeer.ui.components.ActionIcon
 import com.simposio.taskeer.ui.home.HomeSearchField
 import com.simposio.taskeer.ui.navigation.MenuItem
@@ -31,6 +33,8 @@ class TopBarActions(
     val onBack: () -> Unit,
     val onMenuItem: (MenuItem) -> Unit,
     val onSync: () -> Unit,
+    val onSignIn: () -> Unit = {},
+    val onOpenAccount: () -> Unit = {},
 )
 
 // Los composables no deciden nada de negocio: la decisión (chromeFor, menú filtrado) llega ya tomada para poder probarla en JVM.
@@ -47,6 +51,7 @@ fun ShellTopBar(
     actions: TopBarActions,
     modifier: Modifier = Modifier,
     calendarsEnabled: Boolean = true,
+    accountEntry: AccountEntry? = null,
 ) {
     TopAppBar(
         modifier = modifier,
@@ -68,6 +73,7 @@ fun ShellTopBar(
             }
         },
         actions = {
+            accountEntry?.let { AccountEntryAction(it, actions.onSignIn, actions.onOpenAccount) }
             if (showSuggestions) {
                 SuggestionsAction(suggestionCount, actions.onSuggestions)
             }

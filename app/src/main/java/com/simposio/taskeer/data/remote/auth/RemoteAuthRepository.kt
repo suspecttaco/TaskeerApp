@@ -49,6 +49,7 @@ class RemoteAuthRepository(
     private val client: ApiClient,
     private val session: AuthSession,
     scope: CoroutineScope,
+    private val googleExchange: GoogleTokenExchange? = null,
 ) : AuthRepository {
 
     private val authMutex = Mutex()
@@ -142,10 +143,19 @@ class RemoteAuthRepository(
                     DomainError.Validation(AuthRules.ALREADY_SIGNED_IN, "Ya hay una sesión iniciada"),
                 )
             }
+            val exchange = googleExchange ?: return@withLock GoogleSignInOutcome.Failed(
+                DomainError.Server("GOOGLE_EXCHANGE_NOT_CONFIGURED", "El acceso con Google no está configurado"),
+            )
+            // El token de Supabase solo vive en esta variable local: no se guarda ni se reintenta.
+            val supabaseToken = when (val exchanged = exchange.exchange(credential)) {
+                is GoogleExchangeResult.Failed ->
+                    return@withLock GoogleSignInOutcome.Failed(exchanged.error, exchanged.retryAfterSeconds)
+                is GoogleExchangeResult.Token -> exchanged.accessToken
+            }
             val request = ApiRequest(
                 method = HttpMethod.POST,
                 path = AuthApiContract.GOOGLE_PATH,
-                jsonBody = AuthApiContract.googleBody(credential.idToken, credential.rawNonce),
+                jsonBody = AuthApiContract.supabaseBody(supabaseToken),
                 auth = AuthMode.NONE,
             )
             when (val result = client.execute(request)) {

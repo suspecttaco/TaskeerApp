@@ -67,6 +67,21 @@ class GoogleSignInErrorRulesTest {
     }
 
     @Test
+    fun cuentaSinContrasenaLocal_muestraSuMensaje() {
+        assertEquals(LoginError.NO_LOCAL_PASSWORD, inline(DomainError.Validation("NO_LOCAL_PASSWORD", "x")))
+    }
+
+    @Test
+    fun canjeRechazado_muestraNoSePudoCompletarElAcceso() {
+        assertEquals(LoginError.GOOGLE_REJECTED, inline(DomainError.Validation("GOOGLE_EXCHANGE_REJECTED", "x")))
+    }
+
+    @Test
+    fun canjeNoDisponible_esServer() {
+        assertEquals(LoginError.SERVER, inline(DomainError.Server("GOOGLE_EXCHANGE_UNAVAILABLE", "x")))
+    }
+
+    @Test
     fun rateLimited_esRateLimited() {
         assertEquals(LoginError.RATE_LIMITED, inline(DomainError.RateLimited("TOO_MANY_REQUESTS", "x")))
     }
