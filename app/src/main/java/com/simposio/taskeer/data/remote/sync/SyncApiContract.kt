@@ -1,6 +1,7 @@
 package com.simposio.taskeer.data.remote.sync
 
 import com.simposio.taskeer.data.sync.Identity
+import com.simposio.taskeer.data.sync.PullPage
 import com.simposio.taskeer.data.sync.PushMutation
 import com.simposio.taskeer.data.sync.PushOutcome
 import com.simposio.taskeer.data.sync.ServerRecord
@@ -21,6 +22,17 @@ object SyncApiContract {
     const val CODE_UNSUPPORTED = "CONTRACT_VERSION_UNSUPPORTED"
     const val CODE_BATCH_TOO_LARGE = "BATCH_TOO_LARGE"
     const val CODE_UNKNOWN_RESULT = "UNKNOWN_RESULT"
+
+    // Orden del servidor dentro de una página: padres antes que hijos.
+    private val CHANGE_KEYS = listOf(
+        "lists" to SyncEntity.LIST,
+        "boards" to SyncEntity.BOARD,
+        "columns" to SyncEntity.COLUMN,
+        "tasks" to SyncEntity.TASK,
+        "subtasks" to SyncEntity.SUBTASK,
+        "myDay" to SyncEntity.MY_DAY,
+        "reminders" to SyncEntity.REMINDER,
+    )
 
     sealed interface Parsed<out T> {
         class Ok<T>(val value: T) : Parsed<T>
@@ -66,16 +78,48 @@ object SyncApiContract {
         if (!sameMajor(version)) {
             Parsed.UpdateRequired
         } else {
-            val userId = root.getJSONObject("me").getString("userId")
-            val supported = root.optJSONArray("supportedEntities")
-                ?.let { array -> (0 until array.length()).mapNotNull { SyncEntity.fromWire(array.getString(it)) } }
-                .orEmpty()
-                .toSet()
-            Parsed.Ok(Identity(userId, version, supported))
+            Parsed.Ok(Identity(userIdOf(root), version, supportedOf(root)))
         }
     } catch (_: JSONException) {
         Parsed.Malformed
     }
+
+    // `changes` lleva siempre todas las claves, pero una ausente se lee como vacía; las claves que la app no conoce
+    // (o que aún no sincroniza, como workspaces y boardAccess) se ignoran.
+    fun parsePull(body: String): Parsed<PullPage> = try {
+        val root = JSONObject(body)
+        val version = root.optString("contractVersion", VERSION)
+        if (!sameMajor(version)) {
+            Parsed.UpdateRequired
+        } else {
+            val changes = root.optJSONObject("changes")
+            val records = CHANGE_KEYS.flatMap { (key, entity) ->
+                val array = changes?.optJSONArray(key) ?: return@flatMap emptyList()
+                (0 until array.length()).mapNotNull { parseRecord(array.getJSONObject(it), entity) }
+            }
+            Parsed.Ok(
+                PullPage(
+                    userId = userIdOf(root),
+                    contractVersion = version,
+                    supportedEntities = supportedOf(root),
+                    serverTime = SyncTimestamps.parse(root.getString("serverTime")) ?: throw JSONException("serverTime"),
+                    isSnapshot = root.optBoolean("isSnapshot", false),
+                    records = records,
+                    nextCursor = root.getString("nextCursor"),
+                    hasMore = root.getBoolean("hasMore"),
+                ),
+            )
+        }
+    } catch (_: JSONException) {
+        Parsed.Malformed
+    }
+
+    private fun userIdOf(root: JSONObject): String = root.getJSONObject("me").getString("userId")
+
+    private fun supportedOf(root: JSONObject): Set<SyncEntity> = root.optJSONArray("supportedEntities")
+        ?.let { array -> (0 until array.length()).mapNotNull { SyncEntity.fromWire(array.getString(it)) } }
+        .orEmpty()
+        .toSet()
 
     fun errorCode(body: String): String? = try {
         JSONObject(body).getJSONObject("error").optString("code").takeIf { it.isNotEmpty() }

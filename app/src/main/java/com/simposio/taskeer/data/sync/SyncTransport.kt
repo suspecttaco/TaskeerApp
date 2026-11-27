@@ -10,6 +10,9 @@ import java.time.Instant
 interface SyncTransport {
     suspend fun push(batch: List<PushMutation>): TransportResult<List<PushOutcome>>
 
+    // Sin cursor pide una carga completa. Un cursor que el servidor ya no reconoce responde Invalid(INVALID_CURSOR).
+    suspend fun pull(cursor: String?, limit: Int): TransportResult<PullPage>
+
     // Lee la cuenta con una página mínima de cambios, sin aplicarla.
     suspend fun identify(): TransportResult<Identity>
 }
@@ -40,6 +43,20 @@ class ServerRecord(
     override fun toString(): String = "ServerRecord(entity=$entity, deleted=$isDeleted)"
 }
 
+// `records` ya viene sin las entidades que la app no conoce y en el orden del servidor (padres antes que hijos).
+class PullPage(
+    val userId: String,
+    val contractVersion: String,
+    val supportedEntities: Set<SyncEntity>,
+    val serverTime: Instant,
+    val isSnapshot: Boolean,
+    val records: List<ServerRecord>,
+    val nextCursor: String,
+    val hasMore: Boolean,
+) {
+    override fun toString(): String = "PullPage(records=${records.size}, isSnapshot=$isSnapshot, hasMore=$hasMore)"
+}
+
 sealed interface PushOutcome {
     val clientMutationId: String
 
@@ -59,6 +76,7 @@ sealed interface PushOutcome {
 // VALIDATION_ERROR describe una petición mal formada, no una decisión del servidor sobre el dato del usuario.
 object SyncCodes {
     const val VALIDATION_ERROR = "VALIDATION_ERROR"
+    const val INVALID_CURSOR = "INVALID_CURSOR"
 }
 
 class Identity(

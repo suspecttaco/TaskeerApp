@@ -2,8 +2,10 @@ package com.simposio.taskeer.testing
 
 import com.simposio.taskeer.data.sync.Acquisition
 import com.simposio.taskeer.data.sync.Identity
+import com.simposio.taskeer.data.sync.PullPage
 import com.simposio.taskeer.data.sync.PushMutation
 import com.simposio.taskeer.data.sync.PushOutcome
+import com.simposio.taskeer.data.sync.RetryKind
 import com.simposio.taskeer.data.sync.ServerRecord
 import com.simposio.taskeer.data.sync.SyncTransport
 import com.simposio.taskeer.data.sync.TransportResult
@@ -14,7 +16,8 @@ import java.time.Duration
 import java.time.Instant
 
 // Servidor en memoria con la semántica de push del contrato 1.0 (idempotencia por clientMutationId, no-op, veredicto de
-// versión con reloj acotado, tombstones sin resurrección, dependencias, nombre de lista repetido). Para el pull de S2 crecerá.
+// versión con reloj acotado, tombstones sin resurrección, dependencias, nombre de lista repetido) y de pull: flujo ordenado
+// por (updatedAt, rango, id) con cursor opaco, paginación sin pérdidas ni repeticiones y snapshot con tombstones.
 class FakeSyncBackend(
     var userId: String = USER_A,
     var supported: Set<SyncEntity> = setOf(SyncEntity.LIST, SyncEntity.TASK, SyncEntity.SUBTASK),
@@ -48,6 +51,56 @@ class FakeSyncBackend(
     var maxConcurrent = 0
         private set
 
+    // Pull: cada llamada queda registrada; los fallos se inyectan por número de llamada (1 = la primera).
+    val pulls = mutableListOf<Pair<String?, Int>>()
+    val pullCalls: Int get() = pulls.size
+    val failPullCalls = mutableSetOf<Int>()
+    val invalidCursors = mutableSetOf<String>()
+
+    // Resultados de transporte para las próximas llamadas a pull, una por llamada.
+    val pullFailures = ArrayDeque<TransportResult<Nothing>>()
+    var pageCap: Int? = null
+    var forceSnapshotNext = false
+
+    override suspend fun pull(cursor: String?, limit: Int): TransportResult<PullPage> {
+        pulls += cursor to limit
+        if (pulls.size in failPullCalls) return TransportResult.Retry(null, RetryKind.NETWORK)
+        pullFailures.removeFirstOrNull()?.let { return it }
+        if (cursor != null && (cursor in invalidCursors || !CURSOR.matches(cursor))) return TransportResult.Invalid("INVALID_CURSOR")
+        val forced = cursor != null && cursor.startsWith("i") && forceSnapshotNext
+        if (forced) forceSnapshotNext = false
+        val snapshot = cursor == null || forced || cursor.startsWith("s")
+        val after = if (cursor == null || forced) null else position(cursor)
+        val flow = records.values
+            .filter { it.entity in supported }
+            .sortedWith(compareBy({ it.updatedAt }, { it.entity.ordinal }, { it.id }))
+            .filter { after == null || compare(it, after) > 0 }
+        val size = minOf(limit, pageCap ?: limit)
+        val page = flow.take(size)
+        val hasMore = flow.size > page.size
+        val next = page.lastOrNull()?.let { cursorOf(it, snapshot && hasMore) }
+            ?: cursor?.takeUnless { forced }
+            ?: "i:${serverNow.toEpochMilli()}:0:"
+        return TransportResult.Ok(
+            PullPage(userId, "1.0", supported, serverNow, snapshot, page.map { it.record() }, next, hasMore),
+        )
+    }
+
+    private fun cursorOf(stored: Stored, snapshot: Boolean) =
+        "${if (snapshot) "s" else "i"}:${stored.updatedAt.toEpochMilli()}:${stored.entity.ordinal}:${stored.id}"
+
+    private fun position(cursor: String): Triple<Long, Int, String> {
+        val parts = cursor.split(':', limit = 4)
+        return Triple(parts[1].toLong(), parts[2].toInt(), parts[3])
+    }
+
+    private fun compare(stored: Stored, after: Triple<Long, Int, String>): Int {
+        val byTime = stored.updatedAt.toEpochMilli().compareTo(after.first)
+        if (byTime != 0) return byTime
+        val byRank = stored.entity.ordinal.compareTo(after.second)
+        return if (byRank != 0) byRank else stored.id.compareTo(after.third)
+    }
+
     override suspend fun identify(): TransportResult<Identity> {
         identifyCalls++
         return identifyResult ?: TransportResult.Ok(Identity(userId, "1.0", supported))
@@ -65,7 +118,7 @@ class FakeSyncBackend(
             val outcomes = batch.map { process(it) }
             if (dropNextResponse) {
                 dropNextResponse = false
-                return TransportResult.Retry(null, com.simposio.taskeer.data.sync.RetryKind.NETWORK)
+                return TransportResult.Retry(null, RetryKind.NETWORK)
             }
             return TransportResult.Ok(outcomes)
         } finally {
@@ -135,6 +188,10 @@ class FakeSyncBackend(
         if (base != null && !existing.updatedAt.isAfter(base)) return true
         val clock = minOf(m.clientUpdatedAt, serverNow + Duration.ofMinutes(5))
         return clock.isAfter(existing.updatedAt)
+    }
+
+    private companion object {
+        val CURSOR = Regex("[si]:[0-9]+:[0-9]+:.*")
     }
 
     private fun tombstone(m: PushMutation) = ServerRecord(m.entity, m.id, serverNow, serverNow, emptyMap())

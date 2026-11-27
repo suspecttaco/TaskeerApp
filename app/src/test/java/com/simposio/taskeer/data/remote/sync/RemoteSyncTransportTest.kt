@@ -115,6 +115,34 @@ class RemoteSyncTransportTest {
         assertEquals(TransportResult.NotAvailable, transport.push(listOf(mutation("a"))))
     }
 
+    private fun pageBody(cursor: String = "C1") = """{"contractVersion":"1.0","supportedEntities":["list","task"],"me":{"userId":"$USER_A"},""" +
+        """"serverTime":"2026-11-26T18:30:00.000Z","isSnapshot":false,"changes":{"tasks":[]},"nextCursor":"$cursor","hasMore":false}"""
+
+    @Test
+    fun pull_conCursor_enQuery() = runTest {
+        client.enqueue(apiOk(pageBody("C2")))
+        client.enqueue(apiOk(pageBody()))
+
+        val withCursor = (transport.pull("C1", 200) as TransportResult.Ok).value
+        transport.pull(null, 50)
+
+        assertEquals("C2", withCursor.nextCursor)
+        assertEquals(listOf("cursor" to "C1", "limit" to "200"), client.requests[0].query)
+        assertEquals(listOf("limit" to "50"), client.requests[1].query)
+        assertEquals(HttpMethod.GET, client.requests[0].method)
+        assertEquals("sync/changes", client.requests[0].path)
+        assertEquals("1.0", client.requests[0].headers["X-Sync-Contract"])
+    }
+
+    @Test
+    fun pull_400InvalidCursor() = runTest {
+        client.enqueue(failure(400, "INVALID_CURSOR"))
+
+        val result = transport.pull("viejo", 200) as TransportResult.Invalid
+
+        assertEquals("INVALID_CURSOR", result.code)
+    }
+
     @Test
     fun status426_updateRequired() = runTest {
         client.enqueue(failure(426, "CONTRACT_VERSION_UNSUPPORTED"))

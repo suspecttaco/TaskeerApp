@@ -15,6 +15,8 @@ class SyncTransportSelectorTest {
 
         override suspend fun push(batch: List<PushMutation>): TransportResult<List<PushOutcome>> = TransportResult.Ok(emptyList())
 
+        override suspend fun pull(cursor: String?, limit: Int): TransportResult<PullPage> = TransportResult.NotAvailable
+
         override suspend fun identify(): TransportResult<Identity> {
             identifyCalls++
             return identity

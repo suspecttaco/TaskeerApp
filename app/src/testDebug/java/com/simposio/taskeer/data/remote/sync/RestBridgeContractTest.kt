@@ -244,4 +244,22 @@ class RestBridgeContractTest {
 
         assertEquals("user-7", identity.userId)
     }
+
+    @Test
+    fun pull_snapshotDeListasYTareas_conListIdYSinSubtareas() = runTest {
+        val payload = Base64.getUrlEncoder().withoutPadding().encodeToString("""{"sub":"user-7"}""".toByteArray())
+        val withToken = RestBridgeTransport(client, accessToken = { "h.$payload.s" }, now = { now })
+        client.enqueue(apiOk(listsJson))
+        client.enqueue(apiOk("""{"tasks":[${taskJson("t1")}]}"""))
+
+        val page = (withToken.pull("bridge", 200) as TransportResult.Ok).value
+
+        assertTrue(page.isSnapshot)
+        assertFalse(page.hasMore)
+        assertEquals(setOf(SyncEntity.LIST, SyncEntity.TASK), page.supportedEntities)
+        val task = page.records.single { it.entity == SyncEntity.TASK }
+        assertEquals("list-1", task.fields["listId"])
+        assertNull(task.fields["columnId"])
+        assertEquals("user-7", page.userId)
+    }
 }

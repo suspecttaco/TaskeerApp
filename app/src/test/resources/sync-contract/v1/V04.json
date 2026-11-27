@@ -1,0 +1,91 @@
+{
+  "id": "V04",
+  "given": {
+    "user": "USER_B",
+    "event": "B es añadido a WS_S a las 18:20:00.000Z"
+  },
+  "request": {
+    "method": "GET",
+    "path": "/sync/changes?cursor=<cursor anterior al acceso>"
+  },
+  "expect": "boardAccess (deletedAt: null, effectiveRole), el board, sus columns y todas sus tasks vivas aunque su updatedAt sea anterior al cursor; con la Alternativa, la respuesta es un snapshot (isSnapshot: true)",
+  "alternativa": {
+    "contractVersion": "1.0",
+    "supportedEntities": [
+      "list",
+      "board",
+      "column",
+      "task"
+    ],
+    "me": {
+      "userId": "22222222-2222-4222-8222-222222222222"
+    },
+    "serverTime": "2026-11-26T18:30:00.000Z",
+    "isSnapshot": true,
+    "changes": {
+      "workspaces": [],
+      "boardAccess": [
+        {
+          "boardId": "20000000-0000-4000-8000-000000000001",
+          "workspaceId": "a0000000-0000-4000-8000-000000000002",
+          "effectiveRole": "EDITOR",
+          "updatedAt": "2026-11-26T18:20:00.000Z",
+          "deletedAt": null
+        }
+      ],
+      "boards": [
+        {
+          "id": "20000000-0000-4000-8000-000000000001",
+          "workspaceId": "a0000000-0000-4000-8000-000000000002",
+          "name": "Equipo",
+          "updatedAt": "2026-11-20T08:00:00.000Z",
+          "deletedAt": null
+        }
+      ],
+      "lists": [],
+      "columns": [
+        {
+          "id": "40000000-0000-4000-8000-000000000001",
+          "boardId": "20000000-0000-4000-8000-000000000001",
+          "name": "Por hacer",
+          "position": 0,
+          "wipLimit": null,
+          "isDoneColumn": false,
+          "updatedAt": "2026-11-20T09:00:00.000Z",
+          "deletedAt": null
+        }
+      ],
+      "tasks": [
+        {
+          "id": "30000000-0000-4000-8000-000000000003",
+          "boardId": "20000000-0000-4000-8000-000000000001",
+          "columnId": "40000000-0000-4000-8000-000000000001",
+          "listId": null,
+          "title": "Comprar leche",
+          "description": null,
+          "priority": "MEDIUM",
+          "dueAt": null,
+          "assigneeId": null,
+          "position": 0,
+          "completedAt": null,
+          "repeatUnit": null,
+          "repeatInterval": null,
+          "repeatWeekdays": null,
+          "repeatAnchorDay": null,
+          "repeatSuccessorId": null,
+          "createdAt": "2026-11-20T10:01:00.000Z",
+          "updatedAt": "2026-11-20T09:30:00.000Z",
+          "deletedAt": null
+        }
+      ],
+      "subtasks": [],
+      "myDay": [],
+      "reminders": []
+    },
+    "nextCursor": "C10",
+    "hasMore": false
+  },
+  "derived": [
+    "alternativa"
+  ]
+}

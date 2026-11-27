@@ -1,5 +1,6 @@
 package com.simposio.taskeer.data.remote.sync
 
+import com.simposio.taskeer.data.sync.PullPage
 import com.simposio.taskeer.data.sync.PushMutation
 import com.simposio.taskeer.data.sync.PushOutcome
 import com.simposio.taskeer.domain.sync.SyncEntity
@@ -8,6 +9,8 @@ import com.simposio.taskeer.domain.sync.SyncTimestamps
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -141,5 +144,122 @@ class SyncApiContractTest {
 
         assertEquals("2026-11-26T18:29:10.000Z", sent.getString("clientUpdatedAt"))
         assertTrue(sent.isNull("baseUpdatedAt"))
+    }
+
+    private fun pull(body: JSONObject): PullPage =
+        (SyncApiContract.parsePull(body.toString()) as SyncApiContract.Parsed.Ok).value
+
+    private fun minimalPage(changes: JSONObject? = JSONObject()): JSONObject = JSONObject()
+        .put("contractVersion", "1.0")
+        .put("supportedEntities", JSONArray(listOf("list", "task")))
+        .put("me", JSONObject().put("userId", "11111111-1111-4111-8111-111111111111"))
+        .put("serverTime", "2026-11-26T18:30:00.000Z")
+        .put("isSnapshot", false)
+        .apply { if (changes != null) put("changes", changes) }
+        .put("nextCursor", "C1")
+        .put("hasMore", false)
+
+    @Test
+    fun vectoresV01aV04_lectura() {
+        val v01 = pull(vector("V01").getJSONObject("expect").getJSONObject("body"))
+        assertTrue(v01.isSnapshot)
+        assertEquals(setOf(SyncEntity.LIST, SyncEntity.TASK), v01.supportedEntities)
+        assertEquals(listOf(SyncEntity.LIST, SyncEntity.TASK), v01.records.map { it.entity })
+        assertEquals("<opaco>", v01.nextCursor)
+
+        val pages = vector("V02").getJSONArray("pages").let { a -> (0 until a.length()).map { pull(a.getJSONObject(it)) } }
+        assertEquals(listOf(true, false, false), pages.map { it.hasMore })
+        assertEquals(listOf(1, 1, 0), pages.map { it.records.size })
+        assertFalse(pages[0].records.single().isDeleted)
+        assertTrue(pages[1].records.single().isDeleted)
+        assertTrue(pages.none { it.isSnapshot })
+
+        val v03 = vector("V03")
+        val v03Body = v03.getJSONObject("expect").getJSONObject("body")
+        val v03Page = JSONObject(v03.getJSONObject("complemento").toString())
+            .put("isSnapshot", v03Body.getBoolean("isSnapshot"))
+            .put("changes", v03Body.getJSONObject("changes"))
+        assertTrue(pull(v03Page).records.isEmpty())
+
+        val v04 = pull(vector("V04").getJSONObject("alternativa"))
+        assertTrue(v04.isSnapshot)
+        assertEquals(listOf(SyncEntity.BOARD, SyncEntity.COLUMN, SyncEntity.TASK), v04.records.map { it.entity })
+    }
+
+    @Test
+    fun parseaPaginaCompleta() {
+        val page = pull(vector("V01").getJSONObject("expect").getJSONObject("body"))
+
+        assertEquals("11111111-1111-4111-8111-111111111111", page.userId)
+        assertEquals("1.0", page.contractVersion)
+        assertEquals(SyncTimestamps.parse("2026-11-26T18:30:00.000Z"), page.serverTime)
+        assertFalse(page.hasMore)
+        val list = page.records.first { it.entity == SyncEntity.LIST }
+        assertEquals("Tareas", list.fields["name"])
+        assertEquals(SyncTimestamps.parse("2026-11-20T10:00:00.000Z"), list.updatedAt)
+        assertNull(list.deletedAt)
+    }
+
+    @Test
+    fun clavesAusentes_sonVacias() {
+        val sinClaves = pull(minimalPage(JSONObject().put("tasks", JSONArray())))
+        val sinChanges = pull(minimalPage(changes = null))
+
+        assertTrue(sinClaves.records.isEmpty())
+        assertTrue(sinChanges.records.isEmpty())
+        assertEquals("C1", sinChanges.nextCursor)
+    }
+
+    @Test
+    fun entidadDesconocida_seIgnora() {
+        val changes = JSONObject()
+            .put("widgets", JSONArray().put(JSONObject().put("id", "w1").put("updatedAt", "2026-11-26T18:00:00.000Z")))
+            .put("workspaces", JSONArray().put(JSONObject().put("id", "ws").put("updatedAt", "2026-11-26T18:00:00.000Z")))
+        val body = minimalPage(changes).put("supportedEntities", JSONArray(listOf("list", "task", "gadget")))
+
+        val page = pull(body)
+
+        assertTrue(page.records.isEmpty())
+        assertEquals(setOf(SyncEntity.LIST, SyncEntity.TASK), page.supportedEntities)
+    }
+
+    @Test
+    fun fechasInvalidas_descartanElRegistro() {
+        val good = JSONObject().put("id", "t-ok").put("listId", "l").put("updatedAt", "2026-11-26T18:00:00.000Z").put("deletedAt", JSONObject.NULL)
+        val badUpdated = JSONObject().put("id", "t-1").put("updatedAt", "ayer")
+        val badDeleted = JSONObject().put("id", "t-2").put("updatedAt", "2026-11-26T18:00:00.000Z").put("deletedAt", "nunca")
+        val changes = JSONObject().put("tasks", JSONArray().put(badUpdated).put(good).put(badDeleted))
+
+        val page = pull(minimalPage(changes))
+
+        assertEquals(listOf("t-ok"), page.records.map { it.id })
+    }
+
+    @Test
+    fun tareaConListId_yColumnIdNulo() {
+        val record = pull(vector("V01").getJSONObject("expect").getJSONObject("body")).records.first { it.entity == SyncEntity.TASK }
+
+        assertEquals("25ad9060-2206-569c-beab-fc24c3b923e5", record.fields["listId"])
+        assertTrue(record.fields.containsKey("columnId"))
+        assertNull(record.fields["columnId"])
+    }
+
+    @Test
+    fun myDayPorTaskId() {
+        val entry = JSONObject().put("id", "30000000-0000-4000-8000-000000000001").put("taskId", "30000000-0000-4000-8000-000000000001")
+            .put("addedAt", "2026-11-26T08:00:00.000Z").put("updatedAt", "2026-11-26T08:00:00.000Z").put("deletedAt", JSONObject.NULL)
+
+        val record = pull(minimalPage(JSONObject().put("myDay", JSONArray().put(entry)))).records.single()
+
+        assertEquals(SyncEntity.MY_DAY, record.entity)
+        assertEquals(record.fields["taskId"], record.id)
+        assertEquals("2026-11-26T08:00:00.000Z", record.fields["addedAt"])
+    }
+
+    @Test
+    fun invalidCursor_esInvalid() {
+        assertEquals("INVALID_CURSOR", SyncApiContract.errorCode("""{"error":{"code":"INVALID_CURSOR","message":"El cursor ya no es válido"}}"""))
+        assertTrue(SyncApiContract.parsePull("""{"contractVersion":"1.0"}""") is SyncApiContract.Parsed.Malformed)
+        assertTrue(SyncApiContract.parsePull(minimalPage().put("contractVersion", "2.0").toString()) is SyncApiContract.Parsed.UpdateRequired)
     }
 }

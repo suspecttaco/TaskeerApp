@@ -5,6 +5,7 @@ import com.simposio.taskeer.data.remote.ApiRequest
 import com.simposio.taskeer.data.remote.ApiResult
 import com.simposio.taskeer.data.remote.HttpMethod
 import com.simposio.taskeer.data.sync.Identity
+import com.simposio.taskeer.data.sync.PullPage
 import com.simposio.taskeer.data.sync.PushMutation
 import com.simposio.taskeer.data.sync.PushOutcome
 import com.simposio.taskeer.data.sync.RetryKind
@@ -43,6 +44,33 @@ class RestBridgeTransport(
     override suspend fun identify(): TransportResult<Identity> {
         val userId = accessToken()?.let(::subject) ?: return TransportResult.NotAvailable
         return TransportResult.Ok(Identity(userId, BRIDGE_VERSION, setOf(SyncEntity.LIST, SyncEntity.TASK, SyncEntity.SUBTASK)))
+    }
+
+    // Cada lectura es un snapshot completo de listas y tareas, sin cursor ni subtareas: la página solo declara lo que
+    // lee (list y task), así que la reconciliación nunca da por borradas subtareas que el puente no ve.
+    override suspend fun pull(cursor: String?, limit: Int): TransportResult<PullPage> {
+        val userId = accessToken()?.let(::subject) ?: return TransportResult.NotAvailable
+        val snapshot = when (val read = snapshot()) {
+            is TransportResult.Ok -> read.value
+            is TransportResult.Retry -> return read
+            else -> return TransportResult.Retry(null, RetryKind.SERVER)
+        }
+        val listByColumn = snapshot.lists.values.mapNotNull { list -> (list.fields["columnId"] as? String)?.let { it to list.id } }.toMap()
+        val tasks = snapshot.tasks.values.mapNotNull { task ->
+            val listId = listByColumn[task.fields["columnId"]] ?: return@mapNotNull null
+            ServerRecord(task.entity, task.id, task.updatedAt, task.deletedAt, task.fields + mapOf("listId" to listId, "columnId" to null))
+        }
+        val page = PullPage(
+            userId = userId,
+            contractVersion = BRIDGE_VERSION,
+            supportedEntities = setOf(SyncEntity.LIST, SyncEntity.TASK),
+            serverTime = now(),
+            isSnapshot = true,
+            records = snapshot.lists.values.toList() + tasks,
+            nextCursor = BRIDGE_CURSOR,
+            hasMore = false,
+        )
+        return TransportResult.Ok(page)
     }
 
     override suspend fun push(batch: List<PushMutation>): TransportResult<List<PushOutcome>> {
@@ -253,6 +281,7 @@ class RestBridgeTransport(
 
     private companion object {
         const val BRIDGE_VERSION = "bridge"
+        const val BRIDGE_CURSOR = "bridge"
         const val ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
         val LIST_FIELDS = setOf("name", "position")
         val TASK_FIELDS = setOf(

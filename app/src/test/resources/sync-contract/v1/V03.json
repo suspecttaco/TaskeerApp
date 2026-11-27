@@ -1,0 +1,58 @@
+{
+  "id": "V03",
+  "given": {
+    "user": "USER_B",
+    "event": "B es expulsado de WS_S, que contiene BOARD_1"
+  },
+  "request": {
+    "method": "GET",
+    "path": "/sync/changes?cursor=<cursor anterior a la expulsión>"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "isSnapshot": false,
+      "changes": {
+        "workspaces": [
+          {
+            "id": "a0000000-0000-4000-8000-000000000002",
+            "name": "Equipo",
+            "isPersonal": false,
+            "myRole": "VIEWER",
+            "updatedAt": "2026-11-26T18:10:00.000Z",
+            "deletedAt": "2026-11-26T18:10:00.000Z"
+          }
+        ],
+        "boardAccess": [
+          {
+            "boardId": "20000000-0000-4000-8000-000000000001",
+            "workspaceId": "a0000000-0000-4000-8000-000000000002",
+            "effectiveRole": "VIEWER",
+            "updatedAt": "2026-11-26T18:10:00.000Z",
+            "deletedAt": "2026-11-26T18:10:00.000Z"
+          }
+        ],
+        "boards": [],
+        "tasks": []
+      }
+    }
+  },
+  "complemento": {
+    "contractVersion": "1.0",
+    "supportedEntities": [
+      "list",
+      "board",
+      "column",
+      "task"
+    ],
+    "me": {
+      "userId": "22222222-2222-4222-8222-222222222222"
+    },
+    "serverTime": "2026-11-26T18:30:00.000Z",
+    "nextCursor": "C9",
+    "hasMore": false
+  },
+  "derived": [
+    "complemento"
+  ]
+}
