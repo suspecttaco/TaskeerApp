@@ -51,6 +51,7 @@ fun ShellTopBar(
     actions: TopBarActions,
     modifier: Modifier = Modifier,
     calendarsEnabled: Boolean = true,
+    syncEnabled: Boolean = true,
     accountEntry: AccountEntry? = null,
 ) {
     TopAppBar(
@@ -83,6 +84,7 @@ fun ShellTopBar(
                     clearEnabled = clearEnabled,
                     onItem = actions.onMenuItem,
                     calendarsEnabled = calendarsEnabled,
+                    syncEnabled = syncEnabled,
                     onSync = actions.onSync,
                 )
             }

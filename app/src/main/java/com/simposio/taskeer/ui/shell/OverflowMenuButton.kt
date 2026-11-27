@@ -38,6 +38,7 @@ fun OverflowMenuButton(
     onItem: (MenuItem) -> Unit,
     modifier: Modifier = Modifier,
     calendarsEnabled: Boolean = true,
+    syncEnabled: Boolean = true,
     onSync: () -> Unit = {},
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -61,16 +62,10 @@ fun OverflowMenuButton(
                                 expanded = false
                                 onSync()
                             },
-                            enabled = action == MenuAction.SYNC,
+                            enabled = action == MenuAction.SYNC && syncEnabled,
                         )
                     }
                 }
-                Text(
-                    text = stringResource(R.string.menu_not_synced_wip),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = Spacing.ScreenPadding, vertical = Spacing.ItemGap),
-                )
             }
             menu.items.forEach { item ->
                 val label = stringResource(item.labelRes())

@@ -113,3 +113,6 @@ fun OverflowMenu.withBoardPresent(present: Boolean): OverflowMenu =
 // El acceso se gestiona en el servidor: solo se ofrece para un tablero que ya pertenece a un workspace.
 fun OverflowMenu.withBoardAccess(hasWorkspace: Boolean): OverflowMenu =
     if (hasWorkspace) copy(items = items + MenuItem.BOARD_ACCESS) else this
+
+fun OverflowMenu.withSync(available: Boolean): OverflowMenu =
+    if (available) this else copy(actions = actions.filter { it != MenuAction.SYNC })

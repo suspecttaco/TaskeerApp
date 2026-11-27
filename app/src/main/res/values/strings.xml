@@ -570,6 +570,7 @@
     <string name="sync_background_title">Sincronizar en segundo plano</string>
     <string name="sync_background_supporting">Envía y trae tus cambios cuando la app está cerrada y hay red</string>
     <string name="sync_action">Sincronizar</string>
+    <string name="sync_manual_deferred">No se pudo completar ahora. Se reintentará</string>
     <string name="sync_status_idle">Todo sincronizado</string>
     <string name="sync_status_idle_at">Última sincronización: %1$s</string>
     <string name="sync_status_pending">%1$d cambios pendientes de enviar</string>
@@ -583,7 +584,6 @@
     <string name="sync_account_dialog_message">Los datos de este dispositivo pertenecen a otra cuenta. Para sincronizar con la cuenta actual hay que borrarlos de este dispositivo; los cambios sin enviar se perderán.</string>
     <string name="sync_account_dialog_confirm">Borrar y sincronizar</string>
     <string name="sync_account_dialog_cancel">Ahora no</string>
-    <string name="menu_not_synced_wip">Sin sincronizar (WIP)</string>
     <string name="menu_clear_completed">Limpiar</string>
     <string name="menu_filter">Filtrar</string>
     <string name="menu_sort">Ordenar</string>
