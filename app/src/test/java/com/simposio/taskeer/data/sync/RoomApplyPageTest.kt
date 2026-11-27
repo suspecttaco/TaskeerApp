@@ -138,10 +138,24 @@ class RoomApplyPageTest {
     }
 
     @Test
-    fun tableroYColumna_seIgnoranHastaLaFaseDeTableros() = runTest {
+    fun tableroYColumna_seAplicanConAlcance() = runTest {
         rig.bound()
-        rig.scopeHolder.update(setOf(SyncEntity.LIST, SyncEntity.TASK, SyncEntity.BOARD, SyncEntity.COLUMN))
         rig.backend.supported = rig.backend.supported + setOf(SyncEntity.BOARD, SyncEntity.COLUMN)
+
+        apply(
+            ServerRecord(SyncEntity.BOARD, "b1", updated, null, mapOf("name" to "Tablero", "workspaceId" to "ws")),
+            ServerRecord(SyncEntity.COLUMN, "c1", updated, null, mapOf("boardId" to "b1", "name" to "Por hacer", "position" to 0, "isDoneColumn" to false)),
+        )
+
+        assertEquals("Tablero", dao.boards.value.getValue("b1").name)
+        assertEquals("ws", dao.boards.value.getValue("b1").workspaceId)
+        assertEquals("b1", dao.columns.value.getValue("c1").boardId)
+        assertNotNull(dao.baseline("board", "b1"))
+    }
+
+    @Test
+    fun tableroYColumna_fueraDeAlcance_seIgnoran() = runTest {
+        rig.bound()
 
         apply(
             ServerRecord(SyncEntity.BOARD, "b1", updated, null, mapOf("name" to "Tablero")),
@@ -150,5 +164,6 @@ class RoomApplyPageTest {
 
         assertNull(dao.baseline("board", "b1"))
         assertNull(dao.baseline("column", "c1"))
+        assertTrue(dao.boards.value.isEmpty())
     }
 }

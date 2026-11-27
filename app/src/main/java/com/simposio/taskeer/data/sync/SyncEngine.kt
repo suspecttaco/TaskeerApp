@@ -48,8 +48,9 @@ class SyncEngine(
     private val retry: RetryScheduler,
     private val clock: () -> Instant,
     private val random: Random = Random.Default,
-    private val appScope: Set<SyncEntity> = SyncScope.APP_LISTS_AND_TASKS,
+    private val appScope: Set<SyncEntity> = SyncScope.APP_FULL,
     private val minAutomaticSpacing: Duration = MIN_AUTOMATIC_SPACING,
+    private val onRemindersChanged: suspend () -> Unit = {},
 ) {
     private val cycleLock = Mutex()
     private val paused = MutableStateFlow<PauseReason?>(null)
@@ -163,9 +164,16 @@ class SyncEngine(
         scopeHolder.update(effective)
         markIfScopeGrew(effective)
         store.collect(clock())
-        val pushReport = push(ready, manual)
+        val knewPersonalWorkspace = store.personalWorkspaceId() != null
+        var pushReport = push(ready, manual)
         // Sin envío completo no se trae nada: la red o el servidor fallaron y la lectura toparía con lo mismo.
         val pullReport = if (pushReport.stopped) null else pull(ready)
+        // Los tableros nuevos esperan al workspace personal, que llega con la primera traída: se envían ya, no en el ciclo siguiente.
+        if (pullReport != null && !pullReport.stopped && !knewPersonalWorkspace && store.personalWorkspaceId() != null) {
+            store.collect(clock())
+            val second = push(ready, manual)
+            pushReport = PushReport(pushReport.losses + second.losses, second.stopped)
+        }
         finish(pushReport, pullReport)
     }
 
@@ -286,7 +294,9 @@ class SyncEngine(
                         page.hasMore -> PageCommit.KeepCursor
                         else -> PageCommit.FinishSnapshot(seen.toSet())
                     }
-                    losses += store.applyPage(page, me, clock(), commit).losses
+                    val effect = store.applyPage(page, me, clock(), commit)
+                    losses += effect.losses
+                    if (effect.remindersChanged) onRemindersChanged()
                     if (!page.hasMore) return PullReport(losses, stopped = false)
                     cursor = page.nextCursor
                 }

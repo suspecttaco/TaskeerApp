@@ -181,6 +181,39 @@ class SyncEnginePushTest {
     }
 
     @Test
+    fun applied_deleteSinRegistro_confirmaYDesencola() = runTest {
+        dao.put(localList)
+        dao.baseline("list", "list-1", 1L)
+        dao.put(syncTask("t1", pending = true, deletedAt = 3_000L, updatedAt = 3_000L))
+        backend.appliedWithoutRecordIds += "t1"
+
+        engine().runCycle(manual = false)
+
+        val row = dao.tasks.value.getValue("t1")
+        assertFalse(row.pending)
+        assertEquals(3_000L, row.deletedAt)
+        assertEquals(0, dao.queue().size)
+    }
+
+    @Test
+    fun applied_upsertSinRegistro_noBloqueaElRestoDelLote() = runTest {
+        dao.put(localList)
+        dao.baseline("list", "list-1", 1L)
+        dao.put(syncTask("t1", pending = true, updatedAt = 3_000L))
+        dao.put(syncTask("t2", pending = true, deletedAt = 4_000L, updatedAt = 4_000L))
+        dao.baseline("task", "t2", 1L)
+        backend.appliedWithoutRecordIds += "t1"
+
+        engine().runCycle(manual = false)
+
+        val left = dao.queue().single()
+        assertEquals("t1", left.entityId)
+        assertEquals(1, left.failures)
+        assertTrue(dao.tasks.value.getValue("t1").pending)
+        assertFalse(dao.tasks.value.getValue("t2").pending)
+    }
+
+    @Test
     fun applied_deleteConfirmado_noCambiaLaFilaLocal() = runTest {
         dao.put(localList)
         dao.baseline("list", "list-1", 1L)

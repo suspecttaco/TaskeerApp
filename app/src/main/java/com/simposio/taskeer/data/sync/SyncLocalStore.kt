@@ -33,7 +33,8 @@ sealed interface PageCommit {
     }
 }
 
-class PageEffect(val losses: List<SyncLoss>)
+// `remindersChanged`: la página trajo recordatorios nuevos o cambiados, o tareas con otra fecha límite o estado; el motor avisa al reconciliador de alarmas.
+class PageEffect(val losses: List<SyncLoss>, val remindersChanged: Boolean = false)
 
 object SyncMetaKeys {
     const val BOUND_USER_ID = "boundUserId"
@@ -72,6 +73,9 @@ interface SyncLocalStore {
     suspend fun nextWake(now: Instant): Instant?
 
     suspend fun markAllUnsyncedPending()
+
+    // Id del workspace personal si ya llegó por sincronización: los tableros nuevos suben a él.
+    suspend fun personalWorkspaceId(): String?
 
     suspend fun rekeyList(oldId: String, newId: String)
 

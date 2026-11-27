@@ -3,6 +3,7 @@ package com.simposio.taskeer.data.remote.sync
 import com.simposio.taskeer.data.sync.PullPage
 import com.simposio.taskeer.data.sync.PushMutation
 import com.simposio.taskeer.data.sync.PushOutcome
+import com.simposio.taskeer.data.sync.SyncCodes
 import com.simposio.taskeer.domain.sync.SyncEntity
 import com.simposio.taskeer.domain.sync.SyncOp
 import com.simposio.taskeer.domain.sync.SyncTimestamps
@@ -44,7 +45,7 @@ class SyncApiContractTest {
 
     @Test
     fun vectores_push_serializacionExacta() {
-        for (name in listOf("V05", "V11", "V14", "V16", "V20")) {
+        for (name in listOf("V05", "V11", "V14", "V16", "V17", "V18", "V19", "V20")) {
             val request = vector(name).getJSONObject("request")
 
             val sent = SyncApiContract.serializeBatch(mutationsOf(request))
@@ -55,7 +56,7 @@ class SyncApiContractTest {
 
     @Test
     fun vectores_parseoDeResultados() {
-        for (name in listOf("V05", "V11", "V14", "V16", "V20")) {
+        for (name in listOf("V05", "V11", "V14", "V16", "V17", "V18", "V19", "V20")) {
             val v = vector(name)
             val batch = mutationsOf(v.getJSONObject("request"))
             val expected = v.getJSONObject("response").getJSONArray("results")
@@ -88,6 +89,33 @@ class SyncApiContractTest {
         ) as SyncApiContract.Parsed.Ok).value.single() as PushOutcome.Rejected
         assertEquals("LIST_NAME_TAKEN", taken.code)
         assertEquals("Tareas", taken.record!!.fields["name"])
+    }
+
+    @Test
+    fun appliedConRecordNulo_seAceptaSinInvalidarElLote() {
+        val v = vector("V11")
+        val batch = mutationsOf(v.getJSONObject("request"))
+        val results = JSONArray()
+        batch.forEach {
+            results.put(JSONObject().put("clientMutationId", it.clientMutationId).put("status", "applied").put("record", JSONObject.NULL))
+        }
+        val response = v.getJSONObject("response").put("results", results)
+
+        val parsed = SyncApiContract.parsePush(response.toString(), batch) as SyncApiContract.Parsed.Ok
+
+        assertEquals(batch.size, parsed.value.size)
+        assertTrue(parsed.value.all { it is PushOutcome.Applied && it.record == null })
+    }
+
+    @Test
+    fun conflictSinRecord_seTrataComoFalloReintentableSinInvalidarElLote() {
+        val v = vector("V05")
+        val response = v.getJSONObject("response")
+        response.getJSONArray("results").getJSONObject(0).put("status", "conflict").put("record", JSONObject.NULL)
+
+        val parsed = SyncApiContract.parsePush(response.toString(), mutationsOf(v.getJSONObject("request"))) as SyncApiContract.Parsed.Ok
+
+        assertEquals(SyncCodes.VALIDATION_ERROR, (parsed.value.single() as PushOutcome.Rejected).code)
     }
 
     @Test
@@ -179,11 +207,15 @@ class SyncApiContractTest {
         val v03Page = JSONObject(v03.getJSONObject("complemento").toString())
             .put("isSnapshot", v03Body.getBoolean("isSnapshot"))
             .put("changes", v03Body.getJSONObject("changes"))
-        assertTrue(pull(v03Page).records.isEmpty())
+        val retired = pull(v03Page).records
+        assertEquals(listOf(SyncEntity.WORKSPACE, SyncEntity.BOARD_ACCESS), retired.map { it.entity })
+        assertEquals("20000000-0000-4000-8000-000000000001", retired.last().id)
+        assertTrue(retired.all { it.isDeleted })
+        assertEquals("VIEWER", retired.last().fields["effectiveRole"])
 
         val v04 = pull(vector("V04").getJSONObject("alternativa"))
         assertTrue(v04.isSnapshot)
-        assertEquals(listOf(SyncEntity.BOARD, SyncEntity.COLUMN, SyncEntity.TASK), v04.records.map { it.entity })
+        assertEquals(listOf(SyncEntity.BOARD_ACCESS, SyncEntity.BOARD, SyncEntity.COLUMN, SyncEntity.TASK), v04.records.map { it.entity })
     }
 
     @Test
@@ -214,7 +246,7 @@ class SyncApiContractTest {
     fun entidadDesconocida_seIgnora() {
         val changes = JSONObject()
             .put("widgets", JSONArray().put(JSONObject().put("id", "w1").put("updatedAt", "2026-11-26T18:00:00.000Z")))
-            .put("workspaces", JSONArray().put(JSONObject().put("id", "ws").put("updatedAt", "2026-11-26T18:00:00.000Z")))
+            .put("gadgets", JSONArray().put(JSONObject().put("id", "g1").put("updatedAt", "2026-11-26T18:00:00.000Z")))
         val body = minimalPage(changes).put("supportedEntities", JSONArray(listOf("list", "task", "gadget")))
 
         val page = pull(body)
@@ -261,5 +293,50 @@ class SyncApiContractTest {
         assertEquals("INVALID_CURSOR", SyncApiContract.errorCode("""{"error":{"code":"INVALID_CURSOR","message":"El cursor ya no es válido"}}"""))
         assertTrue(SyncApiContract.parsePull("""{"contractVersion":"1.0"}""") is SyncApiContract.Parsed.Malformed)
         assertTrue(SyncApiContract.parsePull(minimalPage().put("contractVersion", "2.0").toString()) is SyncApiContract.Parsed.UpdateRequired)
+    }
+
+    @Test
+    fun workspacesYBoardAccess_seLeenConSuIdentificador() {
+        val changes = JSONObject()
+            .put("workspaces", JSONArray().put(JSONObject().put("id", "ws").put("name", "Equipo").put("isPersonal", false).put("myRole", "EDITOR").put("updatedAt", "2026-11-26T18:00:00.000Z")))
+            .put("boardAccess", JSONArray().put(JSONObject().put("boardId", "b1").put("workspaceId", "ws").put("effectiveRole", "VIEWER").put("updatedAt", "2026-11-26T18:00:00.000Z").put("deletedAt", JSONObject.NULL)))
+
+        val page = pull(minimalPage(changes))
+
+        assertEquals(listOf(SyncEntity.WORKSPACE, SyncEntity.BOARD_ACCESS), page.records.map { it.entity })
+        assertEquals("b1", page.records.last().id)
+        assertEquals("VIEWER", page.records.last().fields["effectiveRole"])
+        assertEquals("EDITOR", page.records.first().fields["myRole"])
+    }
+
+    @Test
+    fun v17_altaDeTableroConColumnas_lecturaDeLaRespuesta() {
+        val v = vector("V17")
+        val batch = mutationsOf(v.getJSONObject("request"))
+
+        val parsed = (SyncApiContract.parsePush(v.getJSONObject("response").toString(), batch) as SyncApiContract.Parsed.Ok).value
+
+        val board = (parsed[0] as PushOutcome.Applied).record!!
+        assertEquals(SyncEntity.BOARD, board.entity)
+        assertEquals(2, (board.fields["columns"] as List<*>).size)
+        assertEquals("a0000000-0000-4000-8000-000000000001", board.fields["workspaceId"])
+        assertEquals(SyncEntity.COLUMN, (parsed[1] as PushOutcome.Applied).record!!.entity)
+    }
+
+    @Test
+    fun v18v19_miDiaYRecordatorio_lecturaDeLaRespuesta() {
+        val v18 = vector("V18")
+        val mark = ((SyncApiContract.parsePush(v18.getJSONObject("response").toString(), mutationsOf(v18.getJSONObject("request"))) as SyncApiContract.Parsed.Ok)
+            .value.single() as PushOutcome.Applied).record!!
+        assertEquals(SyncEntity.MY_DAY, mark.entity)
+        assertEquals("30000000-0000-4000-8000-000000000001", mark.id)
+        assertEquals("2026-11-26T08:00:00.000Z", mark.fields["addedAt"])
+
+        val v19 = vector("V19")
+        val reminder = ((SyncApiContract.parsePush(v19.getJSONObject("response").toString(), mutationsOf(v19.getJSONObject("request"))) as SyncApiContract.Parsed.Ok)
+            .value.single() as PushOutcome.Applied).record!!
+        assertEquals(SyncEntity.REMINDER, reminder.entity)
+        assertEquals("MOBILE", reminder.fields["origin"])
+        assertEquals("PENDING", reminder.fields["status"])
     }
 }

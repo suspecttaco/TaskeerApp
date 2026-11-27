@@ -40,6 +40,7 @@ import com.simposio.taskeer.ui.auth.SessionViewModel
 import com.simposio.taskeer.ui.sync.AccountSwitchDialog
 import com.simposio.taskeer.ui.sync.SyncViewModel
 import com.simposio.taskeer.domain.myday.shouldAutoOpenSuggestions
+import com.simposio.taskeer.domain.workspace.WorkspaceRole
 import com.simposio.taskeer.ui.board.BoardViewModel
 import com.simposio.taskeer.ui.calendar.CalendarViewModel
 import com.simposio.taskeer.ui.calendar.EventEditorActions
@@ -62,6 +63,7 @@ import com.simposio.taskeer.ui.navigation.chromeFor
 import com.simposio.taskeer.ui.navigation.navigateHome
 import com.simposio.taskeer.ui.navigation.overflowMenuFor
 import com.simposio.taskeer.ui.navigation.quickAddContextFor
+import com.simposio.taskeer.ui.navigation.withBoardAccess
 import com.simposio.taskeer.ui.navigation.withBoardPresent
 import com.simposio.taskeer.ui.navigation.withListCount
 import com.simposio.taskeer.ui.myday.MySuggestionsViewModel
@@ -146,6 +148,11 @@ fun AppShell(
     } else {
         null
     }
+    val boardViewModel: BoardViewModel? = if (destination == AppDestination.BOARD && entry != null) {
+        viewModel(viewModelStoreOwner = entry, factory = viewModelFactory)
+    } else {
+        null
+    }
     val membersViewModel: WorkspaceMembersViewModel? =
         if (destination == AppDestination.WORKSPACE_MEMBERS && entry != null) {
             viewModel(viewModelStoreOwner = entry, factory = viewModelFactory)
@@ -160,8 +167,11 @@ fun AppShell(
     val calendarsReadable = calendarViewModel?.canReadCalendars?.collectAsStateWithLifecycle()?.value ?: true
     val listName = listViewModel?.uiState?.collectAsStateWithLifecycle()?.value?.listName
     val listCount = listsViewModel?.uiState?.collectAsStateWithLifecycle()?.value?.lists?.size ?: 0
-    val boardName = boardsViewModel?.uiState?.collectAsStateWithLifecycle()?.value
-        ?.boards?.firstOrNull { it.id == boardId }?.name
+    val currentBoard = boardsViewModel?.uiState?.collectAsStateWithLifecycle()?.value
+        ?.boards?.firstOrNull { it.id == boardId }
+    val boardName = currentBoard?.name
+    val boardWorkspaceId = currentBoard?.workspaceId
+    val boardRole = boardViewModel?.uiState?.collectAsStateWithLifecycle()?.value?.role
 
     val workspaceName = membersViewModel?.uiState?.collectAsStateWithLifecycle()?.value?.title?.takeIf { it.isNotEmpty() }
 
@@ -244,7 +254,8 @@ fun AppShell(
     }
 
     val menu: OverflowMenu = overflowMenuFor(destination).withListCount(listCount).withBoardPresent(boardName != null)
-    val title = destination.title(listName, boardName, workspaceName)
+        .withBoardAccess(boardWorkspaceId != null)
+    val title = destination.title(listName, boardName, workspaceName, boardRole)
     val back = backStep(
         destination,
         boardId,
@@ -301,6 +312,11 @@ fun AppShell(
                                     MenuItem.DELETE_LIST -> listId?.let { listsViewModel?.openDelete(it) }
                                     MenuItem.RENAME_BOARD -> boardId?.let { boardsViewModel?.openRename(it) }
                                     MenuItem.DELETE_BOARD -> boardId?.let { boardsViewModel?.openDelete(it) }
+                                    MenuItem.BOARD_ACCESS -> if (boardId != null && boardWorkspaceId != null) {
+                                        navController.navigate(AppDestination.boardAccessRoute(boardWorkspaceId, boardId)) {
+                                            launchSingleTop = true
+                                        }
+                                    }
                                     MenuItem.MY_CALENDARS -> calendarViewModel?.openPicker()
                                     MenuItem.FILTER, MenuItem.SORT -> Unit
                                 }
@@ -430,14 +446,19 @@ private fun SuggestionsAutoOpen(
 }
 
 @Composable
-private fun AppDestination.title(listName: String?, boardName: String?, workspaceName: String?): String = when (this) {
+private fun AppDestination.title(
+    listName: String?,
+    boardName: String?,
+    workspaceName: String?,
+    boardRole: WorkspaceRole? = null,
+): String = when (this) {
     AppDestination.MY_DAY -> stringResource(R.string.section_my_day)
     AppDestination.HOME -> stringResource(R.string.home_title)
     AppDestination.UPCOMING_7_DAYS -> stringResource(R.string.section_upcoming)
     AppDestination.ALL_TASKS -> stringResource(R.string.section_all_tasks)
     AppDestination.CALENDAR -> stringResource(R.string.section_calendar)
     AppDestination.LIST -> listName.orEmpty()
-    AppDestination.BOARD -> boardName ?: stringResource(R.string.board_title)
+    AppDestination.BOARD -> boardTitle(boardName ?: stringResource(R.string.board_title), boardRole)
     AppDestination.BOARD_COLUMNS -> stringResource(R.string.columns_title)
     AppDestination.SEARCH -> stringResource(R.string.search_title)
     AppDestination.NOTIFICATIONS -> stringResource(R.string.notifications_title)
@@ -464,4 +485,17 @@ private fun AppShellPreview() {
             viewModelFactory = object : ViewModelProvider.Factory {},
         )
     }
+}
+
+// El rol solo se muestra cuando el servidor lo resolvió y la app lo conoce: un tablero local propio no lleva etiqueta.
+@Composable
+private fun boardTitle(name: String, role: WorkspaceRole?): String {
+    val label = when (role) {
+        WorkspaceRole.OWNER -> R.string.workspaces_role_owner
+        WorkspaceRole.ADMIN -> R.string.workspaces_role_admin
+        WorkspaceRole.EDITOR -> R.string.workspaces_role_editor
+        WorkspaceRole.VIEWER -> R.string.workspaces_role_viewer
+        WorkspaceRole.UNKNOWN, null -> return name
+    }
+    return stringResource(R.string.board_title_with_role, name, stringResource(label))
 }

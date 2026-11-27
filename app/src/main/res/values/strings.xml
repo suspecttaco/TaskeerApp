@@ -589,6 +589,9 @@
     <string name="menu_settings">Ajustes</string>
     <string name="menu_rename_list">Renombrar lista</string>
     <string name="menu_delete_list">Eliminar lista</string>
+    <string name="menu_board_access">Acceso al tablero</string>
+    <string name="board_open_needs_sync">Sincroniza para abrirlo</string>
+    <string name="board_title_with_role">%1$s · %2$s</string>
     <string name="menu_rename_board">Renombrar tablero</string>
     <string name="menu_delete_board">Eliminar tablero</string>
     <string name="pill_hint">Quiero…</string>

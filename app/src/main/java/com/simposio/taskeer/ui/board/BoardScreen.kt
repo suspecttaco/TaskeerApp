@@ -135,16 +135,18 @@ fun BoardContent(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                ActionIcon(
-                    icon = Icons.Filled.Add,
-                    contentDescription = stringResource(R.string.board_add_column),
-                    onClick = onAddColumn,
-                )
-                ActionIcon(
-                    icon = Icons.Filled.ViewColumn,
-                    contentDescription = stringResource(R.string.board_manage_columns),
-                    onClick = onManageColumns,
-                )
+                if (state.capabilities.canManageColumns) {
+                    ActionIcon(
+                        icon = Icons.Filled.Add,
+                        contentDescription = stringResource(R.string.board_add_column),
+                        onClick = onAddColumn,
+                    )
+                    ActionIcon(
+                        icon = Icons.Filled.ViewColumn,
+                        contentDescription = stringResource(R.string.board_manage_columns),
+                        onClick = onManageColumns,
+                    )
+                }
             }
 
             state.error?.let { error ->
@@ -169,6 +171,7 @@ fun BoardContent(
                 state.columns.forEach { column ->
                     BoardColumnView(
                         column = column,
+                        canEdit = state.capabilities.canEditTasks,
                         draggedId = drag?.card?.id,
                         onColumnPositioned = { columnBounds[column.id] = it },
                         onColumnDisposed = { columnBounds.remove(column.id) },

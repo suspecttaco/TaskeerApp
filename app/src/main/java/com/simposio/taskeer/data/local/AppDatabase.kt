@@ -25,8 +25,10 @@ private const val SEED_DEFAULT_LIST_SQL =
         SyncQueueEntity::class,
         SyncBaselineEntity::class,
         SyncMetaEntity::class,
+        BoardAccessEntity::class,
+        SyncWorkspaceEntity::class,
     ],
-    version = 16,
+    version = 17,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -39,6 +41,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun appNotificationDao(): AppNotificationDao
     abstract fun taskListDao(): TaskListDao
     abstract fun syncDao(): SyncDao
+    abstract fun boardAccessDao(): BoardAccessDao
 
     companion object {
         const val DATABASE_NAME: String = "taskeer.db"
@@ -346,6 +349,30 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_16_17: Migration = object : Migration(16, 17) {
+            // Sin relleno: los tableros existentes quedan con workspaceId nulo (locales, aún no subidos) y sin fila de acceso.
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `boards` ADD COLUMN `workspaceId` TEXT")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `board_access` (" +
+                        "`boardId` TEXT NOT NULL, " +
+                        "`workspaceId` TEXT NOT NULL, " +
+                        "`effectiveRole` TEXT NOT NULL, " +
+                        "`updatedAt` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`boardId`))",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `sync_workspaces` (" +
+                        "`id` TEXT NOT NULL, " +
+                        "`name` TEXT NOT NULL, " +
+                        "`isPersonal` INTEGER NOT NULL, " +
+                        "`myRole` TEXT NOT NULL, " +
+                        "`deletedAt` INTEGER, " +
+                        "PRIMARY KEY(`id`))",
+                )
+            }
+        }
+
         private val MIGRATIONS: List<Migration> = listOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -362,6 +389,7 @@ abstract class AppDatabase : RoomDatabase() {
             MIGRATION_13_14,
             MIGRATION_14_15,
             MIGRATION_15_16,
+            MIGRATION_16_17,
         )
 
         fun create(context: Context): AppDatabase =

@@ -1,5 +1,10 @@
 package com.simposio.taskeer.data.sync
 
+import com.simposio.taskeer.data.local.BoardAccessEntity
+import com.simposio.taskeer.data.local.BoardEntity
+import com.simposio.taskeer.data.local.ColumnEntity
+import com.simposio.taskeer.data.local.MyDayEntryEntity
+import com.simposio.taskeer.data.local.ReminderEntity
 import com.simposio.taskeer.data.local.QUEUE_STATE_QUEUED
 import com.simposio.taskeer.data.local.QUEUE_STATE_STUCK
 import com.simposio.taskeer.data.local.SubtaskEntity
@@ -7,6 +12,7 @@ import com.simposio.taskeer.data.local.SyncDao
 import com.simposio.taskeer.data.local.SyncMetaEntity
 import com.simposio.taskeer.data.local.SyncBaselineEntity
 import com.simposio.taskeer.data.local.SyncQueueEntity
+import com.simposio.taskeer.data.local.SyncWorkspaceEntity
 import com.simposio.taskeer.data.local.SyncableEntity
 import com.simposio.taskeer.data.local.TaskEntity
 import com.simposio.taskeer.data.local.TaskListEntity
@@ -36,11 +42,17 @@ class RoomSyncLocalStore(
     private val newMutationId: () -> String = ::newClientId,
 ) : SyncLocalStore {
 
+    private val purger = LocalBoardPurger(dao)
+
     override suspend fun collect(now: Instant) {
         val scope = scopeHolder.scope.value
         dropStaleEntries()
         if (SyncEntity.LIST in scope) {
             dao.pendingLists().forEach { reconcile(SyncEntity.LIST, it, now) }
+        }
+        if (SyncEntity.BOARD in scope) {
+            dao.pendingBoards().forEach { reconcile(SyncEntity.BOARD, it, now) }
+            if (SyncEntity.COLUMN in scope) dao.pendingColumns().forEach { reconcile(SyncEntity.COLUMN, it, now) }
         }
         dao.pendingTasks().forEach { task ->
             val shape = task.shape() ?: return@forEach
@@ -49,6 +61,14 @@ class RoomSyncLocalStore(
         dao.pendingSubtasks().forEach { subtask ->
             val parent = dao.findTask(subtask.taskId)?.shape() ?: return@forEach
             if (SyncScope.allows(SyncEntity.SUBTASK, parent, scope)) reconcile(SyncEntity.SUBTASK, subtask, now)
+        }
+        dao.pendingMyDay().forEach { entry ->
+            val shape = dao.findTask(entry.id)?.shape() ?: return@forEach
+            if (SyncScope.allows(SyncEntity.MY_DAY, shape, scope)) reconcile(SyncEntity.MY_DAY, entry, now)
+        }
+        dao.pendingReminders().forEach { reminder ->
+            val shape = dao.findTask(reminder.taskId)?.shape() ?: return@forEach
+            if (SyncScope.allows(SyncEntity.REMINDER, shape, scope)) reconcile(SyncEntity.REMINDER, reminder, now)
         }
     }
 
@@ -114,14 +134,40 @@ class RoomSyncLocalStore(
         val entity = SyncEntity.fromWire(entry.entity) ?: return false
         return when (entity) {
             SyncEntity.LIST -> SyncEntity.LIST in scope
-            SyncEntity.TASK -> dao.findTask(entry.entityId)?.shape()?.let { SyncScope.allows(entity, it, scope) } ?: false
+            SyncEntity.BOARD -> SyncEntity.BOARD in scope && !awaitingWorkspace(entry.entityId)
+            SyncEntity.COLUMN -> SyncEntity.BOARD in scope && SyncEntity.COLUMN in scope &&
+                dao.findColumn(entry.entityId)?.let { !awaitingWorkspace(it.boardId) } ?: false
+            SyncEntity.TASK -> dao.findTask(entry.entityId)?.let { it.shape()?.let { shape -> SyncScope.allows(entity, shape, scope) } == true && !taskAwaitsWorkspace(it) } ?: false
             SyncEntity.SUBTASK -> {
-                val parent = dao.findSubtask(entry.entityId)?.let { dao.findTask(it.taskId) }?.shape()
-                parent?.let { SyncScope.allows(entity, it, scope) } ?: false
+                val parent = dao.findSubtask(entry.entityId)?.let { dao.findTask(it.taskId) }
+                parent?.shape()?.let { SyncScope.allows(entity, it, scope) && !taskAwaitsWorkspace(parent) } ?: false
+            }
+            SyncEntity.MY_DAY, SyncEntity.REMINDER -> {
+                val task = personalTask(entity, entry.entityId)
+                task?.shape()?.let { SyncScope.allows(entity, it, scope) && !taskAwaitsWorkspace(task) } ?: false
             }
             else -> false
         }
     }
+
+    // Las marcas de Mi día usan el id de la tarea; el recordatorio guarda el suyo y apunta a la tarea.
+    private suspend fun personalTask(entity: SyncEntity, id: String): TaskEntity? = when (entity) {
+        SyncEntity.MY_DAY -> dao.findTask(id)
+        else -> dao.findReminder(id)?.let { dao.findTask(it.taskId) }
+    }
+
+    // Un tablero nuevo sube al workspace personal, que llega con la primera traída: hasta entonces ni él ni lo que cuelga
+    // de él se envían (las columnas y tareas serían rechazadas por no existir el tablero).
+    private suspend fun awaitingWorkspace(boardId: String): Boolean {
+        val board = dao.findBoard(boardId) ?: return false
+        return board.workspaceId == null && dao.baseline(SyncEntity.BOARD.wireName, boardId) == null &&
+            dao.personalWorkspaceId() == null
+    }
+
+    private suspend fun taskAwaitsWorkspace(task: TaskEntity): Boolean =
+        task.columnId?.let { dao.findColumn(it)?.boardId }?.let { awaitingWorkspace(it) } ?: false
+
+    override suspend fun personalWorkspaceId(): String? = dao.personalWorkspaceId()
 
     // El borrado de una tarea espera a que venza «Deshacer»; el de sus subtareas, también, para no dejar
     // subtareas borradas en el servidor bajo una tarea que se restaura.
@@ -165,8 +211,42 @@ class RoomSyncLocalStore(
         SyncEntity.LIST -> dao.findList(id)?.let { mapOf("name" to it.name, "position" to it.position) }
         SyncEntity.TASK -> dao.findTask(id)?.takeIf { it.shape() != null }?.let { taskData(it, me) }
         SyncEntity.SUBTASK -> dao.findSubtask(id)?.let { subtaskData(it, me) }
+        SyncEntity.BOARD -> dao.findBoard(id)?.let { boardData(it) }
+        SyncEntity.COLUMN -> dao.findColumn(id)?.let { columnData(it) }
+        SyncEntity.MY_DAY -> dao.findMyDay(id)?.let { linkedMapOf("addedAt" to SyncTimestamps.format(Instant.ofEpochMilli(it.addedAt))) }
+        SyncEntity.REMINDER -> dao.findReminder(id)?.let { reminderData(it) }
         else -> null
     }
+
+    // Origen y creación los fija el servidor (`origin = MOBILE`); aquí solo viaja el estado.
+    private fun reminderData(reminder: ReminderEntity): Map<String, Any?> = linkedMapOf(
+        "taskId" to reminder.taskId,
+        "remindAt" to SyncTimestamps.format(Instant.ofEpochMilli(reminder.remindAt)),
+        "status" to reminder.status,
+        "sentAt" to reminder.sentAt?.let { SyncTimestamps.format(Instant.ofEpochMilli(it)) },
+    )
+
+    // El alta lleva el workspace y las columnas del cliente (con sus ids) para que el servidor no siembre otras; después
+    // solo viaja el nombre. Sin workspace personal conocido no hay alta posible.
+    private suspend fun boardData(board: BoardEntity): Map<String, Any?>? {
+        if (dao.baseline(SyncEntity.BOARD.wireName, board.id) != null) return linkedMapOf("name" to board.name)
+        val workspaceId = board.workspaceId ?: dao.personalWorkspaceId() ?: return null
+        return linkedMapOf(
+            "workspaceId" to workspaceId,
+            "name" to board.name,
+            "columns" to dao.liveColumnsOf(board.id).map {
+                linkedMapOf("id" to it.id, "name" to it.name, "position" to it.position, "wipLimit" to it.wipLimit, "isDoneColumn" to it.isDoneColumn)
+            },
+        )
+    }
+
+    private fun columnData(column: ColumnEntity): Map<String, Any?> = linkedMapOf(
+        "boardId" to column.boardId,
+        "name" to column.name,
+        "position" to column.position,
+        "wipLimit" to column.wipLimit,
+        "isDoneColumn" to column.isDoneColumn,
+    )
 
     private fun taskData(task: TaskEntity, me: String): Map<String, Any?> = linkedMapOf(
         "listId" to task.listId,
@@ -212,21 +292,47 @@ class RoomSyncLocalStore(
     // «Aplicado» no implica «tal como se envió»: el servidor renumera posiciones y puede aplicar solo una parte, así que
     // la fila adopta su registro. La edición hecha mientras viajaba el envío manda y solo avanza la versión base; la
     // versión local se conserva para que esa comparación siga valiendo en el siguiente ciclo.
-    private suspend fun applied(prepared: PreparedOp, record: ServerRecord, me: String): OutcomeEffect {
+    private suspend fun applied(prepared: PreparedOp, record: ServerRecord?, me: String): OutcomeEffect {
         val op = prepared.op
+        if (record == null) {
+            // Sin registro (borrado idempotente) no hay versión que adoptar. Un upsert «aplicado» sin registro es
+            // inesperado: la fila se conserva pendiente y el fallo cuenta hacia «atascada» sin bloquear el lote.
+            if (op.op != SyncOp.DELETE) return keepForRetry(op, CODE_APPLIED_WITHOUT_RECORD)
+            dao.commitDeletedWithoutRecord(op.entity.wireName, op.entityId, prepared.sentVersion, op.mutationId)
+            return OutcomeEffect.APPLIED
+        }
         val row = rowOf(op.entity, op.entityId)
         val baseline = record.updatedAt.toEpochMilli()
+        if (op.entity == SyncEntity.BOARD && op.op == SyncOp.UPSERT) recordSeededColumns(record)
         if (op.op == SyncOp.DELETE || record.isDeleted || row == null || row.updatedAt != prepared.sentVersion || row.deletedAt != null) {
             dao.commitApplied(op.entity.wireName, op.entityId, baseline, prepared.sentVersion, op.mutationId)
             return OutcomeEffect.APPLIED
         }
-        when (val adopted = row.adoptedFrom(record, me).stamped(row.updatedAt, pending = false, deletedAt = null)) {
-            is TaskListEntity -> dao.commitList(adopted, baseline, op.mutationId)
-            is TaskEntity -> dao.commitTask(adopted, baseline, op.mutationId)
-            is SubtaskEntity -> dao.commitSubtask(adopted, baseline, op.mutationId)
-            else -> dao.commitApplied(op.entity.wireName, op.entityId, baseline, prepared.sentVersion, op.mutationId)
-        }
+        commitRow(row.adoptedFrom(record, me).stamped(row.updatedAt, pending = false, deletedAt = null), baseline, op.mutationId)
         return OutcomeEffect.APPLIED
+    }
+
+    // El alta de un tablero devuelve la versión de las columnas que sembró: son la base de sus altas posteriores.
+    private suspend fun recordSeededColumns(record: ServerRecord) {
+        (record.fields["columns"] as? List<*>)?.forEach { item ->
+            val column = item as? Map<*, *> ?: return@forEach
+            val id = column["id"] as? String ?: return@forEach
+            val updated = (column["updatedAt"] as? String)?.let(SyncTimestamps::parse) ?: return@forEach
+            dao.upsertBaseline(SyncBaselineEntity(SyncEntity.COLUMN.wireName, id, updated.toEpochMilli()))
+        }
+    }
+
+    private suspend fun commitRow(row: SyncableEntity, baseline: Long?, mutationId: String?) {
+        when (row) {
+            is TaskListEntity -> dao.commitList(row, baseline, mutationId)
+            is TaskEntity -> dao.commitTask(row, baseline, mutationId)
+            is SubtaskEntity -> dao.commitSubtask(row, baseline, mutationId)
+            is BoardEntity -> dao.commitBoard(row, baseline, mutationId)
+            is ColumnEntity -> dao.commitColumn(row, baseline, mutationId)
+            is MyDayEntryEntity -> dao.commitMyDay(row, baseline, mutationId)
+            is ReminderEntity -> dao.commitReminder(row, baseline, mutationId)
+            else -> error("Entidad no sincronizable: ${row::class.simpleName}")
+        }
     }
 
     private suspend fun reject(
@@ -252,7 +358,7 @@ class RoomSyncLocalStore(
         }
     }
 
-    // Un fallo de forma de la petición es un defecto del cliente o del puente, no un veredicto sobre el dato:
+    // Un fallo de forma de la petición es un defecto del cliente, no un veredicto sobre el dato:
     // la fila conserva su contenido y su pending, y el fallo cuenta hacia «atascada» (R9).
     private suspend fun keepForRetry(op: QueuedOp, code: String): OutcomeEffect {
         recordPermanentFailure(op, code)
@@ -277,13 +383,7 @@ class RoomSyncLocalStore(
             dao.commitApplied(op.entity.wireName, op.entityId, record.updatedAt.toEpochMilli(), prepared.sentVersion, op.mutationId)
             return OutcomeEffect.APPLIED
         }
-        val baseline = record.updatedAt.toEpochMilli()
-        when (op.entity) {
-            SyncEntity.LIST -> dao.commitList(dao.findList(op.entityId)!!.adoptedFrom(record), baseline, op.mutationId)
-            SyncEntity.TASK -> dao.commitTask(dao.findTask(op.entityId)!!.adoptedFrom(record, me), baseline, op.mutationId)
-            SyncEntity.SUBTASK -> dao.commitSubtask(dao.findSubtask(op.entityId)!!.adoptedFrom(record, me), baseline, op.mutationId)
-            else -> dao.removeQueue(op.mutationId)
-        }
+        commitRow(row.adoptedFrom(record, me), record.updatedAt.toEpochMilli(), op.mutationId)
         return effect
     }
 
@@ -319,13 +419,7 @@ class RoomSyncLocalStore(
             return OutcomeEffect.APPLIED
         }
         if (neverReachedServer && row.deletedAt == null) {
-            val deletedAt = now.toEpochMilli()
-            when (op.entity) {
-                SyncEntity.LIST -> dao.commitList(dao.findList(op.entityId)!!.copy(deletedAt = deletedAt, pending = false), null, op.mutationId)
-                SyncEntity.TASK -> dao.commitTask(dao.findTask(op.entityId)!!.copy(deletedAt = deletedAt, pending = false), null, op.mutationId)
-                SyncEntity.SUBTASK -> dao.commitSubtask(dao.findSubtask(op.entityId)!!.copy(deletedAt = deletedAt, pending = false), null, op.mutationId)
-                else -> dao.removeQueue(op.mutationId)
-            }
+            commitRow(row.stamped(row.updatedAt, pending = false, deletedAt = now.toEpochMilli()), null, op.mutationId)
         } else {
             dao.clearPending(op.entity.wireName, op.entityId, prepared.sentVersion)
             dao.removeQueue(op.mutationId)
@@ -337,8 +431,15 @@ class RoomSyncLocalStore(
         // El alcance de la página es lo que el servidor declara completo: lo demás ni se aplica ni se reconcilia.
         val scope = scopeHolder.scope.value intersect page.supportedEntities
         val losses = mutableListOf<SyncLoss>()
+        var remindersChanged = false
         dao.inTransaction {
-            page.records.forEach { applyRecord(it, scope, me, now, losses) }
+            page.records.forEach {
+                val alarmsBefore = if (it.entity == SyncEntity.TASK) alarmFingerprint(it.id) else null
+                val applied = applyRecord(it, scope, me, now, losses)
+                val reminderApplied = applied && it.entity == SyncEntity.REMINDER
+                val taskAlarmChanged = applied && it.entity == SyncEntity.TASK && alarmFingerprint(it.id) != alarmsBefore
+                if (reminderApplied || taskAlarmChanged) remindersChanged = true
+            }
             when (commit) {
                 PageCommit.KeepCursor -> Unit
                 PageCommit.SaveCursor -> dao.upsertMeta(SyncMetaEntity(SyncMetaKeys.CURSOR, page.nextCursor))
@@ -348,23 +449,74 @@ class RoomSyncLocalStore(
                 }
             }
         }
-        return PageEffect(losses)
+        return PageEffect(losses, remindersChanged)
     }
 
-    private suspend fun applyRecord(record: ServerRecord, scope: Set<SyncEntity>, me: String, now: Instant, losses: MutableList<SyncLoss>) {
-        if (record.entity !in PULLED || !recordInScope(record, scope)) return
+    // Lo que decide si una tarea tiene alarma de fecha límite: si cambia por pull, hay que reconciliar las alarmas.
+    private suspend fun alarmFingerprint(taskId: String): Triple<Long?, Long?, Long?>? =
+        dao.findTask(taskId)?.takeIf { it.dueAt != null || it.completedAt != null || it.deletedAt != null }
+            ?.let { Triple(it.dueAt, it.completedAt, it.deletedAt) }
+
+    // Verdadero si el registro se aplicó (no estaba fuera de alcance ni era una versión ya conocida).
+    private suspend fun applyRecord(record: ServerRecord, scope: Set<SyncEntity>, me: String, now: Instant, losses: MutableList<SyncLoss>): Boolean {
+        if (record.entity !in PULLED || !recordInScope(record, scope)) return false
         val serverMillis = record.updatedAt.toEpochMilli()
         val base = dao.baseline(record.entity.wireName, record.id)?.serverUpdatedAt
         // Una versión ya conocida (o más vieja) no cambia nada: así repetir una página no pisa ni resucita filas.
-        if (base != null && serverMillis <= base) return
+        if (base != null && serverMillis <= base) return false
+        val usable = when (record.entity) {
+            SyncEntity.WORKSPACE -> true.also { applyWorkspace(record, losses) }
+            SyncEntity.BOARD_ACCESS -> true.also { applyAccess(record, losses) }
+            SyncEntity.BOARD ->
+                if (record.isDeleted) true.also { retireBoard(record.id, losses, SyncLoss.DELETED_BY_SERVER) } else applyRow(record, base, me, now, losses)
+            else -> applyRow(record, base, me, now, losses)
+        }
+        if (usable) recordBaseline(record)
+        return usable
+    }
+
+    // El servidor retiró el tablero (o ya no lo vemos): no hay tombstone que conservar, solo se limpia todo lo suyo.
+    private suspend fun retireBoard(boardId: String, losses: MutableList<SyncLoss>, loss: SyncLoss) {
+        if (purger.purge(boardId)) losses += loss
+    }
+
+    private suspend fun applyWorkspace(record: ServerRecord, losses: MutableList<SyncLoss>) {
+        val f = record.fields
+        dao.upsertWorkspace(
+            SyncWorkspaceEntity(
+                id = record.id,
+                name = f["name"] as? String ?: "",
+                isPersonal = f["isPersonal"] as? Boolean ?: false,
+                myRole = f["myRole"] as? String ?: "",
+                deletedAt = record.deletedAt?.toEpochMilli(),
+            ),
+        )
+        if (record.isDeleted) dao.boardIdsOfWorkspace(record.id).forEach { retireBoard(it, losses, SyncLoss.ACCESS_LOST) }
+    }
+
+    private suspend fun applyAccess(record: ServerRecord, losses: MutableList<SyncLoss>) {
+        if (record.isDeleted) {
+            retireBoard(record.id, losses, SyncLoss.ACCESS_LOST)
+            dao.removeAccess(record.id)
+            return
+        }
+        val workspaceId = record.fields["workspaceId"] as? String ?: return
+        dao.upsertAccess(
+            BoardAccessEntity(record.id, workspaceId, record.fields["effectiveRole"] as? String ?: "", record.updatedAt.toEpochMilli()),
+        )
+        dao.assignWorkspace(record.id, workspaceId)
+    }
+
+    // Falso si el registro no tiene forma utilizable: entonces ni siquiera se anota su versión.
+    private suspend fun applyRow(record: ServerRecord, base: Long?, me: String, now: Instant, losses: MutableList<SyncLoss>): Boolean {
         val row = rowOf(record.entity, record.id)
         when {
-            // Un tombstone de algo que no existe aquí solo deja la versión conocida; una fila sin forma utilizable no se registra.
-            row == null -> if (!record.isDeleted) save(record.toNewRow(me) ?: return)
+            // Un tombstone de algo que no existe aquí solo deja la versión conocida.
+            row == null -> if (!record.isDeleted) save(record.toNewRow(me) ?: return false)
             !row.pending -> save(row.adoptedFrom(record, me))
             else -> resolvePending(row, record, base, me, now, losses)
         }
-        recordBaseline(record)
+        return true
     }
 
     // Fila con cambios sin enviar frente a un registro más nuevo del servidor: misma regla que aplica el servidor (R10).
@@ -411,12 +563,18 @@ class RoomSyncLocalStore(
             is TaskListEntity -> dao.upsertList(row)
             is TaskEntity -> dao.upsertTask(row)
             is SubtaskEntity -> dao.upsertSubtask(row)
+            is BoardEntity -> dao.upsertBoard(row)
+            is ColumnEntity -> dao.upsertColumn(row)
+            is MyDayEntryEntity -> dao.upsertMyDay(row)
+            is ReminderEntity -> dao.upsertReminder(row)
         }
     }
 
     // Una tarea que llega sin forma (tombstone mínimo) hereda la de su fila local; sin ninguna de las dos no hay nada que decidir.
     private suspend fun recordInScope(record: ServerRecord, scope: Set<SyncEntity>): Boolean = when (record.entity) {
         SyncEntity.LIST -> SyncEntity.LIST in scope
+        SyncEntity.WORKSPACE, SyncEntity.BOARD_ACCESS, SyncEntity.BOARD -> SyncEntity.BOARD in scope
+        SyncEntity.COLUMN -> SyncEntity.BOARD in scope && SyncEntity.COLUMN in scope
         SyncEntity.TASK -> {
             val shape = recordShape(record) ?: dao.findTask(record.id)?.shape()
             if (shape != null) SyncScope.allows(SyncEntity.TASK, shape, scope) else SyncEntity.TASK in scope
@@ -426,6 +584,15 @@ class RoomSyncLocalStore(
             val parent = taskId?.let { dao.findTask(it) }?.shape()
             // Un hijo puede llegar antes que su padre: se guarda y no se muestra hasta que el padre exista.
             if (parent != null) SyncScope.allows(SyncEntity.SUBTASK, parent, scope) else SyncEntity.SUBTASK in scope
+        }
+        SyncEntity.MY_DAY -> {
+            val shape = dao.findTask(record.id)?.shape()
+            if (shape != null) SyncScope.allows(SyncEntity.MY_DAY, shape, scope) else SyncEntity.MY_DAY in scope
+        }
+        SyncEntity.REMINDER -> {
+            val taskId = record.fields["taskId"] as? String ?: dao.findReminder(record.id)?.taskId
+            val shape = taskId?.let { dao.findTask(it) }?.shape()
+            if (shape != null) SyncScope.allows(SyncEntity.REMINDER, shape, scope) else SyncEntity.REMINDER in scope
         }
         else -> false
     }
@@ -442,6 +609,12 @@ class RoomSyncLocalStore(
         if (SyncEntity.LIST in scope) {
             dao.liveLists().filter { (SyncEntity.LIST to it.id) !in seen }.forEach { settleAbsent(SyncEntity.LIST, it, now) }
         }
+        if (SyncEntity.BOARD in scope) {
+            dao.liveBoards().filter { (SyncEntity.BOARD to it.id) !in seen }.forEach { settleAbsent(SyncEntity.BOARD, it, now) }
+            if (SyncEntity.COLUMN in scope) {
+                dao.liveColumns().filter { (SyncEntity.COLUMN to it.id) !in seen }.forEach { settleAbsent(SyncEntity.COLUMN, it, now) }
+            }
+        }
         dao.liveTasks().forEach { task ->
             val shape = task.shape() ?: return@forEach
             if (SyncScope.allows(SyncEntity.TASK, shape, scope) && (SyncEntity.TASK to task.id) !in seen) {
@@ -452,6 +625,18 @@ class RoomSyncLocalStore(
             val parent = dao.findTask(subtask.taskId)?.shape() ?: return@forEach
             if (SyncScope.allows(SyncEntity.SUBTASK, parent, scope) && (SyncEntity.SUBTASK to subtask.id) !in seen) {
                 settleAbsent(SyncEntity.SUBTASK, subtask, now)
+            }
+        }
+        dao.liveMyDay().forEach { entry ->
+            val shape = dao.findTask(entry.id)?.shape() ?: return@forEach
+            if (SyncScope.allows(SyncEntity.MY_DAY, shape, scope) && (SyncEntity.MY_DAY to entry.id) !in seen) {
+                settleAbsent(SyncEntity.MY_DAY, entry, now)
+            }
+        }
+        dao.liveReminders().forEach { reminder ->
+            val shape = dao.findTask(reminder.taskId)?.shape() ?: return@forEach
+            if (SyncScope.allows(SyncEntity.REMINDER, shape, scope) && (SyncEntity.REMINDER to reminder.id) !in seen) {
+                settleAbsent(SyncEntity.REMINDER, reminder, now)
             }
         }
     }
@@ -468,6 +653,11 @@ class RoomSyncLocalStore(
         is TaskListEntity -> copy(updatedAt = updatedAt, pending = pending, deletedAt = deletedAt)
         is TaskEntity -> copy(updatedAt = updatedAt, pending = pending, deletedAt = deletedAt)
         is SubtaskEntity -> copy(updatedAt = updatedAt, pending = pending, deletedAt = deletedAt)
+        is BoardEntity -> copy(updatedAt = updatedAt, pending = pending, deletedAt = deletedAt)
+        is ColumnEntity -> copy(updatedAt = updatedAt, pending = pending, deletedAt = deletedAt)
+        is MyDayEntryEntity -> copy(updatedAt = updatedAt, pending = pending, deletedAt = deletedAt)
+        is ReminderEntity ->
+            copy(updatedAt = updatedAt, pending = pending, deletedAt = deletedAt, status = if (deletedAt != null && status == "PENDING") "DISMISSED" else status)
         else -> this
     }
 
@@ -506,6 +696,12 @@ class RoomSyncLocalStore(
             if (SyncScope.allows(SyncEntity.TASK, inBoard, scope)) total += counts.boardTasks
             if (SyncScope.allows(SyncEntity.SUBTASK, inList, scope)) total += counts.listSubtasks
             if (SyncScope.allows(SyncEntity.SUBTASK, inBoard, scope)) total += counts.boardSubtasks
+            if (SyncEntity.BOARD in scope) total += counts.boards
+            if (SyncEntity.BOARD in scope && SyncEntity.COLUMN in scope) total += counts.columns
+            if (SyncScope.allows(SyncEntity.MY_DAY, inList, scope)) total += counts.listMyDay
+            if (SyncScope.allows(SyncEntity.MY_DAY, inBoard, scope)) total += counts.boardMyDay
+            if (SyncScope.allows(SyncEntity.REMINDER, inList, scope)) total += counts.listReminders
+            if (SyncScope.allows(SyncEntity.REMINDER, inBoard, scope)) total += counts.boardReminders
             total
         }.distinctUntilChanged()
 
@@ -515,6 +711,10 @@ class RoomSyncLocalStore(
         SyncEntity.LIST -> dao.findList(id)
         SyncEntity.TASK -> dao.findTask(id)
         SyncEntity.SUBTASK -> dao.findSubtask(id)
+        SyncEntity.BOARD -> dao.findBoard(id)
+        SyncEntity.COLUMN -> dao.findColumn(id)
+        SyncEntity.MY_DAY -> dao.findMyDay(id)
+        SyncEntity.REMINDER -> dao.findReminder(id)
         else -> null
     }
 
@@ -541,8 +741,12 @@ class RoomSyncLocalStore(
     }
 
     private companion object {
-        val PULLED = setOf(SyncEntity.LIST, SyncEntity.TASK, SyncEntity.SUBTASK)
+        val PULLED = setOf(
+            SyncEntity.WORKSPACE, SyncEntity.BOARD_ACCESS, SyncEntity.BOARD, SyncEntity.COLUMN,
+            SyncEntity.LIST, SyncEntity.TASK, SyncEntity.SUBTASK, SyncEntity.MY_DAY, SyncEntity.REMINDER,
+        )
         const val CODE_DEPENDENCY_NOT_FOUND = "DEPENDENCY_NOT_FOUND"
+        const val CODE_APPLIED_WITHOUT_RECORD = "APPLIED_WITHOUT_RECORD"
         const val CODE_LIST_NAME_TAKEN = "LIST_NAME_TAKEN"
         const val CODE_TRANSIENT = "TRANSIENT"
     }

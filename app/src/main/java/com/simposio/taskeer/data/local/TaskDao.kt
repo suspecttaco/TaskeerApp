@@ -79,18 +79,19 @@ abstract class TaskDao {
     @Query(
         "SELECT tasks.id AS id, tasks.title AS title, tasks.dueAt AS dueAt FROM tasks " +
             "WHERE tasks.dueAt IS NOT NULL AND tasks.deletedAt IS NULL " +
-            "AND tasks.completedAt IS NULL AND " + LIVE_LIST_OR_NONE + " ORDER BY tasks.dueAt ASC, tasks.id ASC",
+            "AND tasks.completedAt IS NULL AND " + LIVE_LIST_OR_NONE + " AND " + LIVE_COLUMN_OR_NONE +
+            " ORDER BY tasks.dueAt ASC, tasks.id ASC",
     )
     abstract fun observeReminderCandidates(): Flow<List<ReminderCandidateRow>>
 
     @Query(
         "SELECT COUNT(*) FROM tasks WHERE tasks.deletedAt IS NULL AND tasks.completedAt IS NULL AND " +
-            LIVE_LIST_OR_NONE,
+            LIVE_LIST_OR_NONE + " AND " + LIVE_COLUMN_OR_NONE,
     )
     abstract suspend fun countActive(): Int
 
     @Query(
-        "SELECT tasks.title AS title, tasks.deletedAt IS NOT NULL AS deleted, " +
+        "SELECT tasks.title AS title, (tasks.deletedAt IS NOT NULL OR NOT (" + LIVE_COLUMN_OR_NONE + ")) AS deleted, " +
             "tasks.completedAt IS NOT NULL AS completed FROM tasks WHERE tasks.id = :taskId",
     )
     abstract suspend fun findReminderState(taskId: String): ReminderTaskStateRow?
@@ -104,13 +105,14 @@ abstract class TaskDao {
     }
 
     @Query(
-        "SELECT COUNT(*) FROM tasks WHERE completedAt IS NOT NULL AND deletedAt IS NULL AND " + LIVE_LIST_OR_NONE,
+        "SELECT COUNT(*) FROM tasks WHERE completedAt IS NOT NULL AND deletedAt IS NULL AND " + LIVE_LIST_OR_NONE +
+            " AND " + LIVE_COLUMN_OR_NONE,
     )
     abstract fun observeCompletedCount(): Flow<Int>
 
     @Query(
         "SELECT * FROM tasks WHERE completedAt IS NOT NULL AND deletedAt IS NULL AND " + LIVE_LIST_OR_NONE +
-            " ORDER BY id ASC",
+            " AND " + LIVE_COLUMN_OR_NONE + " ORDER BY id ASC",
     )
     abstract suspend fun findCompleted(): List<TaskEntity>
 
@@ -187,6 +189,11 @@ abstract class TaskDao {
 
 // Mismo criterio de lista que VISIBLE_ANY, pero con EXISTS porque estas consultas no unen task_lists. Una tarea huérfana
 // (lista inexistente o borrada, guardada por tolerancia de pull) no debe disparar recordatorios, contarse ni limpiarse.
-// Solo la lista: la cadena columna-tablero no la filtraban y su semántica no cambia aquí.
 internal const val LIVE_LIST_OR_NONE =
     "(tasks.listId IS NULL OR EXISTS (SELECT 1 FROM task_lists tl WHERE tl.id = tasks.listId AND tl.deletedAt IS NULL))"
+
+// Lo mismo para la columna y su tablero: un tombstone de columna (o de tablero) del servidor deja sus tareas ocultas
+// (VISIBLE_ANY) y no deben seguir contando ni disparando recordatorios.
+internal const val LIVE_COLUMN_OR_NONE =
+    "(tasks.columnId IS NULL OR EXISTS (SELECT 1 FROM columns tc JOIN boards tb ON tb.id = tc.boardId " +
+        "WHERE tc.id = tasks.columnId AND tc.deletedAt IS NULL AND tb.deletedAt IS NULL))"

@@ -15,6 +15,7 @@ import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.SubtaskDraft
 import com.simposio.taskeer.domain.model.SubtaskProgress
+import com.simposio.taskeer.domain.workspace.WorkspaceRole
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -252,9 +253,36 @@ class SubtaskRepositoryImplTest {
         assertEquals(SubtaskProgress(0, 0), fixture.repository.observeSubtaskProgress("no-existe").first())
     }
 
+    @Test
+    fun viewer_noEditaSubtareasDeUnTableroCompartido() = runTest {
+        val fixture = fixture(role = WorkspaceRole.VIEWER)
+        fixture.dao.put(entity("s1"))
+
+        val created = fixture.repository.createSubtask("t1", SubtaskDraft("Nueva"))
+        val renamed = fixture.repository.updateSubtask("s1", SubtaskDraft("Otra"))
+        val completed = fixture.repository.setSubtaskCompleted("s1", true)
+        val deleted = fixture.repository.deleteSubtask("s1")
+
+        listOf(created, renamed, completed, deleted).forEach {
+            assertEquals("BOARD_ROLE_FORBIDS", ((it as DomainResult.Failure).error as DomainError.Forbidden).code)
+        }
+        assertEquals(0, fixture.dao.writeCalls)
+        assertEquals("Subtarea s1", fixture.dao.stored.getValue("s1").title)
+    }
+
+    @Test
+    fun editor_editaSubtareasDeUnTableroCompartido() = runTest {
+        val fixture = fixture(role = WorkspaceRole.EDITOR)
+
+        val created = fixture.repository.createSubtask("t1", SubtaskDraft("Nueva"))
+
+        assertTrue(created is DomainResult.Success)
+        assertEquals(1, fixture.dao.writeCalls)
+    }
+
     private class Fixture(val dao: FakeSubtaskDao, val repository: SubtaskRepositoryImpl)
 
-    private fun fixture(clock: Instant = now, taskDeleted: Boolean = false): Fixture {
+    private fun fixture(clock: Instant = now, taskDeleted: Boolean = false, role: WorkspaceRole? = null): Fixture {
         val dao = FakeSubtaskDao()
         val taskDao = FakeTaskDao(
             TaskEntity(
@@ -273,7 +301,15 @@ class SubtaskRepositoryImplTest {
                 deletedAt = if (taskDeleted) now.toEpochMilli() else null,
             ),
         )
-        return Fixture(dao, SubtaskRepositoryImpl(dao, taskDao, now = { clock }))
+        val roles = object : BoardRoles {
+            override suspend fun roleOf(boardId: String): WorkspaceRole? = role
+
+            override fun observeRole(boardId: String): Flow<WorkspaceRole?> = flowOf(role)
+        }
+        return Fixture(
+            dao,
+            SubtaskRepositoryImpl(dao, taskDao, now = { clock }, boardOfColumn = { "board-1" }, gate = BoardPermissionGate(roles)),
+        )
     }
 
     private fun entity(

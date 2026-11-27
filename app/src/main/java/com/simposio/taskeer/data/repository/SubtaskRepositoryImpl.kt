@@ -24,6 +24,8 @@ class SubtaskRepositoryImpl(
     private val dao: SubtaskDao,
     private val taskDao: TaskDao,
     private val now: () -> Instant = Instant::now,
+    private val boardOfColumn: suspend (String) -> String? = { null },
+    private val gate: BoardPermissionGate = BoardPermissionGate(),
 ) : SubtaskRepository {
 
     override fun observeSubtasks(taskId: String): Flow<List<Subtask>> =
@@ -38,12 +40,14 @@ class SubtaskRepositoryImpl(
         if (taskDao.findById(taskId)?.let { it.deletedAt == null } != true) {
             return DomainResult.Failure(DomainError.NotFound(TASK_NOT_FOUND, "La tarea no existe"))
         }
+        denied(taskId)?.let { return it }
         val position = dao.findActiveByTask(taskId).size
         return persist(newSubtask(taskId, draft, position, now()))
     }
 
     override suspend fun updateSubtask(id: String, draft: SubtaskDraft): DomainResult<Subtask> {
         val current = activeSubtask(id) ?: return subtaskNotFound()
+        denied(current.taskId)?.let { return it }
         return persist(current.updated(draft, now()))
     }
 
@@ -52,11 +56,13 @@ class SubtaskRepositoryImpl(
         completed: Boolean,
     ): DomainResult<Subtask> {
         val current = activeSubtask(id) ?: return subtaskNotFound()
+        denied(current.taskId)?.let { return it }
         return persist(DomainResult.Success(current.withCompleted(completed, now())))
     }
 
     override suspend fun deleteSubtask(id: String): DomainResult<Unit> {
         val current = activeSubtask(id) ?: return subtaskNotFound()
+        denied(current.taskId)?.let { return it }
         dao.upsert(current.softDeleted(now()).toEntity())
         return DomainResult.Success(Unit)
     }
@@ -66,6 +72,12 @@ class SubtaskRepositoryImpl(
             dao.upsert(result.value.toEntity())
         }
         return result
+    }
+
+    // Una subtarea se edita con el mismo permiso que su tarea: el del rol en el tablero de su columna (R23).
+    private suspend fun denied(taskId: String): DomainResult.Failure? {
+        val columnId = taskDao.findById(taskId)?.columnId ?: return null
+        return gate.denyTaskChange(boardOfColumn(columnId))
     }
 
     private suspend fun activeSubtask(id: String): Subtask? =

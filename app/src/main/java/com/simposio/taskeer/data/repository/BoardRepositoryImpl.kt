@@ -19,6 +19,7 @@ class BoardRepositoryImpl(
     private val dao: BoardDao,
     private val columnDao: ColumnDao,
     private val now: () -> Instant = Instant::now,
+    private val gate: BoardPermissionGate = BoardPermissionGate(),
 ) : BoardRepository {
 
     override fun observeBoards(): Flow<List<Board>> =
@@ -39,6 +40,7 @@ class BoardRepositoryImpl(
 
     override suspend fun renameBoard(id: String, name: String): DomainResult<Board> {
         val current = activeBoard(id) ?: return notFound()
+        gate.denyColumnChange(id)?.let { return it }
         return when (val result = current.renamed(name, now())) {
             is DomainResult.Failure -> result
             is DomainResult.Success -> {
@@ -50,6 +52,7 @@ class BoardRepositoryImpl(
 
     override suspend fun deleteBoard(id: String): DomainResult<Unit> {
         val current = activeBoard(id) ?: return notFound()
+        gate.denyColumnChange(id)?.let { return it }
         dao.upsert(current.softDeleted(now()).toEntity())
         return DomainResult.Success(Unit)
     }

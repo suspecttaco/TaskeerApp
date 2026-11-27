@@ -5,7 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.simposio.taskeer.data.repository.BoardRepository
 import com.simposio.taskeer.data.repository.ColumnRepository
+import com.simposio.taskeer.data.repository.BoardRoles
 import com.simposio.taskeer.data.repository.MyDayRepository
+import com.simposio.taskeer.data.repository.UnrestrictedBoardRoles
 import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.date.DateTimeConverter
 import com.simposio.taskeer.domain.model.DomainError
@@ -13,6 +15,7 @@ import com.simposio.taskeer.domain.model.DomainResult
 import com.simposio.taskeer.domain.model.LocalUser
 import com.simposio.taskeer.domain.model.Task
 import com.simposio.taskeer.domain.task.isOverdue
+import com.simposio.taskeer.domain.workspace.WorkspaceRole
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +38,7 @@ class BoardViewModel(
     private val myDayRepository: MyDayRepository,
     myDayTaskIds: Flow<Set<String>> = myDayRepository.observeMarkedTaskIds(),
     private val now: () -> Instant = Instant::now,
+    roles: BoardRoles = UnrestrictedBoardRoles,
 ) : ViewModel() {
 
     val boardId: String =
@@ -52,8 +56,10 @@ class BoardViewModel(
         taskRepository.observeTasks(boardId),
         myDayTaskIds,
         pendingMove,
-        combine(error, newColumn, boardExists) { error, newColumn, exists -> Triple(error, newColumn, exists) },
-    ) { columns, tasks, myDay, move, (error, newColumn, exists) ->
+        combine(error, newColumn, boardExists, roles.observeRole(boardId)) { error, newColumn, exists, role ->
+            Extras(error, newColumn, exists, role)
+        },
+    ) { columns, tasks, myDay, move, (error, newColumn, exists, role) ->
         val ordered = tasks.sortedWith(compareBy({ it.position }, { it.id }))
         val byColumn = ordered
             .mapNotNull { task -> task.columnId?.let { it to task } }
@@ -70,6 +76,8 @@ class BoardViewModel(
             error = error,
             newColumn = newColumn,
             missing = exists == false,
+            capabilities = BoardCapabilities.forRole(role),
+            role = role,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), BoardUiState())
 
@@ -159,6 +167,13 @@ class BoardViewModel(
         inMyDay = id in myDay,
         isOverdue = isOverdue(dueAt, isCompleted, now),
         isCompleted = isCompleted,
+    )
+
+    private data class Extras(
+        val error: DomainError?,
+        val newColumn: NewColumnUiState,
+        val exists: Boolean?,
+        val role: WorkspaceRole?,
     )
 
     private data class PendingMove(val taskId: String, val toColumnId: String, val toIndex: Int) {

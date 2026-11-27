@@ -34,8 +34,10 @@ import com.simposio.taskeer.data.sync.SyncScopeHolder
 import com.simposio.taskeer.data.sync.SyncSessionGate
 import com.simposio.taskeer.data.sync.SyncTransportSelector
 import com.simposio.taskeer.data.sync.SyncTriggers
-import com.simposio.taskeer.data.sync.TransportMode
+import com.simposio.taskeer.data.repository.BoardPermissionGate
 import com.simposio.taskeer.data.repository.BoardRepositoryImpl
+import com.simposio.taskeer.data.repository.RoleSignalSync
+import com.simposio.taskeer.data.repository.RoomBoardRoles
 import com.simposio.taskeer.data.repository.ClockDayWindowSource
 import com.simposio.taskeer.data.repository.ColumnRepositoryImpl
 import com.simposio.taskeer.data.repository.LiveRoleChangeSignals
@@ -58,6 +60,7 @@ import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -76,6 +79,8 @@ fun createAppContainer(context: Context): AppContainer {
         CoroutineScope(Dispatchers.IO + SupervisorJob()),
     )
     val taskListRepository = createTaskListRepository(database.taskListDao(), database.taskDao())
+    val boardRoles = RoomBoardRoles(database.boardAccessDao())
+    val gate = BoardPermissionGate(boardRoles)
     val taskRepository = createTaskRepository(
         taskDao = database.taskDao(),
         columnDao = database.columnDao(),
@@ -84,6 +89,7 @@ fun createAppContainer(context: Context): AppContainer {
         taskListDao = database.taskListDao(),
         defaultListId = taskListRepository::defaultListId,
         timeZone = timeZoneProvider,
+        gate = gate,
     )
     val reminderRepository = ReminderRepositoryImpl(database.reminderDao(), database.taskDao())
     val notificationHistoryRepository = NotificationHistoryRepositoryImpl(database.appNotificationDao())
@@ -91,20 +97,41 @@ fun createAppContainer(context: Context): AppContainer {
     val calendarReadGranted = { isGranted(context, Manifest.permission.READ_CALENDAR) }
     val calendarWriteGranted = { isGranted(context, Manifest.permission.WRITE_CALENDAR) }
     val googleSignInConfig = GoogleSignInConfig(BuildConfig.GOOGLE_WEB_CLIENT_ID)
+    val reminderReconciler = ReminderReconciler(
+        tasks = taskRepository,
+        reminders = reminderRepository,
+        preferences = preferencesRepository,
+        checkpoints = ReminderCheckpointStoreImpl(dataStore),
+        scheduler = AlarmReminderScheduler(context),
+        notifier = HistoryRecordingNotifier(
+            delegate = NotificationReminderNotifier(context),
+            history = notificationHistoryRepository,
+        ),
+        timeZone = timeZoneProvider,
+        clock = Instant::now,
+    )
     val remote = createRemoteRepositories(context, CoroutineScope(SupervisorJob() + Dispatchers.Default))
-    val sync = createSync(context, database.syncDao(), remote)
+    val sync = createSync(context, database.syncDao(), remote) { reminderReconciler.reconcile() }
+    val roleSignals = LiveRoleChangeSignals(remote.inbox, remote.live)
+    val roleSignalSync = RoleSignalSync(roleSignals, sync)
     return AppContainer(
         preferencesRepository = preferencesRepository,
         timeZoneProvider = timeZoneProvider,
-        boardRepository = BoardRepositoryImpl(database.boardDao(), database.columnDao()),
+        boardRepository = BoardRepositoryImpl(database.boardDao(), database.columnDao(), gate = gate),
         columnRepository = ColumnRepositoryImpl(
             database.boardDao(),
             database.columnDao(),
             columnTaskCount = taskCountByColumn(database.taskDao()),
+            gate = gate,
         ),
         taskRepository = taskRepository,
         taskListRepository = taskListRepository,
-        subtaskRepository = SubtaskRepositoryImpl(database.subtaskDao(), database.taskDao()),
+        subtaskRepository = SubtaskRepositoryImpl(
+            database.subtaskDao(),
+            database.taskDao(),
+            boardOfColumn = { columnId -> database.columnDao().findById(columnId)?.boardId },
+            gate = gate,
+        ),
         myDayRepository = MyDayRepositoryImpl(
             database.myDayDao(),
             database.taskDao(),
@@ -113,19 +140,7 @@ fun createAppContainer(context: Context): AppContainer {
         ),
         plannedRepository = PlannedRepositoryImpl(database.myDayDao(), timeZoneProvider, dayWindowSource),
         reminderRepository = reminderRepository,
-        reminderReconciler = ReminderReconciler(
-            tasks = taskRepository,
-            reminders = reminderRepository,
-            preferences = preferencesRepository,
-            checkpoints = ReminderCheckpointStoreImpl(dataStore),
-            scheduler = AlarmReminderScheduler(context),
-            notifier = HistoryRecordingNotifier(
-                delegate = NotificationReminderNotifier(context),
-                history = notificationHistoryRepository,
-            ),
-            timeZone = timeZoneProvider,
-            clock = Instant::now,
-        ),
+        reminderReconciler = reminderReconciler,
         notificationHistoryRepository = notificationHistoryRepository,
         calendarRepository = DeviceCalendarRepository(
             resolver = context.contentResolver,
@@ -149,9 +164,10 @@ fun createAppContainer(context: Context): AppContainer {
         myInvitationsRepository = remote.myInvitations,
         serverBoardsRepository = remote.serverBoards,
         boardAccessRepository = remote.boardAccess,
-        roleChangeSignals = LiveRoleChangeSignals(remote.inbox, remote.live),
+        roleChangeSignals = roleSignals,
+        boardRoles = boardRoles,
         syncRepository = sync,
-        runSync = sync::run,
+        runSync = { coroutineScope { launch { roleSignalSync.run() }; sync.run() } },
         googleCredentialSource = createGoogleCredentialSource(googleSignInConfig),
         googleSignInConfig = googleSignInConfig,
         zoneChanges = timeZoneProvider.changes,
@@ -191,13 +207,19 @@ fun createTaskRepository(
     taskListDao: TaskListDao,
     defaultListId: suspend () -> String,
     timeZone: TimeZoneProvider,
+    gate: BoardPermissionGate = BoardPermissionGate(),
 ): TaskRepository =
-    TaskRepositoryImpl(taskDao, columnDao, subtaskDao, reminderDao, taskListDao, defaultListId, timeZone = timeZone)
+    TaskRepositoryImpl(taskDao, columnDao, subtaskDao, reminderDao, taskListDao, defaultListId, timeZone = timeZone, gate = gate)
 
 fun createTaskListRepository(taskListDao: TaskListDao, taskDao: TaskDao): TaskListRepository =
     TaskListRepositoryImpl(taskListDao, taskDao)
 
-private fun createSync(context: Context, dao: SyncDao, remote: RemoteRepositories): SyncRepositoryImpl {
+private fun createSync(
+    context: Context,
+    dao: SyncDao,
+    remote: RemoteRepositories,
+    onRemindersChanged: suspend () -> Unit,
+): SyncRepositoryImpl {
     val scopeHolder = SyncScopeHolder()
     val store = RoomSyncLocalStore(dao, scopeHolder)
     val triggers = SyncTriggers(
@@ -205,11 +227,9 @@ private fun createSync(context: Context, dao: SyncDao, remote: RemoteRepositorie
         pendingCount = store.observePendingCount(),
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     )
-    val mode = TransportMode.entries.firstOrNull { it.name.equals(BuildConfig.SYNC_TRANSPORT, ignoreCase = true) }
-        ?: TransportMode.AUTO
     val engine = SyncEngine(
         store = store,
-        source = SyncTransportSelector(remote.syncTransport, remote.syncBridge, mode),
+        source = SyncTransportSelector(remote.syncTransport),
         gate = SyncSessionGate(store),
         wiper = LocalDataWiper(dao),
         session = remote.auth.sessionState,
@@ -217,6 +237,7 @@ private fun createSync(context: Context, dao: SyncDao, remote: RemoteRepositorie
         triggers = triggers,
         retry = triggers,
         clock = Instant::now,
+        onRemindersChanged = onRemindersChanged,
     )
     return SyncRepositoryImpl(engine, triggers)
 }

@@ -41,14 +41,18 @@ class SyncLayerRulesTest {
     }
 
     @Test
-    fun puenteSoloEnDebug() {
-        val main = MainSources.kotlinRoot.walkTopDown().filter { it.isFile }.map { it.name }.toSet()
-        assertFalse(main.contains("RestBridgeTransport.kt"))
-        assertFalse(main.contains("BridgeTransportFactory.kt"))
-        val release = File(appDir, "src/release/java").walkTopDown().filter { it.isFile }.toList()
-        assertEquals(listOf("BridgeTransportFactory.kt"), release.map { it.name })
-        assertTrue(release.single().readText().contains("= null"))
-        assertFalse(release.single().readText().contains("RestBridgeTransport"))
-        assertTrue(File(appDir, "src/debug/java/com/simposio/taskeer/data/remote/sync/RestBridgeTransport.kt").isFile)
+    fun sinCodigoDelPuente() {
+        val sources = File(appDir, "src").walkTopDown()
+            .filter { it.isFile && it.extension in setOf("kt", "kts") && "/build/" !in it.path }
+            .filterNot { it.name == "SyncLayerRulesTest.kt" }
+        val offenders = sources.filter { file ->
+            val text = file.readText()
+            text.contains("RestBridge") || text.contains("BridgeTransport") || text.contains("TransportMode")
+        }.map { it.name }.toList()
+
+        assertTrue(offenders.toString(), offenders.isEmpty())
+        assertFalse(File(appDir, "src/debug/java/com/simposio/taskeer/data/remote/sync").exists())
+        assertFalse(File(appDir, "src/release/java").exists())
+        assertFalse(File(appDir, "build.gradle.kts").readText().contains("syncTransport"))
     }
 }

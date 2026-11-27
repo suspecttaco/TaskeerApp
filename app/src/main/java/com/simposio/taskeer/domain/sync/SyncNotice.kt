@@ -25,7 +25,7 @@ object SyncNoticeRules {
                 SyncLoss.DELETED_BY_SERVER ->
                     "${changes(count)} ${if (count == 1) "se descartó" else "se descartaron"} porque el elemento se borró"
                 SyncLoss.ACCESS_LOST ->
-                    "${changes(count)} ${if (count == 1) "se descartó" else "se descartaron"} por pérdida de acceso"
+                    if (count == 1) "dejaste de tener acceso a 1 tablero" else "dejaste de tener acceso a $count tableros"
             }
         }
         return "Sincronización: " + parts.joinToString("; ")

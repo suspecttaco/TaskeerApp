@@ -200,7 +200,9 @@ class AccountBindingTest {
         LocalDataWiper(dao) { now }.wipe()
 
         assertEquals(
-            setOf("boards", "columns", "tasks", "subtasks", "my_day_tasks", "reminders", "app_notifications", "task_lists"),
+            setOf("boards", "columns", "tasks", "subtasks", "my_day_tasks", "reminders", "app_notifications", "task_lists",
+                "board_access", "sync_workspaces",
+            ),
             dao.wipedBusinessTables.toSet(),
         )
         assertTrue(dao.baselines.value.isEmpty())

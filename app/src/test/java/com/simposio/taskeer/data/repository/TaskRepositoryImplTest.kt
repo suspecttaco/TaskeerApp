@@ -1083,6 +1083,64 @@ class TaskRepositoryImplTest {
     }
 
     @Test
+    fun viewer_noCreaTareaNiLaEscribe() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("columna-1")) }
+        val taskDao = FakeTaskDao(columnDao)
+        val repository = TaskRepositoryImpl(
+            taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, taskDao.listDao, taskDao.defaultListId,
+            now = { now }, gate = gate(com.simposio.taskeer.domain.workspace.WorkspaceRole.VIEWER),
+        )
+
+        val result = repository.createTask("columna-1", TaskDraft(title = "Nueva"))
+
+        assertEquals("BOARD_ROLE_FORBIDS", ((result as DomainResult.Failure).error as DomainError.Forbidden).code)
+        assertTrue(taskDao.stored.isEmpty())
+    }
+
+    @Test
+    fun viewer_noBorraLasCompletadasDeUnTableroCompartido() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("c1")) }
+        val taskDao = FakeTaskDao(columnDao).apply {
+            put(taskEntity("t1", columnId = "c1", position = 0, completedAt = now))
+        }
+        val repository = TaskRepositoryImpl(
+            taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, taskDao.listDao, taskDao.defaultListId,
+            now = { later }, gate = gate(com.simposio.taskeer.domain.workspace.WorkspaceRole.VIEWER),
+        )
+
+        val result = repository.deleteCompleted()
+
+        assertEquals("BOARD_ROLE_FORBIDS", ((result as DomainResult.Failure).error as DomainError.Forbidden).code)
+        assertNull(taskDao.stored.getValue("t1").deletedAt)
+    }
+
+    @Test
+    fun viewer_noMueveNiBorraTareas() = runTest {
+        val columnDao = FakeColumnDao().apply { put(columnEntity("c1")); put(columnEntity("c2")) }
+        val taskDao = FakeTaskDao(columnDao).apply { put(taskEntity("t1", columnId = "c1", position = 0)) }
+        val repository = TaskRepositoryImpl(
+            taskDao, columnDao, taskDao.subtaskDao, taskDao.reminderDao, taskDao.listDao, taskDao.defaultListId,
+            now = { later }, gate = gate(com.simposio.taskeer.domain.workspace.WorkspaceRole.VIEWER),
+        )
+
+        val moved = repository.moveTask("t1", "c2", 0)
+        val deleted = repository.deleteTask("t1")
+
+        assertTrue(moved is DomainResult.Failure && moved.error is DomainError.Forbidden)
+        assertTrue(deleted is DomainResult.Failure && deleted.error is DomainError.Forbidden)
+        assertEquals("c1", taskDao.stored.getValue("t1").columnId)
+        assertNull(taskDao.stored.getValue("t1").deletedAt)
+    }
+
+    private fun gate(role: com.simposio.taskeer.domain.workspace.WorkspaceRole?) = BoardPermissionGate(
+        object : BoardRoles {
+            override suspend fun roleOf(boardId: String) = role
+
+            override fun observeRole(boardId: String) = kotlinx.coroutines.flow.flowOf(role)
+        },
+    )
+
+    @Test
     fun moveTask_entreColumnas_persisteColumnIdYPosicionesContiguas() = runTest {
         val (taskDao, repository) = moveFixture()
 

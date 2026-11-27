@@ -53,6 +53,117 @@ abstract class SyncDao {
     @Query("SELECT * FROM subtasks WHERE pending = 1")
     abstract suspend fun pendingSubtasks(): List<SubtaskEntity>
 
+    @Query("SELECT * FROM boards WHERE pending = 1")
+    abstract suspend fun pendingBoards(): List<BoardEntity>
+
+    @Query("SELECT * FROM columns WHERE pending = 1")
+    abstract suspend fun pendingColumns(): List<ColumnEntity>
+
+    @Query("SELECT * FROM my_day_tasks WHERE pending = 1")
+    abstract suspend fun pendingMyDay(): List<MyDayEntryEntity>
+
+    @Query("SELECT * FROM reminders WHERE pending = 1")
+    abstract suspend fun pendingReminders(): List<ReminderEntity>
+
+    @Query("SELECT * FROM my_day_tasks WHERE deletedAt IS NULL")
+    abstract suspend fun liveMyDay(): List<MyDayEntryEntity>
+
+    @Query("SELECT * FROM reminders WHERE deletedAt IS NULL")
+    abstract suspend fun liveReminders(): List<ReminderEntity>
+
+    @Query("SELECT * FROM my_day_tasks WHERE id = :id")
+    abstract suspend fun findMyDay(id: String): MyDayEntryEntity?
+
+    @Query("SELECT * FROM reminders WHERE id = :id")
+    abstract suspend fun findReminder(id: String): ReminderEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsertMyDay(entry: MyDayEntryEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsertReminder(reminder: ReminderEntity)
+
+    @Query("UPDATE my_day_tasks SET pending = 0 WHERE id = :id AND updatedAt = :version")
+    abstract suspend fun clearPendingMyDay(id: String, version: Long): Int
+
+    @Query("UPDATE reminders SET pending = 0 WHERE id = :id AND updatedAt = :version")
+    abstract suspend fun clearPendingReminder(id: String, version: Long): Int
+
+    @Query(
+        "UPDATE my_day_tasks SET pending = 1 WHERE deletedAt IS NULL AND id NOT IN " +
+            "(SELECT entityId FROM sync_baseline WHERE entity = 'myDay')",
+    )
+    abstract suspend fun markUnsyncedMyDayPending()
+
+    @Query(
+        "UPDATE reminders SET pending = 1 WHERE deletedAt IS NULL AND status = 'PENDING' AND id NOT IN " +
+            "(SELECT entityId FROM sync_baseline WHERE entity = 'reminder')",
+    )
+    abstract suspend fun markUnsyncedRemindersPending()
+
+    @Query("SELECT * FROM boards WHERE deletedAt IS NULL")
+    abstract suspend fun liveBoards(): List<BoardEntity>
+
+    @Query("SELECT * FROM columns WHERE deletedAt IS NULL")
+    abstract suspend fun liveColumns(): List<ColumnEntity>
+
+    @Query("SELECT * FROM boards WHERE id = :id")
+    abstract suspend fun findBoard(id: String): BoardEntity?
+
+    @Query("SELECT * FROM columns WHERE id = :id")
+    abstract suspend fun findColumn(id: String): ColumnEntity?
+
+    @Query("SELECT * FROM columns WHERE boardId = :boardId AND deletedAt IS NULL ORDER BY position ASC, id ASC")
+    abstract suspend fun liveColumnsOf(boardId: String): List<ColumnEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsertBoard(board: BoardEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsertColumn(column: ColumnEntity)
+
+    @Query("UPDATE boards SET pending = 0 WHERE id = :id AND updatedAt = :version")
+    abstract suspend fun clearPendingBoard(id: String, version: Long): Int
+
+    @Query("UPDATE columns SET pending = 0 WHERE id = :id AND updatedAt = :version")
+    abstract suspend fun clearPendingColumn(id: String, version: Long): Int
+
+    @Query(
+        "UPDATE boards SET pending = 1 WHERE deletedAt IS NULL AND id NOT IN " +
+            "(SELECT entityId FROM sync_baseline WHERE entity = 'board')",
+    )
+    abstract suspend fun markUnsyncedBoardsPending()
+
+    @Query(
+        "UPDATE columns SET pending = 1 WHERE deletedAt IS NULL AND id NOT IN " +
+            "(SELECT entityId FROM sync_baseline WHERE entity = 'column')",
+    )
+    abstract suspend fun markUnsyncedColumnsPending()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsertWorkspace(workspace: SyncWorkspaceEntity)
+
+    @Query("SELECT * FROM sync_workspaces WHERE id = :id")
+    abstract suspend fun findWorkspace(id: String): SyncWorkspaceEntity?
+
+    @Query("SELECT id FROM sync_workspaces WHERE isPersonal = 1 AND deletedAt IS NULL ORDER BY id ASC LIMIT 1")
+    abstract suspend fun personalWorkspaceId(): String?
+
+    @Query("SELECT id FROM boards WHERE workspaceId = :workspaceId")
+    abstract suspend fun boardIdsOfWorkspace(workspaceId: String): List<String>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsertAccess(access: BoardAccessEntity)
+
+    @Query("SELECT * FROM board_access WHERE boardId = :boardId")
+    abstract suspend fun findAccess(boardId: String): BoardAccessEntity?
+
+    @Query("DELETE FROM board_access WHERE boardId = :boardId")
+    abstract suspend fun removeAccess(boardId: String)
+
+    @Query("UPDATE boards SET workspaceId = :workspaceId WHERE id = :id AND workspaceId IS NULL")
+    abstract suspend fun assignWorkspace(id: String, workspaceId: String)
+
     @Query("SELECT * FROM task_lists WHERE deletedAt IS NULL")
     abstract suspend fun liveLists(): List<TaskListEntity>
 
@@ -134,7 +245,17 @@ abstract class SyncDao {
             "(SELECT COUNT(*) FROM subtasks s WHERE s.pending = 1 AND EXISTS " +
             "(SELECT 1 FROM tasks t WHERE t.id = s.taskId AND t.listId IS NOT NULL)) AS listSubtasks, " +
             "(SELECT COUNT(*) FROM subtasks s WHERE s.pending = 1 AND EXISTS " +
-            "(SELECT 1 FROM tasks t WHERE t.id = s.taskId AND t.columnId IS NOT NULL)) AS boardSubtasks",
+            "(SELECT 1 FROM tasks t WHERE t.id = s.taskId AND t.columnId IS NOT NULL)) AS boardSubtasks, " +
+            "(SELECT COUNT(*) FROM boards WHERE pending = 1) AS boards, " +
+            "(SELECT COUNT(*) FROM columns WHERE pending = 1) AS columns, " +
+            "(SELECT COUNT(*) FROM my_day_tasks m WHERE m.pending = 1 AND m.addedAt <> $DISMISSED_ADDED_AT AND EXISTS " +
+            "(SELECT 1 FROM tasks t WHERE t.id = m.id AND t.listId IS NOT NULL)) AS listMyDay, " +
+            "(SELECT COUNT(*) FROM my_day_tasks m WHERE m.pending = 1 AND m.addedAt <> $DISMISSED_ADDED_AT AND EXISTS " +
+            "(SELECT 1 FROM tasks t WHERE t.id = m.id AND t.columnId IS NOT NULL)) AS boardMyDay, " +
+            "(SELECT COUNT(*) FROM reminders r WHERE r.pending = 1 AND EXISTS " +
+            "(SELECT 1 FROM tasks t WHERE t.id = r.taskId AND t.listId IS NOT NULL)) AS listReminders, " +
+            "(SELECT COUNT(*) FROM reminders r WHERE r.pending = 1 AND EXISTS " +
+            "(SELECT 1 FROM tasks t WHERE t.id = r.taskId AND t.columnId IS NOT NULL)) AS boardReminders",
     )
     abstract fun observePendingCounts(): Flow<PendingCountsRow>
 
@@ -162,6 +283,12 @@ abstract class SyncDao {
     @Query("DELETE FROM task_lists")
     abstract suspend fun wipeLists()
 
+    @Query("DELETE FROM board_access")
+    abstract suspend fun wipeBoardAccess()
+
+    @Query("DELETE FROM sync_workspaces")
+    abstract suspend fun wipeWorkspaces()
+
     @Query("DELETE FROM sync_queue")
     abstract suspend fun wipeQueue()
 
@@ -175,12 +302,22 @@ abstract class SyncDao {
         SyncEntity.LIST.wireName -> clearPendingList(id, version)
         SyncEntity.TASK.wireName -> clearPendingTask(id, version)
         SyncEntity.SUBTASK.wireName -> clearPendingSubtask(id, version)
+        SyncEntity.BOARD.wireName -> clearPendingBoard(id, version)
+        SyncEntity.COLUMN.wireName -> clearPendingColumn(id, version)
+        SyncEntity.MY_DAY.wireName -> clearPendingMyDay(id, version)
+        SyncEntity.REMINDER.wireName -> clearPendingReminder(id, version)
         else -> 0
     }
 
     @Transaction
     open suspend fun commitApplied(entity: String, id: String, serverUpdatedAt: Long, sentVersion: Long, mutationId: String) {
         upsertBaseline(SyncBaselineEntity(entity, id, serverUpdatedAt))
+        clearPending(entity, id, sentVersion)
+        removeQueue(mutationId)
+    }
+
+    @Transaction
+    open suspend fun commitDeletedWithoutRecord(entity: String, id: String, sentVersion: Long, mutationId: String) {
         clearPending(entity, id, sentVersion)
         removeQueue(mutationId)
     }
@@ -207,6 +344,34 @@ abstract class SyncDao {
         mutationId?.let { removeQueue(it) }
     }
 
+    @Transaction
+    open suspend fun commitBoard(board: BoardEntity, baseline: Long?, mutationId: String?) {
+        upsertBoard(board)
+        baseline?.let { upsertBaseline(SyncBaselineEntity(SyncEntity.BOARD.wireName, board.id, it)) }
+        mutationId?.let { removeQueue(it) }
+    }
+
+    @Transaction
+    open suspend fun commitColumn(column: ColumnEntity, baseline: Long?, mutationId: String?) {
+        upsertColumn(column)
+        baseline?.let { upsertBaseline(SyncBaselineEntity(SyncEntity.COLUMN.wireName, column.id, it)) }
+        mutationId?.let { removeQueue(it) }
+    }
+
+    @Transaction
+    open suspend fun commitMyDay(entry: MyDayEntryEntity, baseline: Long?, mutationId: String?) {
+        upsertMyDay(entry)
+        baseline?.let { upsertBaseline(SyncBaselineEntity(SyncEntity.MY_DAY.wireName, entry.id, it)) }
+        mutationId?.let { removeQueue(it) }
+    }
+
+    @Transaction
+    open suspend fun commitReminder(reminder: ReminderEntity, baseline: Long?, mutationId: String?) {
+        upsertReminder(reminder)
+        baseline?.let { upsertBaseline(SyncBaselineEntity(SyncEntity.REMINDER.wireName, reminder.id, it)) }
+        mutationId?.let { removeQueue(it) }
+    }
+
     // Lectura, decisión y escritura de una página de cambios en un solo bloque: nada puede editarse entre medias.
     @Transaction
     open suspend fun inTransaction(block: suspend () -> Unit) {
@@ -218,6 +383,10 @@ abstract class SyncDao {
         markUnsyncedListsPending()
         markUnsyncedTasksPending()
         markUnsyncedSubtasksPending()
+        markUnsyncedBoardsPending()
+        markUnsyncedColumnsPending()
+        markUnsyncedMyDayPending()
+        markUnsyncedRemindersPending()
     }
 
     // Una lista local pasa a ser la del servidor: sus tareas la siguen y la fila local desaparece sin enviar un borrado.
@@ -258,11 +427,89 @@ abstract class SyncDao {
         wipeTasks()
         wipeColumns()
         wipeBoards()
+        wipeBoardAccess()
+        wipeWorkspaces()
         wipeLists()
         wipeNotifications()
         wipeQueue()
         wipeBaseline()
         wipeMeta()
         upsertList(seed)
+    }
+
+    // Retirada de un tablero que el usuario ya no ve. Cada consulta cuelga del tablero por subconsultas (columnas, tareas,
+    // subtareas) para no depender del tamaño del tablero ni del límite de variables de SQLite; el orden va de las hojas
+    // a la raíz porque las subconsultas leen filas que aún deben existir.
+    @Query(
+        "DELETE FROM sync_queue WHERE " +
+            "(entity = 'subtask' AND entityId IN (SELECT s.id FROM subtasks s WHERE s.taskId IN " +
+            "(SELECT t.id FROM tasks t WHERE t.columnId IN (SELECT c.id FROM columns c WHERE c.boardId = :boardId)))) OR " +
+            "(entity = 'task' AND entityId IN (SELECT t.id FROM tasks t WHERE t.columnId IN " +
+            "(SELECT c.id FROM columns c WHERE c.boardId = :boardId))) OR " +
+            "(entity = 'myDay' AND entityId IN (SELECT t.id FROM tasks t WHERE t.columnId IN " +
+            "(SELECT c.id FROM columns c WHERE c.boardId = :boardId))) OR " +
+            "(entity = 'reminder' AND entityId IN (SELECT r.id FROM reminders r WHERE r.taskId IN " +
+            "(SELECT t.id FROM tasks t WHERE t.columnId IN (SELECT c.id FROM columns c WHERE c.boardId = :boardId)))) OR " +
+            "(entity = 'column' AND entityId IN (SELECT c.id FROM columns c WHERE c.boardId = :boardId)) OR " +
+            "(entity = 'board' AND entityId = :boardId)",
+    )
+    abstract suspend fun purgeQueueOfBoard(boardId: String)
+
+    @Query(
+        "DELETE FROM sync_baseline WHERE " +
+            "(entity = 'subtask' AND entityId IN (SELECT s.id FROM subtasks s WHERE s.taskId IN " +
+            "(SELECT t.id FROM tasks t WHERE t.columnId IN (SELECT c.id FROM columns c WHERE c.boardId = :boardId)))) OR " +
+            "(entity = 'task' AND entityId IN (SELECT t.id FROM tasks t WHERE t.columnId IN " +
+            "(SELECT c.id FROM columns c WHERE c.boardId = :boardId))) OR " +
+            "(entity = 'myDay' AND entityId IN (SELECT t.id FROM tasks t WHERE t.columnId IN " +
+            "(SELECT c.id FROM columns c WHERE c.boardId = :boardId))) OR " +
+            "(entity = 'reminder' AND entityId IN (SELECT r.id FROM reminders r WHERE r.taskId IN " +
+            "(SELECT t.id FROM tasks t WHERE t.columnId IN (SELECT c.id FROM columns c WHERE c.boardId = :boardId)))) OR " +
+            "(entity = 'column' AND entityId IN (SELECT c.id FROM columns c WHERE c.boardId = :boardId)) OR " +
+            "(entity = 'board' AND entityId = :boardId)",
+    )
+    abstract suspend fun purgeBaselineOfBoard(boardId: String)
+
+    @Query(
+        "DELETE FROM subtasks WHERE taskId IN (SELECT t.id FROM tasks t WHERE t.columnId IN " +
+            "(SELECT c.id FROM columns c WHERE c.boardId = :boardId))",
+    )
+    abstract suspend fun purgeSubtasksOfBoard(boardId: String)
+
+    @Query(
+        "DELETE FROM my_day_tasks WHERE id IN (SELECT t.id FROM tasks t WHERE t.columnId IN " +
+            "(SELECT c.id FROM columns c WHERE c.boardId = :boardId))",
+    )
+    abstract suspend fun purgeMyDayOfBoard(boardId: String)
+
+    @Query(
+        "DELETE FROM reminders WHERE taskId IN (SELECT t.id FROM tasks t WHERE t.columnId IN " +
+            "(SELECT c.id FROM columns c WHERE c.boardId = :boardId))",
+    )
+    abstract suspend fun purgeRemindersOfBoard(boardId: String)
+
+    @Query("DELETE FROM tasks WHERE columnId IN (SELECT c.id FROM columns c WHERE c.boardId = :boardId)")
+    abstract suspend fun purgeTasksOfBoard(boardId: String)
+
+    @Query("DELETE FROM columns WHERE boardId = :boardId")
+    abstract suspend fun purgeColumnsOfBoard(boardId: String)
+
+    @Query("DELETE FROM boards WHERE id = :boardId")
+    abstract suspend fun purgeBoardRow(boardId: String)
+
+    // Devuelve si el tablero existía: solo entonces hay algo que avisar al usuario.
+    @Transaction
+    open suspend fun purgeBoard(boardId: String): Boolean {
+        val existed = findBoard(boardId) != null
+        purgeQueueOfBoard(boardId)
+        purgeBaselineOfBoard(boardId)
+        purgeRemindersOfBoard(boardId)
+        purgeMyDayOfBoard(boardId)
+        purgeSubtasksOfBoard(boardId)
+        purgeTasksOfBoard(boardId)
+        purgeColumnsOfBoard(boardId)
+        purgeBoardRow(boardId)
+        removeAccess(boardId)
+        return existed
     }
 }

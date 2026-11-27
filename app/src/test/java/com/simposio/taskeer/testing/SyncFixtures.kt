@@ -1,5 +1,7 @@
 package com.simposio.taskeer.testing
 
+import com.simposio.taskeer.data.local.MyDayEntryEntity
+import com.simposio.taskeer.data.local.ReminderEntity
 import com.simposio.taskeer.data.local.SubtaskEntity
 import com.simposio.taskeer.data.local.TaskEntity
 import com.simposio.taskeer.data.local.TaskListEntity
@@ -62,6 +64,55 @@ fun syncSubtask(
     position = 0,
     assigneeId = null,
     dueAt = null,
+    createdAt = 0L,
+    updatedAt = updatedAt,
+    pending = pending,
+    deletedAt = deletedAt,
+)
+
+fun syncBoard(
+    id: String,
+    name: String = "Sprint",
+    workspaceId: String? = null,
+    updatedAt: Long = 1_000L,
+    pending: Boolean = true,
+    deletedAt: Long? = null,
+) = com.simposio.taskeer.data.local.BoardEntity(id, name, createdAt = 0L, updatedAt = updatedAt, pending = pending, deletedAt = deletedAt, workspaceId = workspaceId)
+
+fun syncColumn(
+    id: String,
+    boardId: String,
+    name: String = "Por hacer",
+    position: Int = 0,
+    isDone: Boolean = false,
+    updatedAt: Long = 1_000L,
+    pending: Boolean = true,
+    deletedAt: Long? = null,
+) = com.simposio.taskeer.data.local.ColumnEntity(id, boardId, name, position, wipLimit = null, isDoneColumn = isDone, createdAt = 0L, updatedAt = updatedAt, pending = pending, deletedAt = deletedAt)
+
+fun syncMyDay(
+    taskId: String,
+    addedAt: Long,
+    updatedAt: Long = addedAt,
+    pending: Boolean = true,
+    deletedAt: Long? = null,
+) = MyDayEntryEntity(taskId, addedAt = addedAt, updatedAt = updatedAt, pending = pending, deletedAt = deletedAt)
+
+fun syncReminder(
+    id: String,
+    taskId: String,
+    remindAt: Long,
+    status: String = "PENDING",
+    sentAt: Long? = null,
+    updatedAt: Long = 1_000L,
+    pending: Boolean = true,
+    deletedAt: Long? = null,
+) = ReminderEntity(
+    id = id,
+    taskId = taskId,
+    remindAt = remindAt,
+    status = status,
+    sentAt = sentAt,
     createdAt = 0L,
     updatedAt = updatedAt,
     pending = pending,

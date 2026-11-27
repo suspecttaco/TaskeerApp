@@ -5,9 +5,11 @@ import com.simposio.taskeer.domain.auth.AccountSummary
 import com.simposio.taskeer.domain.auth.SessionState
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.workspace.WorkspaceOutcome
+import com.simposio.taskeer.testing.FakeDestinationBoardRepository
 import com.simposio.taskeer.testing.FakeServerBoardsRepository
 import com.simposio.taskeer.testing.FakeWorkspaceRepository
 import com.simposio.taskeer.testing.serverBoard
+import com.simposio.taskeer.testing.testBoard
 import com.simposio.taskeer.testing.uuid
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +32,7 @@ class ServerBoardsViewModelTest {
     private val ws = uuid(100)
     private val boards = FakeServerBoardsRepository()
     private val workspaces = FakeWorkspaceRepository()
+    private val localBoards = FakeDestinationBoardRepository()
     private val session = MutableStateFlow<SessionState>(SessionState.SignedIn(AccountSummary("yo@example.com", "Yo"), false))
     private val events = mutableListOf<ServerBoardsEvent>()
 
@@ -48,6 +51,7 @@ class ServerBoardsViewModelTest {
             SavedStateHandle(mapOf(ServerBoardsViewModel.WORKSPACE_ID_ARG to id)),
             boards,
             workspaces,
+            { localBoards.boards.value.map { it.id }.toSet() },
             session,
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
@@ -114,13 +118,24 @@ class ServerBoardsViewModelTest {
     }
 
     @Test
-    fun tocarTablero_emiteAbrirAcceso() = runTest {
+    fun tocarTablero_conCopiaLocal_abreElKanban() = runTest {
+        boards.loadItems = listOf(serverBoard(1))
+        localBoards.boards.value = listOf(testBoard(uuid(1001)))
+        val viewModel = viewModel().also { it.onOpened() }
+
+        viewModel.openBoard(uuid(1001))
+
+        assertEquals(listOf<ServerBoardsEvent>(ServerBoardsEvent.OpenKanban(uuid(1001))), events)
+    }
+
+    @Test
+    fun tocarTablero_sinCopiaLocal_avisaQueHayQueSincronizar() = runTest {
         boards.loadItems = listOf(serverBoard(1))
         val viewModel = viewModel().also { it.onOpened() }
 
         viewModel.openBoard(uuid(1001))
 
-        assertEquals(listOf<ServerBoardsEvent>(ServerBoardsEvent.OpenAccess(uuid(1001))), events)
+        assertEquals(listOf<ServerBoardsEvent>(ServerBoardsEvent.NeedsSync), events)
     }
 
     @Test

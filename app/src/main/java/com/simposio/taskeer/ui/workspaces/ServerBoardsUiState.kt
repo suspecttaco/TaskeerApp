@@ -17,7 +17,9 @@ data class ServerBoardsUiState(
 sealed interface ServerBoardsEvent {
     data class ShowError(val message: BoardRoleErrorMessage) : ServerBoardsEvent
 
-    data class OpenAccess(val boardId: String) : ServerBoardsEvent
+    data class OpenKanban(val boardId: String) : ServerBoardsEvent
+
+    data object NeedsSync : ServerBoardsEvent
 
     data object LeaveScreen : ServerBoardsEvent
 }

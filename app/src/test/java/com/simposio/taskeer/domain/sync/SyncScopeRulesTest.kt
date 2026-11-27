@@ -47,4 +47,26 @@ class SyncScopeRulesTest {
         assertEquals(later, SyncScope.effective(later, supported))
         assertEquals(emptySet<SyncEntity>(), SyncScope.effective(later, emptySet()))
     }
+
+    @Test
+    fun marcasYRecordatorios_requierenSuEntidadYLaTareaEnAlcance() {
+        val withoutTask = setOf(SyncEntity.LIST, SyncEntity.MY_DAY, SyncEntity.REMINDER)
+        val full = setOf(SyncEntity.LIST, SyncEntity.TASK, SyncEntity.MY_DAY, SyncEntity.REMINDER)
+
+        assertFalse(SyncScope.allows(SyncEntity.MY_DAY, listTask, withoutTask))
+        assertFalse(SyncScope.allows(SyncEntity.REMINDER, listTask, withoutTask))
+        assertTrue(SyncScope.allows(SyncEntity.MY_DAY, listTask, full))
+        assertTrue(SyncScope.allows(SyncEntity.REMINDER, listTask, full))
+        assertFalse(SyncScope.allows(SyncEntity.MY_DAY, boardTask, full))
+        assertFalse(SyncScope.allows(SyncEntity.REMINDER, listTask, full - SyncEntity.REMINDER))
+    }
+
+    @Test
+    fun alcanceDeLaApp_incluyeMiDiaYRecordatorios() {
+        assertTrue(SyncScope.APP_FULL.containsAll(setOf(SyncEntity.MY_DAY, SyncEntity.REMINDER)))
+        assertEquals(
+            SyncScope.APP_LISTS_AND_TASKS,
+            SyncScope.effective(SyncScope.APP_FULL, setOf(SyncEntity.LIST, SyncEntity.TASK, SyncEntity.SUBTASK)),
+        )
+    }
 }

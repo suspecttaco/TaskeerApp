@@ -42,7 +42,7 @@ class SyncEnginePullTest {
         assertTrue(dao.tasks.value.values.none { it.pending })
         assertNotNull(dao.lists.value["otra"])
         assertEquals(listOf(firstCursor), backend.pulls.take(1).map { it.first })
-        assertEquals("i:${at("2026-11-26T10:04:00Z").toEpochMilli()}:3:t4", dao.metas.value[SyncMetaKeys.CURSOR])
+        assertEquals("i:${at("2026-11-26T10:04:00Z").toEpochMilli()}:5:t4", dao.metas.value[SyncMetaKeys.CURSOR])
     }
 
     @Test

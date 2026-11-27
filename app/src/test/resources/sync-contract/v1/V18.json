@@ -1,0 +1,67 @@
+{
+  "id": "V18",
+  "serverNow": "2026-11-26T18:30:00.000Z",
+  "task": "30000000-0000-4000-8000-000000000001",
+  "server": { "addedAt": "2026-11-25T09:00:00.000Z", "updatedAt": "2026-11-25T09:00:00.000Z" },
+  "request": {
+    "mutations": [
+      {
+        "clientMutationId": "90000000-0000-4000-8000-000000000018",
+        "entity": "myDay",
+        "op": "upsert",
+        "id": "30000000-0000-4000-8000-000000000001",
+        "baseUpdatedAt": "2026-11-25T09:00:00.000Z",
+        "clientUpdatedAt": "2026-11-26T08:00:00.000Z",
+        "data": { "addedAt": "2026-11-26T08:00:00.000Z" }
+      }
+    ]
+  },
+  "response": {
+    "contractVersion": "1.0",
+    "serverTime": "2026-11-26T18:30:00.000Z",
+    "results": [
+      {
+        "clientMutationId": "90000000-0000-4000-8000-000000000018",
+        "status": "applied",
+        "record": {
+          "id": "30000000-0000-4000-8000-000000000001",
+          "taskId": "30000000-0000-4000-8000-000000000001",
+          "addedAt": "2026-11-26T08:00:00.000Z",
+          "updatedAt": "2026-11-26T18:30:00.000Z",
+          "deletedAt": null
+        }
+      }
+    ]
+  },
+  "followUps": [
+    {
+      "name": "addedAt anterior: no-op",
+      "mutation": {
+        "clientMutationId": "90000000-0000-4000-8000-000000000019",
+        "entity": "myDay", "op": "upsert", "id": "30000000-0000-4000-8000-000000000001",
+        "baseUpdatedAt": "2026-11-26T18:30:00.000Z", "clientUpdatedAt": "2026-11-26T18:31:00.000Z",
+        "data": { "addedAt": "2026-11-25T09:00:00.000Z" }
+      },
+      "expect": { "status": "applied", "updatedAt": "2026-11-26T18:30:00.000Z", "addedAt": "2026-11-26T08:00:00.000Z" }
+    },
+    {
+      "name": "addedAt futuro: se acota a serverNow",
+      "mutation": {
+        "clientMutationId": "90000000-0000-4000-8000-000000000020",
+        "entity": "myDay", "op": "upsert", "id": "30000000-0000-4000-8000-000000000001",
+        "baseUpdatedAt": "2026-11-26T18:30:00.000Z", "clientUpdatedAt": "2026-11-26T18:31:00.000Z",
+        "data": { "addedAt": "2026-12-31T00:00:00.000Z" }
+      },
+      "expect": { "status": "applied", "addedAt": "2026-11-26T18:30:00.000Z" }
+    },
+    {
+      "name": "delete: tombstone",
+      "mutation": {
+        "clientMutationId": "90000000-0000-4000-8000-000000000021",
+        "entity": "myDay", "op": "delete", "id": "30000000-0000-4000-8000-000000000001",
+        "baseUpdatedAt": "2026-11-26T18:30:00.000Z", "clientUpdatedAt": "2026-11-26T18:31:00.000Z"
+      },
+      "expect": { "status": "applied", "deleted": true }
+    }
+  ]
+}

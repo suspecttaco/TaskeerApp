@@ -27,6 +27,7 @@ class ColumnRepositoryImpl(
     // COLUMN_NOT_EMPTY de la API: una columna con tareas borradas sigue bloqueada.
     private val columnTaskCount: suspend (columnId: String) -> Int = { 0 },
     private val now: () -> Instant = Instant::now,
+    private val gate: BoardPermissionGate = BoardPermissionGate(),
 ) : ColumnRepository {
 
     override fun observeColumns(boardId: String): Flow<List<Column>> =
@@ -39,6 +40,7 @@ class ColumnRepositoryImpl(
         if (activeBoard(boardId) == null) {
             return boardNotFound()
         }
+        gate.denyColumnChange(boardId)?.let { return it }
         val position = dao.findActiveByBoard(boardId).size
         return when (val result = newColumn(boardId, name, position, now())) {
             is DomainResult.Failure -> result
@@ -51,6 +53,7 @@ class ColumnRepositoryImpl(
 
     override suspend fun renameColumn(id: String, name: String): DomainResult<Column> {
         val current = activeColumn(id) ?: return columnNotFound()
+        gate.denyColumnChange(current.boardId)?.let { return it }
         return when (val result = current.renamed(name, now())) {
             is DomainResult.Failure -> result
             is DomainResult.Success -> {
@@ -62,6 +65,7 @@ class ColumnRepositoryImpl(
 
     override suspend fun setWipLimit(columnId: String, limit: Int?): DomainResult<Column> {
         val current = activeColumn(columnId) ?: return columnNotFound()
+        gate.denyColumnChange(current.boardId)?.let { return it }
         return when (val result = current.withWipLimit(limit, now())) {
             is DomainResult.Failure -> result
             is DomainResult.Success -> {
@@ -73,6 +77,7 @@ class ColumnRepositoryImpl(
 
     override suspend fun moveColumn(id: String, toIndex: Int): DomainResult<Column> {
         val current = activeColumn(id) ?: return columnNotFound()
+        gate.denyColumnChange(current.boardId)?.let { return it }
         val active = dao.findActiveByBoard(current.boardId).map { it.toColumn() }
         return when (val result = active.movedTo(id, toIndex, now())) {
             is DomainResult.Failure -> result
@@ -91,6 +96,7 @@ class ColumnRepositoryImpl(
 
     override suspend fun deleteColumn(id: String): DomainResult<Unit> {
         val current = activeColumn(id) ?: return columnNotFound()
+        gate.denyColumnChange(current.boardId)?.let { return it }
         return when (val result = current.deletedIfEmpty(columnTaskCount(id), now())) {
             is DomainResult.Failure -> result
             is DomainResult.Success -> {

@@ -253,12 +253,11 @@ fun AppNavHost(
                 navArgument(ServerBoardsViewModel.WORKSPACE_ID_ARG) { type = NavType.StringType },
             ),
         ) { entry ->
-            val workspaceId = entry.arguments?.getString(ServerBoardsViewModel.WORKSPACE_ID_ARG).orEmpty()
             ServerBoardListScreen(
                 viewModelFactory = viewModelFactory,
                 onLeave = { if (!navController.popBackStack()) navController.navigateHome() },
                 onOpenBoard = { boardId ->
-                    navController.navigate(AppDestination.boardAccessRoute(workspaceId, boardId)) { launchSingleTop = true }
+                    navController.navigate(AppDestination.boardRoute(boardId)) { launchSingleTop = true }
                 },
             )
         }

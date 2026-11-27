@@ -7,6 +7,7 @@ fun BoardEntity.toBoard(): Board = Board(
     name = name,
     createdAt = Instant.ofEpochMilli(createdAt),
     sync = toSyncMetadata(),
+    workspaceId = workspaceId,
 )
 
 fun Board.toEntity(): BoardEntity = BoardEntity(
@@ -16,4 +17,5 @@ fun Board.toEntity(): BoardEntity = BoardEntity(
     updatedAt = sync.updatedAt.toEpochMilli(),
     pending = sync.pending,
     deletedAt = sync.deletedAt?.toEpochMilli(),
+    workspaceId = workspaceId,
 )

@@ -55,6 +55,7 @@ enum class MenuItem {
     DELETE_LIST,
     RENAME_BOARD,
     DELETE_BOARD,
+    BOARD_ACCESS,
 }
 
 data class OverflowMenu(val actions: List<MenuAction>, val items: List<MenuItem>)
@@ -106,3 +107,7 @@ fun OverflowMenu.withListCount(listCount: Int): OverflowMenu =
 
 fun OverflowMenu.withBoardPresent(present: Boolean): OverflowMenu =
     copy(items = items.filter { present || (it != MenuItem.RENAME_BOARD && it != MenuItem.DELETE_BOARD) })
+
+// El acceso se gestiona en el servidor: solo se ofrece para un tablero que ya pertenece a un workspace.
+fun OverflowMenu.withBoardAccess(hasWorkspace: Boolean): OverflowMenu =
+    if (hasWorkspace) copy(items = items + MenuItem.BOARD_ACCESS) else this

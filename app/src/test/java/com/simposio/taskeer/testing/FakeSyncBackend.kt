@@ -12,6 +12,7 @@ import com.simposio.taskeer.data.sync.TransportResult
 import com.simposio.taskeer.data.sync.TransportSource
 import com.simposio.taskeer.domain.sync.SyncEntity
 import com.simposio.taskeer.domain.sync.SyncOp
+import com.simposio.taskeer.domain.sync.SyncTimestamps
 import java.time.Duration
 import java.time.Instant
 
@@ -45,6 +46,9 @@ class FakeSyncBackend(
     val rejectIds = mutableMapOf<String, Rejection>()
     var maxBatch: Int? = null
     var poisonedIds = mutableSetOf<String>()
+
+    // Entidades cuya mutación se responde «applied» sin registro, como hace el backend real con un borrado idempotente.
+    val appliedWithoutRecordIds = mutableSetOf<String>()
     var onProcessing: suspend () -> Unit = {}
     var serverRewrite: ((PushMutation, Map<String, Any?>) -> Map<String, Any?>)? = null
     var identifyResult: TransportResult<Identity>? = null
@@ -73,7 +77,7 @@ class FakeSyncBackend(
         val snapshot = cursor == null || forced || cursor.startsWith("s")
         val after = if (cursor == null || forced) null else position(cursor)
         val flow = records.values
-            .filter { it.entity in supported }
+            .filter { it.entity in supported || (SyncEntity.BOARD in supported && it.entity in READ_ONLY) }
             .sortedWith(compareBy({ it.updatedAt }, { it.entity.ordinal }, { it.id }))
             .filter { after == null || compare(it, after) > 0 }
         val size = minOf(limit, pageCap ?: limit)
@@ -146,6 +150,7 @@ class FakeSyncBackend(
             if (rejection.once) rejectIds.remove(m.id)
             return PushOutcome.Rejected(id, rejection.code, if (rejection.withRecord) records[m.entity to (rejection.recordId ?: m.id)]?.record() else null)
         }
+        if (m.id in appliedWithoutRecordIds) return PushOutcome.Applied(id, null)
         val key = m.entity to m.id
         val existing = records[key]
         if (m.op == SyncOp.DELETE) {
@@ -167,6 +172,16 @@ class FakeSyncBackend(
             }
             if (clash != null) return PushOutcome.Rejected(id, "LIST_NAME_TAKEN", clash.record())
         }
+        if (m.entity == SyncEntity.MY_DAY) return upsertMyDay(m, existing, data)
+        if (m.entity == SyncEntity.REMINDER && existing?.fields?.get("status") == "SENT" && data["status"] == "PENDING") {
+            return PushOutcome.Rejected(id, "INVALID_MUTATION", existing.record())
+        }
+        if (m.entity == SyncEntity.REMINDER && existing == null) {
+            val created = Stored(m.entity, m.id, data + ("origin" to "MOBILE"), serverNow, null)
+            records[key] = created
+            return PushOutcome.Applied(id, created.record())
+        }
+        if (existing == null && m.entity == SyncEntity.BOARD) return createBoard(m, data)
         if (existing == null) {
             val created = Stored(m.entity, m.id, data, serverNow, null)
             records[key] = created
@@ -183,6 +198,37 @@ class FakeSyncBackend(
         }
     }
 
+    // Contrato 1.0, sección 5.4: renovar solo con un `addedAt` posterior; un tombstone se reactiva; el instante se acota a `serverNow`.
+    private fun upsertMyDay(m: PushMutation, existing: Stored?, data: Map<String, Any?>): PushOutcome {
+        val sent = minOf(SyncTimestamps.parse(data["addedAt"] as String)!!, serverNow)
+        val fields = mapOf("taskId" to m.id, "addedAt" to SyncTimestamps.format(sent))
+        val stored = existing ?: Stored(SyncEntity.MY_DAY, m.id, fields, serverNow, null).also { records[SyncEntity.MY_DAY to m.id] = it }
+        val current = SyncTimestamps.parse(stored.fields["addedAt"] as String)!!
+        if (existing != null && (existing.deletedAt != null || sent.isAfter(current))) {
+            existing.fields = fields
+            existing.updatedAt = serverNow
+            existing.deletedAt = null
+        }
+        return PushOutcome.Applied(m.clientMutationId, stored.record())
+    }
+
+    // Un alta de tablero siembra las columnas del cliente con sus ids (contrato 1.0, sección 5.4) y las devuelve con su versión.
+    private fun createBoard(m: PushMutation, data: Map<String, Any?>): PushOutcome {
+        val columns = (data["columns"] as? List<*>).orEmpty().filterIsInstance<Map<*, *>>()
+        val board = Stored(SyncEntity.BOARD, m.id, data - "columns", serverNow, null)
+        records[SyncEntity.BOARD to m.id] = board
+        columns.forEach { column ->
+            val columnId = column["id"] as String
+            val fields = mapOf("boardId" to m.id) + column.entries.filter { it.key != "id" }.associate { it.key as String to it.value }
+            records[SyncEntity.COLUMN to columnId] = Stored(SyncEntity.COLUMN, columnId, fields, serverNow, null)
+        }
+        val seeded = columns.map { mapOf("id" to it["id"], "updatedAt" to SyncTimestamps.format(serverNow)) }
+        return PushOutcome.Applied(
+            m.clientMutationId,
+            ServerRecord(SyncEntity.BOARD, m.id, serverNow, null, board.fields + ("columns" to seeded)),
+        )
+    }
+
     // Contrato 1.0, secciones 4.3.2 y 4.3.3.
     private fun wins(existing: Stored, m: PushMutation): Boolean {
         val base = m.baseUpdatedAt
@@ -192,6 +238,7 @@ class FakeSyncBackend(
     }
 
     private companion object {
+        val READ_ONLY = setOf(SyncEntity.WORKSPACE, SyncEntity.BOARD_ACCESS)
         val CURSOR = Regex("[si]:[0-9]+:[0-9]+:.*")
     }
 
@@ -200,8 +247,13 @@ class FakeSyncBackend(
     private fun missingParent(m: PushMutation): Boolean? {
         val data = m.data.orEmpty()
         return when (m.entity) {
-            SyncEntity.TASK -> (data["listId"] as? String)?.let { records[SyncEntity.LIST to it]?.deletedAt != null || it !in listIds() }
+            SyncEntity.TASK ->
+                (data["listId"] as? String)?.let { records[SyncEntity.LIST to it]?.deletedAt != null || it !in listIds() }
+                    ?: (data["columnId"] as? String)?.let { records[SyncEntity.COLUMN to it]?.deletedAt != null || (SyncEntity.COLUMN to it) !in records }
+            SyncEntity.COLUMN -> (data["boardId"] as? String)?.let { (SyncEntity.BOARD to it) !in records }
             SyncEntity.SUBTASK -> (data["taskId"] as? String)?.let { records[SyncEntity.TASK to it] == null }
+            SyncEntity.REMINDER -> (data["taskId"] as? String)?.let { records[SyncEntity.TASK to it] == null }
+            SyncEntity.MY_DAY -> records[SyncEntity.TASK to m.id] == null
             else -> null
         }?.takeIf { it }
     }

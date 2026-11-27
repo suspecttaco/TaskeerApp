@@ -7,6 +7,10 @@ object BoardRoleRules {
     private val EDITING = setOf(WorkspaceRole.OWNER, WorkspaceRole.ADMIN, WorkspaceRole.EDITOR)
     private val MANAGING = setOf(WorkspaceRole.OWNER, WorkspaceRole.ADMIN)
 
+    // Un valor que la app no conoce no concede nada (como UNKNOWN en el resto de reglas).
+    fun parseRole(raw: String): WorkspaceRole =
+        WorkspaceRole.entries.firstOrNull { it.name == raw && it != WorkspaceRole.UNKNOWN } ?: WorkspaceRole.UNKNOWN
+
     fun sortedBoards(items: List<ServerBoard>): List<ServerBoard> =
         items.sortedWith(compareBy<ServerBoard, String>(String.CASE_INSENSITIVE_ORDER) { it.name }.thenBy { it.id })
 

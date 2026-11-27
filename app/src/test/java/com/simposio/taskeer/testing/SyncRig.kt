@@ -40,7 +40,17 @@ class SyncRig(var now: Instant = Instant.parse("2026-11-26T18:30:00Z")) {
         backend.seed(SyncEntity.LIST, listId, mapOf("name" to "Tareas", "position" to 0), Instant.EPOCH)
     }
 
-    fun TestScope.engine(session: FakeSession = FakeSession()): SyncEngine = SyncEngine(
+    // La cuenta vinculada con Mi día y recordatorios ya en el alcance de un servidor que los soporta (hitos H3 y H4).
+    fun boundWithPersonalData() {
+        bound()
+        backend.supported = backend.supported + setOf(SyncEntity.MY_DAY, SyncEntity.REMINDER)
+        dao.metas.value = dao.metas.value + (SyncMetaKeys.MARKED_SCOPE to "list,task,subtask,myDay,reminder")
+    }
+
+    fun TestScope.engine(
+        session: FakeSession = FakeSession(),
+        onRemindersChanged: suspend () -> Unit = {},
+    ): SyncEngine = SyncEngine(
         store = store,
         source = DirectTransportSource(backend),
         gate = SyncSessionGate(store),
@@ -50,6 +60,7 @@ class SyncRig(var now: Instant = Instant.parse("2026-11-26T18:30:00Z")) {
         triggers = SyncTriggers(emptyFlow(), emptyFlow(), CoroutineScope(StandardTestDispatcher(testScheduler))),
         retry = { scheduled += it },
         clock = { now },
+        onRemindersChanged = onRemindersChanged,
     )
 
     fun taskFields(title: String, listId: String = this.listId): Map<String, Any?> = mapOf(
@@ -76,6 +87,14 @@ class SyncRig(var now: Instant = Instant.parse("2026-11-26T18:30:00Z")) {
     fun syncedTask(id: String, columnId: String? = null) {
         dao.put(syncTask(id, listId = if (columnId == null) listId else null, columnId = columnId, pending = false, updatedAt = 5L))
         dao.baseline("task", id, 5L)
+    }
+
+    // Además de la copia local sincronizada, el servidor la conoce: las marcas y recordatorios exigen la tarea (DEPENDENCY_NOT_FOUND).
+    fun syncedTaskOnServer(id: String) {
+        syncedTask(id)
+        seedTask(id, "Tarea $id", Instant.parse("2026-11-26T09:00:00Z"))
+        dao.baseline("task", id, Instant.parse("2026-11-26T09:00:00Z").toEpochMilli())
+        dao.put(syncTask(id, listId = listId, pending = false, updatedAt = Instant.parse("2026-11-26T09:00:00Z").toEpochMilli(), title = "Tarea $id"))
     }
 
     fun syncedSubtask(id: String, taskId: String) {

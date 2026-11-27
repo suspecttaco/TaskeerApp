@@ -48,6 +48,7 @@ import com.simposio.taskeer.ui.components.StatePageAction
 import com.simposio.taskeer.ui.components.phaseKindOf
 import com.simposio.taskeer.ui.components.rememberWhile
 import com.simposio.taskeer.ui.components.rowItemModifier
+import com.simposio.taskeer.ui.components.showNotice
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 
 @Composable
@@ -63,6 +64,7 @@ fun ServerBoardListScreen(
     val resources = LocalResources.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val needsSyncText = stringResource(R.string.board_open_needs_sync)
 
     LaunchedEffect(viewModel) { viewModel.onOpened() }
     LaunchedEffect(viewModel) {
@@ -76,7 +78,8 @@ fun ServerBoardListScreen(
                     NoticeKind.ERROR,
                     leaving = event.message == BoardRoleErrorMessage.BoardGone,
                 )
-                is ServerBoardsEvent.OpenAccess -> onOpenBoard(event.boardId)
+                is ServerBoardsEvent.OpenKanban -> onOpenBoard(event.boardId)
+                ServerBoardsEvent.NeedsSync -> snackbarHostState.showNotice(needsSyncText, NoticeKind.INFO)
                 ServerBoardsEvent.LeaveScreen -> onLeave()
             }
         }
