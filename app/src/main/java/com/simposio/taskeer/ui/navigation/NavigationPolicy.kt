@@ -35,7 +35,12 @@ sealed interface BackStep {
     data class Navigate(val route: String) : BackStep
 }
 
-fun backStep(destination: AppDestination?, boardId: String?, hasPrevious: Boolean): BackStep {
+fun backStep(
+    destination: AppDestination?,
+    boardId: String?,
+    hasPrevious: Boolean,
+    workspaceId: String? = null,
+): BackStep {
     val fallback = when (destination) {
         null, AppDestination.MY_DAY -> return BackStep.None
         AppDestination.HOME, AppDestination.NOTIFICATIONS, AppDestination.SETTINGS -> AppDestination.MY_DAY.route
@@ -51,6 +56,10 @@ fun backStep(destination: AppDestination?, boardId: String?, hasPrevious: Boolea
         AppDestination.LOGIN, AppDestination.VERIFY_EMAIL -> AppDestination.SETTINGS.route
         AppDestination.REGISTER, AppDestination.RESET_PASSWORD -> AppDestination.LOGIN.route
         AppDestination.CHANGE_PASSWORD, AppDestination.REGENERATE_CODES -> AppDestination.SETTINGS.route
+        AppDestination.WORKSPACE_BOARDS ->
+            workspaceId?.let(AppDestination::workspaceMembersRoute) ?: AppDestination.WORKSPACES.route
+        AppDestination.BOARD_ACCESS ->
+            workspaceId?.let(AppDestination::workspaceBoardsRoute) ?: AppDestination.WORKSPACES.route
         AppDestination.BOARD_COLUMNS -> boardId?.let(AppDestination::boardRoute) ?: return BackStep.None
     }
     return if (hasPrevious) BackStep.Pop else BackStep.Navigate(fallback)

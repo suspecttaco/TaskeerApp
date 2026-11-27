@@ -41,7 +41,9 @@ import com.simposio.taskeer.ui.tasks.TasksViewModel
 import com.simposio.taskeer.ui.upcoming.UpcomingViewModel
 import com.simposio.taskeer.ui.verifyemail.ResendVerificationViewModel
 import com.simposio.taskeer.ui.verifyemail.VerifyEmailViewModel
+import com.simposio.taskeer.ui.workspaces.BoardAccessViewModel
 import com.simposio.taskeer.ui.workspaces.MyInvitationsViewModel
+import com.simposio.taskeer.ui.workspaces.ServerBoardsViewModel
 import com.simposio.taskeer.ui.workspaces.WorkspaceInvitationsViewModel
 import com.simposio.taskeer.ui.workspaces.WorkspaceMembersViewModel
 import com.simposio.taskeer.ui.workspaces.WorkspacesViewModel
@@ -259,6 +261,24 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 extras.createSavedStateHandle(),
                 container.workspaceMembersRepository,
                 container.workspaceRepository,
+                container.authRepository.sessionState,
+            ) as T
+
+        modelClass.isAssignableFrom(ServerBoardsViewModel::class.java) ->
+            ServerBoardsViewModel(
+                extras.createSavedStateHandle(),
+                container.serverBoardsRepository,
+                container.workspaceRepository,
+                container.authRepository.sessionState,
+            ) as T
+
+        modelClass.isAssignableFrom(BoardAccessViewModel::class.java) ->
+            BoardAccessViewModel(
+                extras.createSavedStateHandle(),
+                container.boardAccessRepository,
+                container.workspaceMembersRepository,
+                container.workspaceRepository,
+                container.roleChangeSignals,
                 container.authRepository.sessionState,
             ) as T
 

@@ -56,5 +56,7 @@ sealed interface MembersEvent {
 
     data class ShowMessage(val notice: MembersNotice) : MembersEvent
 
+    data class OpenBoards(val workspaceId: String) : MembersEvent
+
     data object LeaveScreen : MembersEvent
 }

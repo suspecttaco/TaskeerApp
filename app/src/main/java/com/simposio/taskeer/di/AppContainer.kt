@@ -4,6 +4,7 @@ import com.simposio.taskeer.data.auth.google.GoogleCredentialSource
 import com.simposio.taskeer.data.auth.google.UnavailableGoogleCredentialSource
 import com.simposio.taskeer.data.reminder.ReminderReconciler
 import com.simposio.taskeer.data.repository.AuthRepository
+import com.simposio.taskeer.data.repository.BoardAccessRepository
 import com.simposio.taskeer.data.repository.BoardRepository
 import com.simposio.taskeer.data.repository.CalendarRepository
 import com.simposio.taskeer.data.repository.DayWindowSource
@@ -16,7 +17,9 @@ import com.simposio.taskeer.data.repository.NotificationLiveChannel
 import com.simposio.taskeer.data.repository.PlannedRepository
 import com.simposio.taskeer.data.repository.PreferencesRepository
 import com.simposio.taskeer.data.repository.ReminderRepository
+import com.simposio.taskeer.data.repository.RoleChangeSignals
 import com.simposio.taskeer.data.repository.SearchRepository
+import com.simposio.taskeer.data.repository.ServerBoardsRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskListRepository
 import com.simposio.taskeer.data.repository.TaskRepository
@@ -54,6 +57,9 @@ class AppContainer(
     val workspaceMembersRepository: WorkspaceMembersRepository,
     val workspaceInvitationsRepository: WorkspaceInvitationsRepository,
     val myInvitationsRepository: MyInvitationsRepository,
+    val serverBoardsRepository: ServerBoardsRepository,
+    val boardAccessRepository: BoardAccessRepository,
+    val roleChangeSignals: RoleChangeSignals,
     val googleCredentialSource: GoogleCredentialSource = UnavailableGoogleCredentialSource,
     val googleSignInConfig: GoogleSignInConfig = GoogleSignInConfig(""),
     val zoneChanges: Flow<Unit> = emptyFlow(),

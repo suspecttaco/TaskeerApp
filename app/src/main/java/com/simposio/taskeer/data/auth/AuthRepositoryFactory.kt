@@ -2,6 +2,8 @@ package com.simposio.taskeer.data.auth
 
 import android.content.Context
 import com.simposio.taskeer.data.remote.auth.RemoteAuthRepository
+import com.simposio.taskeer.data.remote.boards.RemoteBoardAccessRepository
+import com.simposio.taskeer.data.remote.boards.RemoteServerBoardsRepository
 import com.simposio.taskeer.data.remote.createApiClient
 import com.simposio.taskeer.data.remote.notifications.RemoteNotificationInboxRepository
 import com.simposio.taskeer.data.remote.notifications.RemoteNotificationLiveChannel
@@ -10,9 +12,11 @@ import com.simposio.taskeer.data.remote.workspaces.RemoteWorkspaceInvitationsRep
 import com.simposio.taskeer.data.remote.workspaces.RemoteWorkspaceMembersRepository
 import com.simposio.taskeer.data.remote.workspaces.RemoteWorkspaceRepository
 import com.simposio.taskeer.data.repository.AuthRepository
+import com.simposio.taskeer.data.repository.BoardAccessRepository
 import com.simposio.taskeer.data.repository.MyInvitationsRepository
 import com.simposio.taskeer.data.repository.NotificationInboxRepository
 import com.simposio.taskeer.data.repository.NotificationLiveChannel
+import com.simposio.taskeer.data.repository.ServerBoardsRepository
 import com.simposio.taskeer.data.repository.WorkspaceInvitationsRepository
 import com.simposio.taskeer.data.repository.WorkspaceMembersRepository
 import com.simposio.taskeer.data.repository.WorkspaceRepository
@@ -26,6 +30,8 @@ class RemoteRepositories(
     val workspaceMembers: WorkspaceMembersRepository,
     val workspaceInvitations: WorkspaceInvitationsRepository,
     val myInvitations: MyInvitationsRepository,
+    val serverBoards: ServerBoardsRepository,
+    val boardAccess: BoardAccessRepository,
 )
 
 // Único puente hacia data.remote: di/ compone esta función sin conocer el cliente HTTP.
@@ -39,5 +45,9 @@ fun createRemoteRepositories(context: Context, scope: CoroutineScope): RemoteRep
     val workspaceMembers = RemoteWorkspaceMembersRepository(remote.client, auth.sessionState, scope)
     val workspaceInvitations = RemoteWorkspaceInvitationsRepository(remote.client, auth.sessionState, scope)
     val myInvitations = RemoteMyInvitationsRepository(remote.client, auth.sessionState, scope)
-    return RemoteRepositories(auth, inbox, live, workspaces, workspaceMembers, workspaceInvitations, myInvitations)
+    val serverBoards = RemoteServerBoardsRepository(remote.client, auth.sessionState, scope)
+    val boardAccess = RemoteBoardAccessRepository(remote.client, auth.sessionState, scope)
+    return RemoteRepositories(
+        auth, inbox, live, workspaces, workspaceMembers, workspaceInvitations, myInvitations, serverBoards, boardAccess,
+    )
 }

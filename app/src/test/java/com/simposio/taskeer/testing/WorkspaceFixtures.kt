@@ -1,5 +1,7 @@
 package com.simposio.taskeer.testing
 
+import com.simposio.taskeer.domain.workspace.BoardMemberOverride
+import com.simposio.taskeer.domain.workspace.ServerBoard
 import com.simposio.taskeer.domain.workspace.Workspace
 import com.simposio.taskeer.domain.workspace.WorkspaceMember
 import com.simposio.taskeer.domain.workspace.WorkspaceRole
@@ -36,4 +38,13 @@ fun member(
     displayName = name,
     role = role,
     createdAt = Instant.parse("2026-10-01T10:00:00Z"),
+)
+
+fun serverBoard(n: Int, name: String = "Tablero $n"): ServerBoard = ServerBoard(uuid(1000 + n), name)
+
+fun boardOverride(memberN: Int, role: WorkspaceRole = WorkspaceRole.VIEWER): BoardMemberOverride = BoardMemberOverride(
+    id = uuid(2000 + memberN),
+    userId = uuid(memberN),
+    role = role,
+    updatedAt = Instant.parse("2026-11-01T10:00:00Z"),
 )

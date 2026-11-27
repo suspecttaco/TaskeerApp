@@ -22,19 +22,22 @@ import com.simposio.taskeer.data.repository.TaskRepository
 import com.simposio.taskeer.domain.date.TimeZoneProvider
 import com.simposio.taskeer.domain.region.RegionPreferences
 import com.simposio.taskeer.testing.FakeAuthRepository
+import com.simposio.taskeer.testing.FakeBoardAccessRepository
 import com.simposio.taskeer.testing.FakeCalendarRepository
 import com.simposio.taskeer.testing.FakeDayWindowSource
-import com.simposio.taskeer.testing.FakePreferencesRepository
 import com.simposio.taskeer.testing.FakeDestinationTaskRepository
 import com.simposio.taskeer.testing.FakeMyInvitationsRepository
 import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
 import com.simposio.taskeer.testing.FakeNotificationInboxRepository
 import com.simposio.taskeer.testing.FakeNotificationLiveChannel
+import com.simposio.taskeer.testing.FakePreferencesRepository
+import com.simposio.taskeer.testing.FakeRoleChangeSignals
 import com.simposio.taskeer.testing.FakeSearchRepository
+import com.simposio.taskeer.testing.FakeServerBoardsRepository
+import com.simposio.taskeer.testing.FakeTaskListRepository
 import com.simposio.taskeer.testing.FakeWorkspaceInvitationsRepository
 import com.simposio.taskeer.testing.FakeWorkspaceMembersRepository
 import com.simposio.taskeer.testing.FakeWorkspaceRepository
-import com.simposio.taskeer.testing.FakeTaskListRepository
 import com.simposio.taskeer.testing.InMemoryCheckpointStore
 import com.simposio.taskeer.testing.RecordingNotifier
 import com.simposio.taskeer.testing.RecordingReminderScheduler
@@ -192,6 +195,9 @@ class AppContainerFactoryTest {
             workspaceMembersRepository = FakeWorkspaceMembersRepository(),
             workspaceInvitationsRepository = FakeWorkspaceInvitationsRepository(),
             myInvitationsRepository = FakeMyInvitationsRepository(),
+            serverBoardsRepository = FakeServerBoardsRepository(),
+            boardAccessRepository = FakeBoardAccessRepository(),
+            roleChangeSignals = FakeRoleChangeSignals(),
         )
 
         val viewModel = AppViewModelFactory(container).create(SubtasksViewModel::class.java)
@@ -231,6 +237,9 @@ class AppContainerFactoryTest {
             workspaceMembersRepository = FakeWorkspaceMembersRepository(),
             workspaceInvitationsRepository = FakeWorkspaceInvitationsRepository(),
             myInvitationsRepository = FakeMyInvitationsRepository(),
+            serverBoardsRepository = FakeServerBoardsRepository(),
+            boardAccessRepository = FakeBoardAccessRepository(),
+            roleChangeSignals = FakeRoleChangeSignals(),
         )
 
         val viewModel = AppViewModelFactory(container).create(MyDayViewModel::class.java)
@@ -268,6 +277,9 @@ class AppContainerFactoryTest {
             workspaceMembersRepository = FakeWorkspaceMembersRepository(),
             workspaceInvitationsRepository = FakeWorkspaceInvitationsRepository(),
             myInvitationsRepository = FakeMyInvitationsRepository(),
+            serverBoardsRepository = FakeServerBoardsRepository(),
+            boardAccessRepository = FakeBoardAccessRepository(),
+            roleChangeSignals = FakeRoleChangeSignals(),
         )
 
         assertSame(planned, container.plannedRepository)
@@ -301,6 +313,9 @@ class AppContainerFactoryTest {
             workspaceMembersRepository = FakeWorkspaceMembersRepository(),
             workspaceInvitationsRepository = FakeWorkspaceInvitationsRepository(),
             myInvitationsRepository = FakeMyInvitationsRepository(),
+            serverBoardsRepository = FakeServerBoardsRepository(),
+            boardAccessRepository = FakeBoardAccessRepository(),
+            roleChangeSignals = FakeRoleChangeSignals(),
         )
 
         val viewModel = AppViewModelFactory(container).create(RemindersViewModel::class.java)
@@ -403,6 +418,22 @@ class AppContainerFactoryTest {
         completedAt = null,
         deletedAt = null,
     )
+
+    @Test
+    fun createAppContainer_exponeLosRepositoriosDeTablerosDelServidor() {
+        val body = factorySource().substringAfter("fun createAppContainer(").substringBefore("// La lectura inicial")
+
+        assertTrue(body.contains("serverBoardsRepository = remote.serverBoards"))
+        assertTrue(body.contains("boardAccessRepository = remote.boardAccess"))
+    }
+
+    @Test
+    fun createAppContainer_derivaLaSenalDeRolDelCanalExistente() {
+        val body = factorySource().substringAfter("fun createAppContainer(").substringBefore("// La lectura inicial")
+
+        assertTrue(body.contains("roleChangeSignals = LiveRoleChangeSignals(remote.inbox, remote.live)"))
+        assertEquals(1, Regex("notificationLiveChannel = remote\\.live").findAll(body).count())
+    }
 
     @Test
     fun createAppContainer_construyeLosRepositoriosRemotosPorElPuenteDataAuth() {

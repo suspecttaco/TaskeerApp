@@ -45,6 +45,8 @@ class AppDestinationTest {
                 "WORKSPACES" to "workspaces",
                 "WORKSPACE_INVITATIONS" to "workspaces/invitations",
                 "WORKSPACE_MEMBERS" to "workspaces/{workspaceId}/members",
+                "WORKSPACE_BOARDS" to "workspaces/{workspaceId}/boards",
+                "BOARD_ACCESS" to "workspaces/{workspaceId}/boards/{boardId}/access",
                 "SETTINGS" to "settings",
                 "LOGIN" to "login",
                 "REGISTER" to "register",
@@ -97,6 +99,21 @@ class AppDestinationTest {
     fun workspaceMembersRoute_llevaElWorkspace() {
         assertEquals("workspaces/abc/members", AppDestination.workspaceMembersRoute("abc"))
         assertEquals(AppDestination.WORKSPACE_MEMBERS, AppDestination.fromRoute("workspaces/{workspaceId}/members"))
+    }
+
+    @Test
+    fun workspaceBoardsRoute_llevaElWorkspace() {
+        assertEquals("workspaces/abc/boards", AppDestination.workspaceBoardsRoute("abc"))
+        assertEquals(AppDestination.WORKSPACE_BOARDS, AppDestination.fromRoute("workspaces/{workspaceId}/boards"))
+    }
+
+    @Test
+    fun boardAccessRoute_llevaWorkspaceYTablero() {
+        assertEquals("workspaces/abc/boards/xyz/access", AppDestination.boardAccessRoute("abc", "xyz"))
+        assertEquals(
+            AppDestination.BOARD_ACCESS,
+            AppDestination.fromRoute("workspaces/{workspaceId}/boards/{boardId}/access"),
+        )
     }
 
     @Test

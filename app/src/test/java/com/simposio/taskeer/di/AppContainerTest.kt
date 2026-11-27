@@ -1,6 +1,7 @@
 package com.simposio.taskeer.di
 
 import com.simposio.taskeer.data.reminder.ReminderReconciler
+import com.simposio.taskeer.data.repository.BoardAccessRepository
 import com.simposio.taskeer.data.repository.BoardRepository
 import com.simposio.taskeer.data.repository.CalendarRepository
 import com.simposio.taskeer.data.repository.ColumnRepository
@@ -9,6 +10,8 @@ import com.simposio.taskeer.data.repository.MyDayRepository
 import com.simposio.taskeer.data.repository.PlannedRepository
 import com.simposio.taskeer.data.repository.PreferencesRepository
 import com.simposio.taskeer.data.repository.ReminderRepository
+import com.simposio.taskeer.data.repository.RoleChangeSignals
+import com.simposio.taskeer.data.repository.ServerBoardsRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskListRepository
 import com.simposio.taskeer.data.repository.TaskRepository
@@ -31,19 +34,22 @@ import com.simposio.taskeer.domain.model.TaskDraft
 import com.simposio.taskeer.domain.planned.AllTasksView
 import com.simposio.taskeer.domain.planned.UpcomingDay
 import com.simposio.taskeer.testing.FakeAuthRepository
+import com.simposio.taskeer.testing.FakeBoardAccessRepository
 import com.simposio.taskeer.testing.FakeCalendarRepository
 import com.simposio.taskeer.testing.FakeDayWindowSource
-import com.simposio.taskeer.testing.FakePreferencesRepository
-import com.simposio.taskeer.testing.FakeReminderRepository
 import com.simposio.taskeer.testing.FakeMyInvitationsRepository
 import com.simposio.taskeer.testing.FakeNotificationHistoryRepository
 import com.simposio.taskeer.testing.FakeNotificationInboxRepository
 import com.simposio.taskeer.testing.FakeNotificationLiveChannel
+import com.simposio.taskeer.testing.FakePreferencesRepository
+import com.simposio.taskeer.testing.FakeReminderRepository
+import com.simposio.taskeer.testing.FakeRoleChangeSignals
 import com.simposio.taskeer.testing.FakeSearchRepository
+import com.simposio.taskeer.testing.FakeServerBoardsRepository
+import com.simposio.taskeer.testing.FakeTaskListRepository
 import com.simposio.taskeer.testing.FakeWorkspaceInvitationsRepository
 import com.simposio.taskeer.testing.FakeWorkspaceMembersRepository
 import com.simposio.taskeer.testing.FakeWorkspaceRepository
-import com.simposio.taskeer.testing.FakeTaskListRepository
 import com.simposio.taskeer.testing.InMemoryCheckpointStore
 import com.simposio.taskeer.testing.RecordingNotifier
 import com.simposio.taskeer.testing.RecordingReminderScheduler
@@ -185,6 +191,27 @@ class AppContainerTest {
         assertSame(reminders, container(reminderRepository = reminders).reminderRepository)
     }
 
+    @Test
+    fun expone_serverBoardsRepository() {
+        val boards = FakeServerBoardsRepository()
+
+        assertSame(boards, container(serverBoardsRepository = boards).serverBoardsRepository)
+    }
+
+    @Test
+    fun expone_boardAccessRepository() {
+        val access = FakeBoardAccessRepository()
+
+        assertSame(access, container(boardAccessRepository = access).boardAccessRepository)
+    }
+
+    @Test
+    fun expone_roleChangeSignals() {
+        val signals = FakeRoleChangeSignals()
+
+        assertSame(signals, container(roleChangeSignals = signals).roleChangeSignals)
+    }
+
     private fun container(
         preferencesRepository: PreferencesRepository = FakePreferencesRepository(),
         boardRepository: BoardRepository = FakeBoardRepository(),
@@ -203,6 +230,9 @@ class AppContainerTest {
         firstDayOfWeek: FirstDayOfWeekProvider = FirstDayOfWeekProvider { DayOfWeek.MONDAY },
         calendarReadGranted: () -> Boolean = { false },
         calendarWriteGranted: () -> Boolean = { false },
+        serverBoardsRepository: ServerBoardsRepository = FakeServerBoardsRepository(),
+        boardAccessRepository: BoardAccessRepository = FakeBoardAccessRepository(),
+        roleChangeSignals: RoleChangeSignals = FakeRoleChangeSignals(),
     ): AppContainer = AppContainer(
         preferencesRepository = preferencesRepository,
         timeZoneProvider = TimeZoneProvider { auckland },
@@ -226,6 +256,9 @@ class AppContainerTest {
         workspaceMembersRepository = FakeWorkspaceMembersRepository(),
         workspaceInvitationsRepository = FakeWorkspaceInvitationsRepository(),
         myInvitationsRepository = FakeMyInvitationsRepository(),
+        serverBoardsRepository = serverBoardsRepository,
+        boardAccessRepository = boardAccessRepository,
+        roleChangeSignals = roleChangeSignals,
         firstDayOfWeek = firstDayOfWeek,
         calendarReadGranted = calendarReadGranted,
         calendarWriteGranted = calendarWriteGranted,
@@ -394,6 +427,9 @@ class AppContainerTest {
             workspaceMembersRepository = FakeWorkspaceMembersRepository(),
             workspaceInvitationsRepository = FakeWorkspaceInvitationsRepository(),
             myInvitationsRepository = FakeMyInvitationsRepository(),
+            serverBoardsRepository = FakeServerBoardsRepository(),
+            boardAccessRepository = FakeBoardAccessRepository(),
+            roleChangeSignals = FakeRoleChangeSignals(),
         )
 
         assertSame(auth, container.authRepository)

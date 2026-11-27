@@ -80,4 +80,27 @@ class WorkspaceLocalIsolationTest {
 
         assertTrue(!viewModel.contains("BoardRepository") && !viewModel.contains("TaskRepository") && !viewModel.contains("Dao"))
     }
+
+    @Test
+    fun tablerosDelServidor_noTocaRoom() {
+        val files = MainSources.kotlinFiles("data/remote/boards").map { it.name to it.readText() } + listOf(
+            "ServerBoardsViewModel.kt" to MainSources.kotlin("ui/workspaces/ServerBoardsViewModel.kt"),
+            "BoardAccessViewModel.kt" to MainSources.kotlin("ui/workspaces/BoardAccessViewModel.kt"),
+            "BoardRoleRules.kt" to MainSources.kotlin("domain/workspace/BoardRoleRules.kt"),
+        )
+        val localRepositories = listOf(
+            "BoardRepository", "ColumnRepository", "TaskRepository", "TaskListRepository", "SubtaskRepository",
+            "ReminderRepository", "PreferencesRepository", "MyDayRepository", "PlannedRepository",
+        )
+
+        val violations = files.flatMap { (name, source) ->
+            source.lines().map { it.trim() }.filter { it.startsWith("import ") }.filter { line ->
+                line.contains("data.local") || line.contains("androidx.room") ||
+                    localRepositories.any { line.endsWith(".$it") || line.endsWith(".${it}Impl") }
+            }.map { "$name: $it" }
+        }
+
+        assertTrue("los tableros del servidor no deben tocar datos locales: $violations", violations.isEmpty())
+        assertTrue(files.size >= 5)
+    }
 }

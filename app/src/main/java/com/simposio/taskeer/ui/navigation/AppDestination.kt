@@ -14,6 +14,8 @@ enum class AppDestination(val route: String) {
     WORKSPACES("workspaces"),
     WORKSPACE_INVITATIONS("workspaces/invitations"),
     WORKSPACE_MEMBERS("workspaces/{workspaceId}/members"),
+    WORKSPACE_BOARDS("workspaces/{workspaceId}/boards"),
+    BOARD_ACCESS("workspaces/{workspaceId}/boards/{boardId}/access"),
     SETTINGS("settings"),
     LOGIN("login"),
     REGISTER("register"),
@@ -36,6 +38,11 @@ enum class AppDestination(val route: String) {
         fun boardColumnsRoute(boardId: String): String = "board_columns/$boardId"
 
         fun workspaceMembersRoute(workspaceId: String): String = "workspaces/$workspaceId/members"
+
+        fun workspaceBoardsRoute(workspaceId: String): String = "workspaces/$workspaceId/boards"
+
+        fun boardAccessRoute(workspaceId: String, boardId: String): String =
+            "workspaces/$workspaceId/boards/$boardId/access"
 
         fun listRoute(listId: String): String = "list/$listId"
 

@@ -3,11 +3,15 @@ package com.simposio.taskeer.data.repository
 import com.simposio.taskeer.domain.notification.InboxOutcome
 import com.simposio.taskeer.domain.notification.InboxState
 import com.simposio.taskeer.domain.notification.ServerNotification
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
 // Bandeja de notificaciones del servidor: estado solo en memoria, sin persistencia local.
 interface NotificationInboxRepository {
     val state: StateFlow<InboxState>
+
+    // Solo lo que `applyLive` acepta: sin duplicadas, sin borradas localmente y con sesión. No transporta nada más que la notificación.
+    val liveArrivals: SharedFlow<ServerNotification>
 
     suspend fun refreshUnread(): InboxOutcome
 

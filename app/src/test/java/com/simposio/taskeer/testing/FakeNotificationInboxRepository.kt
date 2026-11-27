@@ -5,12 +5,17 @@ import com.simposio.taskeer.domain.notification.InboxOutcome
 import com.simposio.taskeer.domain.notification.InboxRules
 import com.simposio.taskeer.domain.notification.InboxState
 import com.simposio.taskeer.domain.notification.ServerNotification
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
 class FakeNotificationInboxRepository(initial: InboxState = InboxState()) : NotificationInboxRepository {
     val mutableState = MutableStateFlow(initial)
     override val state: StateFlow<InboxState> = mutableState
+
+    val mutableLiveArrivals = MutableSharedFlow<ServerNotification>(extraBufferCapacity = 16)
+    override val liveArrivals: SharedFlow<ServerNotification> = mutableLiveArrivals
 
     var result: InboxOutcome = InboxOutcome.Done
     var refreshItems: List<ServerNotification>? = null
@@ -39,6 +44,7 @@ class FakeNotificationInboxRepository(initial: InboxState = InboxState()) : Noti
         liveApplied += notification
         val current = mutableState.value
         if (current.items.any { it.id == notification.id }) return
+        mutableLiveArrivals.tryEmit(notification)
         mutableState.value = if (current.listLoaded) {
             val items = InboxRules.mergeLive(current.items, listOf(notification))
             current.copy(items = items, unreadCount = InboxRules.unreadCount(items))
