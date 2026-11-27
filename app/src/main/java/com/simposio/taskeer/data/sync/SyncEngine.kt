@@ -52,6 +52,7 @@ class SyncEngine(
     private val appScope: Set<SyncEntity> = SyncScope.APP_FULL,
     private val minAutomaticSpacing: Duration = MIN_AUTOMATIC_SPACING,
     private val onRemindersChanged: suspend () -> Unit = {},
+    private val debugLog: SyncDebugLog = SyncDebugLog.None,
 ) {
     private val cycleLock = Mutex()
     private val paused = MutableStateFlow<PauseReason?>(null)
@@ -102,7 +103,7 @@ class SyncEngine(
         cycleLock.withLock {
             lastCycleStart = clock()
             try {
-                cycle(manual)
+                loggedCycle(manual)
             } finally {
                 syncing.value = false
             }
@@ -142,28 +143,43 @@ class SyncEngine(
     suspend fun runScheduledCycle(): CycleOutcome = cycleLock.withLock {
         lastCycleStart = clock()
         try {
-            cycle(manual = false)
+            loggedCycle(manual = false)
         } finally {
             syncing.value = false
         }
+    }
+
+    private suspend fun loggedCycle(manual: Boolean): CycleOutcome {
+        val start = clock()
+        debugLog.line("cycle start manual=$manual")
+        val outcome = cycle(manual)
+        val millis = Duration.between(start, clock()).toMillis()
+        debugLog.line("cycle end outcome=$outcome paused=${paused.value} error=${cycleError.value} ms=$millis")
+        return outcome
     }
 
     private suspend fun cycle(manual: Boolean): CycleOutcome {
         val ready = when (val acquisition = source.acquire()) {
             is Acquisition.Ready -> acquisition
             is Acquisition.Paused -> {
+                debugLog.line("acquire paused reason=${acquisition.reason}")
                 paused.value = acquisition.reason
                 return CycleOutcome.PAUSED
             }
             is Acquisition.Retry -> {
+                debugLog.line("acquire retry after=${acquisition.after}")
                 retry.schedule(acquisition.after ?: BackoffRules.INITIAL)
                 return CycleOutcome.DEFERRED
             }
-            Acquisition.Unauthorized -> return CycleOutcome.NO_SESSION
+            Acquisition.Unauthorized -> {
+                debugLog.line("acquire unauthorized")
+                return CycleOutcome.NO_SESSION
+            }
         }
         if (paused.value == PauseReason.SERVER_NOT_READY || paused.value == PauseReason.UPDATE_REQUIRED) paused.value = null
         when (val decision = gate.evaluate(ready.identity)) {
             is GateDecision.Mismatch -> {
+                debugLog.line("gate account mismatch")
                 paused.value = PauseReason.ACCOUNT_MISMATCH
                 accountPrompt.value = true
                 return CycleOutcome.PAUSED
@@ -208,6 +224,7 @@ class SyncEngine(
         val me = ready.identity.userId
         val losses = mutableListOf<SyncLoss>()
         var allowed: Set<Pair<SyncEntity, String>>? = null
+        val tally = PushTally()
         for (pass in 0..1) {
             val ops = store.eligible(clock(), ignoreBackoff = manual).filter { allowed == null || (it.entity to it.entityId) in allowed!! }
             if (ops.isEmpty()) break
@@ -217,14 +234,40 @@ class SyncEngine(
             val deferred = mutableSetOf<Pair<SyncEntity, String>>()
             val batches = SyncOrderRules.order(prepared.values.map { it.op }).map { batch -> batch.map { prepared.getValue(it.mutationId) } }
             for (batch in batches) {
-                if (send(ready.transport, batch, me, retryDependency = pass == 0, deferred, losses) == Step.STOP) {
+                if (send(ready.transport, batch, me, retryDependency = pass == 0, deferred, losses, tally) == Step.STOP) {
+                    debugLog.line("push summary $tally stopped=true")
                     return PushReport(losses, stopped = true)
                 }
             }
             if (deferred.isEmpty()) break
             allowed = deferred
         }
+        debugLog.line("push summary $tally stopped=false")
         return PushReport(losses, stopped = false)
+    }
+
+    private class PushTally {
+        var applied = 0
+        var rejected = 0
+        var conflict = 0
+        var missing = 0
+
+        override fun toString() = "applied=$applied rejected=$rejected conflict=$conflict missing=$missing"
+    }
+
+    private fun logMutation(prepared: PreparedOp, outcome: PushOutcome?, effect: OutcomeEffect?) {
+        val m = prepared.mutation
+        val head = "push mutation entity=${m.entity.wireName} op=${m.op.name.lowercase()} id=${m.id} mid=${m.clientMutationId} base=${m.baseUpdatedAt}"
+        if (outcome == null) {
+            debugLog.line("$head verdict=missing data=${m.data}")
+            return
+        }
+        val line = "$head verdict=${describe(outcome)} effect=$effect"
+        if (outcome is PushOutcome.Applied) {
+            debugLog.line(line)
+        } else {
+            debugLog.line("$line data=${m.data} server=${outcomeRecord(outcome)?.let(::describe)}")
+        }
     }
 
     private suspend fun send(
@@ -234,8 +277,12 @@ class SyncEngine(
         retryDependency: Boolean,
         deferred: MutableSet<Pair<SyncEntity, String>>,
         losses: MutableList<SyncLoss>,
+        tally: PushTally,
     ): Step {
-        when (val result = transport.push(batch.map { it.mutation })) {
+        debugLog.line("push batch size=${batch.size} retryDependency=$retryDependency")
+        val result = transport.push(batch.map { it.mutation })
+        if (result !is TransportResult.Ok) debugLog.line("push batch result=${describe(result)}")
+        when (result) {
             is TransportResult.Ok -> {
                 val outcomes = result.value.associateBy { it.clientMutationId }
                 var missing = false
@@ -243,10 +290,18 @@ class SyncEngine(
                     val outcome = outcomes[prepared.op.mutationId]
                     if (outcome == null) {
                         missing = true
+                        tally.missing++
+                        logMutation(prepared, null, null)
                         scheduleBackoff(prepared, null)
                         continue
                     }
                     val effect = store.applyOutcome(prepared, outcome, me, clock(), retryDependency)
+                    when (outcome) {
+                        is PushOutcome.Applied -> tally.applied++
+                        is PushOutcome.Conflict -> tally.conflict++
+                        is PushOutcome.Rejected -> tally.rejected++
+                    }
+                    logMutation(prepared, outcome, effect)
                     if (effect == OutcomeEffect.RETRY_AFTER_PARENT) deferred += prepared.op.entity to prepared.op.entityId else effect.loss?.let(losses::add)
                 }
                 if (missing) cycleError.value = SyncErrorKind.UNEXPECTED_RESPONSE else cycleError.value = null
@@ -263,7 +318,7 @@ class SyncEngine(
                     return Step.CONTINUE
                 }
                 for (half in batch.chunked((batch.size + 1) / 2)) {
-                    if (send(transport, half, me, retryDependency, deferred, losses) == Step.STOP) return Step.STOP
+                    if (send(transport, half, me, retryDependency, deferred, losses, tally) == Step.STOP) return Step.STOP
                 }
                 return Step.CONTINUE
             }
@@ -288,10 +343,19 @@ class SyncEngine(
         var cursor = store.meta(SyncMetaKeys.CURSOR)
         var seen: MutableSet<Pair<SyncEntity, String>>? = null
         var cursorReset = false
+        var pages = 0
         while (true) {
-            when (val result = ready.transport.pull(cursor, PULL_PAGE_LIMIT)) {
+            val result = ready.transport.pull(cursor, PULL_PAGE_LIMIT)
+            if (result !is TransportResult.Ok) debugLog.line("pull result=${describe(result)} cursor=$cursor")
+            when (result) {
                 is TransportResult.Ok -> {
                     val page = result.value
+                    pages++
+                    val perEntity = page.records.groupingBy { it.entity.wireName }.eachCount()
+                    debugLog.line(
+                        "pull page=$pages cursor=$cursor next=${page.nextCursor} snapshot=${page.isSnapshot} " +
+                            "hasMore=${page.hasMore} records=${page.records.size} byEntity=$perEntity",
+                    )
                     if (page.userId != me) {
                         paused.value = PauseReason.ACCOUNT_MISMATCH
                         accountPrompt.value = true

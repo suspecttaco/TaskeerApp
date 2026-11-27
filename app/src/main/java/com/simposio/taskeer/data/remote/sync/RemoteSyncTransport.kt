@@ -10,12 +10,16 @@ import com.simposio.taskeer.data.sync.PushMutation
 import com.simposio.taskeer.data.sync.PushOutcome
 import com.simposio.taskeer.data.sync.RetryKind
 import com.simposio.taskeer.data.sync.SyncCodes
+import com.simposio.taskeer.data.sync.SyncDebugLog
 import com.simposio.taskeer.data.sync.SyncTransport
 import com.simposio.taskeer.data.sync.TransportResult
 import com.simposio.taskeer.domain.model.DomainError
 import java.time.Duration
 
-class RemoteSyncTransport(private val client: ApiClient) : SyncTransport {
+class RemoteSyncTransport(
+    private val client: ApiClient,
+    private val debugLog: SyncDebugLog = SyncDebugLog.None,
+) : SyncTransport {
 
     private val headers = mapOf(SyncApiContract.HEADER to SyncApiContract.VERSION)
 
@@ -28,10 +32,10 @@ class RemoteSyncTransport(private val client: ApiClient) : SyncTransport {
         )
         return when (val result = client.execute(request)) {
             is ApiResult.Failure -> failure(result)
-            is ApiResult.Success -> when (val parsed = SyncApiContract.parsePush(result.response.body, batch)) {
+            is ApiResult.Success -> when (val parsed = SyncApiContract.parsePush(result.response.body, batch) { debugLog.line("push parse discard: $it") }) {
                 is SyncApiContract.Parsed.Ok -> TransportResult.Ok(parsed.value)
                 SyncApiContract.Parsed.UpdateRequired -> TransportResult.UpdateRequired
-                SyncApiContract.Parsed.Malformed -> TransportResult.Retry(null, RetryKind.SERVER)
+                SyncApiContract.Parsed.Malformed -> TransportResult.Retry(null, RetryKind.SERVER).also { debugLog.line("push response malformed") }
             }
         }
     }
@@ -41,10 +45,10 @@ class RemoteSyncTransport(private val client: ApiClient) : SyncTransport {
         val request = ApiRequest(HttpMethod.GET, SyncApiContract.CHANGES_PATH, query = query, headers = headers)
         return when (val result = client.execute(request)) {
             is ApiResult.Failure -> failure(result)
-            is ApiResult.Success -> when (val parsed = SyncApiContract.parsePull(result.response.body)) {
+            is ApiResult.Success -> when (val parsed = SyncApiContract.parsePull(result.response.body) { debugLog.line("pull parse discard: $it") }) {
                 is SyncApiContract.Parsed.Ok -> TransportResult.Ok(parsed.value)
                 SyncApiContract.Parsed.UpdateRequired -> TransportResult.UpdateRequired
-                SyncApiContract.Parsed.Malformed -> TransportResult.Retry(null, RetryKind.SERVER)
+                SyncApiContract.Parsed.Malformed -> TransportResult.Retry(null, RetryKind.SERVER).also { debugLog.line("pull response malformed") }
             }
         }
     }
