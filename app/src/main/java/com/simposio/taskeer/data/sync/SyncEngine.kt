@@ -59,6 +59,7 @@ class SyncEngine(
     private val accountPrompt = MutableStateFlow(false)
     private val mutableNotices = MutableSharedFlow<SyncNotice>(extraBufferCapacity = 8)
     private var lastCycleStart: Instant? = null
+    private var pullFailures = 0
 
     val notices: SharedFlow<SyncNotice> = mutableNotices.asSharedFlow()
 
@@ -162,8 +163,10 @@ class SyncEngine(
         scopeHolder.update(effective)
         markIfScopeGrew(effective)
         store.collect(clock())
-        val report = push(ready, manual)
-        finish(report)
+        val pushReport = push(ready, manual)
+        // Sin envío completo no se trae nada: la red o el servidor fallaron y la lectura toparía con lo mismo.
+        val pullReport = if (pushReport.stopped) null else pull(ready)
+        finish(pushReport, pullReport)
     }
 
     // Lo que no estaba en alcance conserva pending; al entrar en alcance necesita una marca nueva, como un primer sync parcial.
@@ -175,6 +178,8 @@ class SyncEngine(
     }
 
     private class PushReport(val losses: List<SyncLoss>, val stopped: Boolean)
+
+    private class PullReport(val losses: List<SyncLoss>, val stopped: Boolean)
 
     private enum class Step { CONTINUE, STOP }
 
@@ -254,16 +259,73 @@ class SyncEngine(
         }
     }
 
+    // Páginas hasta `hasMore = false`, cada una en su transacción. Un snapshot (sin cursor, o forzado por el servidor) solo
+    // guarda el cursor y reconcilia ausencias al completarse; si se corta, la siguiente vez empieza desde cero.
+    private suspend fun pull(ready: Acquisition.Ready): PullReport {
+        val me = ready.identity.userId
+        val losses = mutableListOf<SyncLoss>()
+        var cursor = store.meta(SyncMetaKeys.CURSOR)
+        var seen: MutableSet<Pair<SyncEntity, String>>? = null
+        var cursorReset = false
+        while (true) {
+            when (val result = ready.transport.pull(cursor, PULL_PAGE_LIMIT)) {
+                is TransportResult.Ok -> {
+                    val page = result.value
+                    if (page.userId != me) {
+                        paused.value = PauseReason.ACCOUNT_MISMATCH
+                        accountPrompt.value = true
+                        return PullReport(losses, stopped = true)
+                    }
+                    pullFailures = 0
+                    if (page.isSnapshot && seen == null) seen = mutableSetOf()
+                    seen?.addAll(page.records.map { it.entity to it.id })
+                    val commit = when {
+                        seen == null -> PageCommit.SaveCursor
+                        page.hasMore -> PageCommit.KeepCursor
+                        else -> PageCommit.FinishSnapshot(seen.toSet())
+                    }
+                    losses += store.applyPage(page, me, clock(), commit).losses
+                    if (!page.hasMore) return PullReport(losses, stopped = false)
+                    cursor = page.nextCursor
+                }
+                is TransportResult.Invalid ->
+                    if (result.code == SyncCodes.INVALID_CURSOR && !cursorReset) {
+                        cursorReset = true
+                        store.setMeta(SyncMetaKeys.CURSOR, null)
+                        cursor = null
+                        seen = null
+                    } else {
+                        cycleError.value = SyncErrorKind.UNEXPECTED_RESPONSE
+                        return PullReport(losses, stopped = true)
+                    }
+                is TransportResult.Retry -> {
+                    retry.schedule(BackoffRules.delayFor(pullFailures++, result.after, BackoffRules.jitterFrom(random)))
+                    return PullReport(losses, stopped = true)
+                }
+                TransportResult.Unauthorized -> return PullReport(losses, stopped = true)
+                TransportResult.UpdateRequired -> {
+                    paused.value = PauseReason.UPDATE_REQUIRED
+                    return PullReport(losses, stopped = true)
+                }
+                TransportResult.NotAvailable -> {
+                    paused.value = PauseReason.SERVER_NOT_READY
+                    source.invalidate()
+                    return PullReport(losses, stopped = true)
+                }
+            }
+        }
+    }
+
     private suspend fun scheduleBackoff(prepared: PreparedOp, retryAfter: Duration?) {
         val delay = BackoffRules.delayFor(prepared.op.attempts, retryAfter, BackoffRules.jitterFrom(random))
         store.recordTransientFailure(prepared.op, clock() + delay)
     }
 
-    private suspend fun finish(report: PushReport) {
-        SyncNoticeRules.summarize(report.losses)?.let { mutableNotices.tryEmit(it) }
+    private suspend fun finish(push: PushReport, pull: PullReport?) {
+        SyncNoticeRules.summarize(push.losses + pull?.losses.orEmpty())?.let { mutableNotices.tryEmit(it) }
         val now = clock()
         store.nextWake(now)?.let { retry.schedule(maxOf(Duration.between(now, it), Duration.ZERO)) }
-        if (!report.stopped && paused.value == null) {
+        if (pull != null && !pull.stopped && paused.value == null) {
             lastSynced.value = now
             store.setMeta(SyncMetaKeys.LAST_SYNCED_AT, now.toEpochMilli().toString())
         }
@@ -279,5 +341,6 @@ class SyncEngine(
 
     private companion object {
         val MIN_AUTOMATIC_SPACING: Duration = Duration.ofSeconds(10)
+        const val PULL_PAGE_LIMIT = 200
     }
 }

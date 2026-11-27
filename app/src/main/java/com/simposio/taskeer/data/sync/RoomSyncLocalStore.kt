@@ -5,16 +5,22 @@ import com.simposio.taskeer.data.local.QUEUE_STATE_STUCK
 import com.simposio.taskeer.data.local.SubtaskEntity
 import com.simposio.taskeer.data.local.SyncDao
 import com.simposio.taskeer.data.local.SyncMetaEntity
+import com.simposio.taskeer.data.local.SyncBaselineEntity
 import com.simposio.taskeer.data.local.SyncQueueEntity
 import com.simposio.taskeer.data.local.SyncableEntity
 import com.simposio.taskeer.data.local.TaskEntity
 import com.simposio.taskeer.data.local.TaskListEntity
 import com.simposio.taskeer.domain.model.newClientId
 import com.simposio.taskeer.domain.sync.AssigneeMapping
+import com.simposio.taskeer.domain.sync.ConflictRules
+import com.simposio.taskeer.domain.sync.ConflictVerdict
 import com.simposio.taskeer.domain.sync.DeletionGraceRules
+import com.simposio.taskeer.domain.sync.LocalVersion
 import com.simposio.taskeer.domain.sync.QueuedOp
 import com.simposio.taskeer.domain.sync.ScopeRow
+import com.simposio.taskeer.domain.sync.ServerVersion
 import com.simposio.taskeer.domain.sync.SyncEntity
+import com.simposio.taskeer.domain.sync.SyncLoss
 import com.simposio.taskeer.domain.sync.SyncOp
 import com.simposio.taskeer.domain.sync.SyncScope
 import com.simposio.taskeer.domain.sync.SyncStatusRules
@@ -304,6 +310,144 @@ class RoomSyncLocalStore(
         return OutcomeEffect.REVERTED
     }
 
+    override suspend fun applyPage(page: PullPage, me: String, now: Instant, commit: PageCommit): PageEffect {
+        // El alcance de la página es lo que el servidor declara completo: lo demás ni se aplica ni se reconcilia.
+        val scope = scopeHolder.scope.value intersect page.supportedEntities
+        val losses = mutableListOf<SyncLoss>()
+        dao.inTransaction {
+            page.records.forEach { applyRecord(it, scope, me, now, losses) }
+            when (commit) {
+                PageCommit.KeepCursor -> Unit
+                PageCommit.SaveCursor -> dao.upsertMeta(SyncMetaEntity(SyncMetaKeys.CURSOR, page.nextCursor))
+                is PageCommit.FinishSnapshot -> {
+                    reconcileAbsent(commit.seen, scope, now)
+                    dao.upsertMeta(SyncMetaEntity(SyncMetaKeys.CURSOR, page.nextCursor))
+                }
+            }
+        }
+        return PageEffect(losses)
+    }
+
+    private suspend fun applyRecord(record: ServerRecord, scope: Set<SyncEntity>, me: String, now: Instant, losses: MutableList<SyncLoss>) {
+        if (record.entity !in PULLED || !recordInScope(record, scope)) return
+        val serverMillis = record.updatedAt.toEpochMilli()
+        val base = dao.baseline(record.entity.wireName, record.id)?.serverUpdatedAt
+        // Una versión ya conocida (o más vieja) no cambia nada: así repetir una página no pisa ni resucita filas.
+        if (base != null && serverMillis <= base) return
+        val row = rowOf(record.entity, record.id)
+        when {
+            // Un tombstone de algo que no existe aquí solo deja la versión conocida; una fila sin forma utilizable no se registra.
+            row == null -> if (!record.isDeleted) save(record.toNewRow(me) ?: return)
+            !row.pending -> save(row.adoptedFrom(record, me))
+            else -> resolvePending(row, record, base, me, now, losses)
+        }
+        recordBaseline(record)
+    }
+
+    // Fila con cambios sin enviar frente a un registro más nuevo del servidor: misma regla que aplica el servidor (R10).
+    private suspend fun resolvePending(
+        row: SyncableEntity,
+        record: ServerRecord,
+        base: Long?,
+        me: String,
+        now: Instant,
+        losses: MutableList<SyncLoss>,
+    ) {
+        val localDeleted = row.deletedAt != null
+        val sameContent = !record.isDeleted && !localDeleted &&
+            row.adoptedFrom(record, me).stamped(row.updatedAt, row.pending, row.deletedAt) == row
+        when {
+            // El registro que el servidor ya tiene coincide con el local: no hay conflicto y el envío será un no-op.
+            sameContent -> Unit
+            record.isDeleted && localDeleted -> {
+                save(row.adoptedFrom(record, me))
+                dropQueueEntry(record.entity, record.id)
+            }
+            else -> {
+                val server = ServerVersion(record.updatedAt, record.isDeleted)
+                val local = LocalVersion(Instant.ofEpochMilli(row.updatedAt), localDeleted)
+                val verdict = ConflictRules.resolve(base?.let(Instant::ofEpochMilli), server, local, now)
+                if (verdict == ConflictVerdict.ServerWins) {
+                    save(row.adoptedFrom(record, me))
+                    dropQueueEntry(record.entity, record.id)
+                    losses += if (record.isDeleted) SyncLoss.DELETED_BY_SERVER else SyncLoss.REPLACED_BY_SERVER
+                }
+            }
+        }
+    }
+
+    private suspend fun recordBaseline(record: ServerRecord) =
+        dao.upsertBaseline(SyncBaselineEntity(record.entity.wireName, record.id, record.updatedAt.toEpochMilli()))
+
+    private suspend fun dropQueueEntry(entity: SyncEntity, id: String) {
+        dao.queueEntry(entity.wireName, id)?.let { dao.removeQueue(it.mutationId) }
+    }
+
+    private suspend fun save(row: SyncableEntity) {
+        when (row) {
+            is TaskListEntity -> dao.upsertList(row)
+            is TaskEntity -> dao.upsertTask(row)
+            is SubtaskEntity -> dao.upsertSubtask(row)
+        }
+    }
+
+    // Una tarea que llega sin forma (tombstone mínimo) hereda la de su fila local; sin ninguna de las dos no hay nada que decidir.
+    private suspend fun recordInScope(record: ServerRecord, scope: Set<SyncEntity>): Boolean = when (record.entity) {
+        SyncEntity.LIST -> SyncEntity.LIST in scope
+        SyncEntity.TASK -> {
+            val shape = recordShape(record) ?: dao.findTask(record.id)?.shape()
+            if (shape != null) SyncScope.allows(SyncEntity.TASK, shape, scope) else SyncEntity.TASK in scope
+        }
+        SyncEntity.SUBTASK -> {
+            val taskId = record.fields["taskId"] as? String ?: dao.findSubtask(record.id)?.taskId
+            val parent = taskId?.let { dao.findTask(it) }?.shape()
+            // Un hijo puede llegar antes que su padre: se guarda y no se muestra hasta que el padre exista.
+            if (parent != null) SyncScope.allows(SyncEntity.SUBTASK, parent, scope) else SyncEntity.SUBTASK in scope
+        }
+        else -> false
+    }
+
+    private fun recordShape(record: ServerRecord): ScopeRow? = when {
+        record.fields["listId"] is String -> ScopeRow(taskInList = true)
+        record.fields["columnId"] is String -> ScopeRow(taskInBoard = true)
+        else -> null
+    }
+
+    // Tras una carga completa, lo que ya estaba sincronizado y no apareció se da por borrado. Lo que nunca llegó al
+    // servidor se conserva (y se vuelve a encolar); lo que está fuera del alcance ni se mira.
+    private suspend fun reconcileAbsent(seen: Set<Pair<SyncEntity, String>>, scope: Set<SyncEntity>, now: Instant) {
+        if (SyncEntity.LIST in scope) {
+            dao.liveLists().filter { (SyncEntity.LIST to it.id) !in seen }.forEach { settleAbsent(SyncEntity.LIST, it, now) }
+        }
+        dao.liveTasks().forEach { task ->
+            val shape = task.shape() ?: return@forEach
+            if (SyncScope.allows(SyncEntity.TASK, shape, scope) && (SyncEntity.TASK to task.id) !in seen) {
+                settleAbsent(SyncEntity.TASK, task, now)
+            }
+        }
+        dao.liveSubtasks().forEach { subtask ->
+            val parent = dao.findTask(subtask.taskId)?.shape() ?: return@forEach
+            if (SyncScope.allows(SyncEntity.SUBTASK, parent, scope) && (SyncEntity.SUBTASK to subtask.id) !in seen) {
+                settleAbsent(SyncEntity.SUBTASK, subtask, now)
+            }
+        }
+    }
+
+    private suspend fun settleAbsent(entity: SyncEntity, row: SyncableEntity, now: Instant) {
+        when {
+            row.pending -> Unit
+            dao.baseline(entity.wireName, row.id) == null -> save(row.stamped(row.updatedAt, pending = true, deletedAt = null))
+            else -> save(row.stamped(row.updatedAt, pending = false, deletedAt = now.toEpochMilli()))
+        }
+    }
+
+    private fun SyncableEntity.stamped(updatedAt: Long, pending: Boolean, deletedAt: Long?): SyncableEntity = when (this) {
+        is TaskListEntity -> copy(updatedAt = updatedAt, pending = pending, deletedAt = deletedAt)
+        is TaskEntity -> copy(updatedAt = updatedAt, pending = pending, deletedAt = deletedAt)
+        is SubtaskEntity -> copy(updatedAt = updatedAt, pending = pending, deletedAt = deletedAt)
+        else -> this
+    }
+
     override suspend fun recordTransientFailure(op: QueuedOp, nextAttemptAt: Instant) {
         val entry = dao.queueEntry(op.entity.wireName, op.entityId) ?: return
         dao.upsertQueue(
@@ -374,6 +518,7 @@ class RoomSyncLocalStore(
     }
 
     private companion object {
+        val PULLED = setOf(SyncEntity.LIST, SyncEntity.TASK, SyncEntity.SUBTASK)
         const val CODE_DEPENDENCY_NOT_FOUND = "DEPENDENCY_NOT_FOUND"
         const val CODE_LIST_NAME_TAKEN = "LIST_NAME_TAKEN"
         const val CODE_TRANSIENT = "TRANSIENT"

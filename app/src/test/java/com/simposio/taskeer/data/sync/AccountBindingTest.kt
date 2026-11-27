@@ -80,10 +80,12 @@ class AccountBindingTest {
     @Test
     fun vinculacion_noAplicaLaPaginaDeIdentify() = runTest {
         seedLocal()
-        backend.seed(SyncEntity.TASK, "remota", mapOf("title" to "ajena"), now)
+        backend.seed(SyncEntity.TASK, "remota", mapOf("title" to "ajena", "listId" to SeededListId.forUser(USER_A)), now)
+        backend.failPullCalls += 1
 
         engine().runCycle(manual = false)
 
+        assertEquals(1, backend.identifyCalls)
         assertNull(dao.tasks.value["remota"])
     }
 

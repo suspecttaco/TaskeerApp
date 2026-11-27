@@ -1,9 +1,11 @@
 package com.simposio.taskeer.data.sync
 
 import com.simposio.taskeer.data.local.SubtaskEntity
+import com.simposio.taskeer.data.local.SyncableEntity
 import com.simposio.taskeer.data.local.TaskEntity
 import com.simposio.taskeer.data.local.TaskListEntity
 import com.simposio.taskeer.domain.sync.AssigneeMapping
+import com.simposio.taskeer.domain.sync.SyncEntity
 import com.simposio.taskeer.domain.sync.SyncTimestamps
 
 // El registro del servidor sustituye a la fila local. Una clave ausente conserva el valor local: el contrato permite
@@ -69,3 +71,39 @@ internal fun SubtaskEntity.adoptedFrom(record: ServerRecord, me: String): Subtas
         pending = false,
     )
 }
+
+// El servidor no manda createdAt en los registros que nacen de un envío: la versión del servidor lo sustituye.
+private fun ServerRecord.createdAtMillis(): Long = fields["createdAt"].millis() ?: updatedAt.toEpochMilli()
+
+// Fila nueva para un registro vivo que no existe en local. Una tarea sin forma conocida (ni lista ni columna) no es utilizable.
+internal fun ServerRecord.toNewRow(me: String): SyncableEntity? {
+    val created = createdAtMillis()
+    return when (entity) {
+        SyncEntity.LIST -> TaskListEntity(id, "", 0, created, updatedAt.toEpochMilli(), pending = false, deletedAt = null).adoptedFrom(this)
+        SyncEntity.TASK -> {
+            if ((fields["listId"] as? String) == null && (fields["columnId"] as? String) == null) return null
+            TaskEntity(
+                id = id, columnId = null, title = "", description = null, priority = DEFAULT_PRIORITY, dueAt = null,
+                assigneeId = null, position = 0, createdAt = created, completedAt = null,
+                updatedAt = updatedAt.toEpochMilli(), pending = false, deletedAt = null,
+            ).adoptedFrom(this, me)
+        }
+        SyncEntity.SUBTASK -> {
+            if ((fields["taskId"] as? String) == null) return null
+            SubtaskEntity(
+                id = id, taskId = "", title = "", completed = false, position = 0, assigneeId = null, dueAt = null,
+                createdAt = created, updatedAt = updatedAt.toEpochMilli(), pending = false, deletedAt = null,
+            ).adoptedFrom(this, me)
+        }
+        else -> null
+    }
+}
+
+internal fun SyncableEntity.adoptedFrom(record: ServerRecord, me: String): SyncableEntity = when (this) {
+    is TaskListEntity -> adoptedFrom(record)
+    is TaskEntity -> adoptedFrom(record, me)
+    is SubtaskEntity -> adoptedFrom(record, me)
+    else -> error("Entidad no sincronizable: ${this::class.simpleName}")
+}
+
+private const val DEFAULT_PRIORITY = "MEDIUM"

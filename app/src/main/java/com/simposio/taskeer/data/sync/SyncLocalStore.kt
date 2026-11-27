@@ -1,6 +1,7 @@
 package com.simposio.taskeer.data.sync
 
 import com.simposio.taskeer.domain.sync.QueuedOp
+import com.simposio.taskeer.domain.sync.SyncEntity
 import com.simposio.taskeer.domain.sync.SyncLoss
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
@@ -18,8 +19,25 @@ enum class OutcomeEffect(val loss: SyncLoss?) {
     KEPT_FOR_RETRY(null),
 }
 
+// Qué hace applyPage con el cursor al terminar la página.
+sealed interface PageCommit {
+    // Incremental: el cursor avanza con la página, en la misma transacción.
+    data object SaveCursor : PageCommit
+
+    // Snapshot a medias: un corte lo reinicia desde cero, así que el cursor aún no se guarda.
+    data object KeepCursor : PageCommit
+
+    // Última página de un snapshot completo: guarda el cursor y reconcilia lo que no apareció en toda la carga.
+    class FinishSnapshot(val seen: Set<Pair<SyncEntity, String>>) : PageCommit {
+        override fun toString(): String = "FinishSnapshot(seen=${seen.size})"
+    }
+}
+
+class PageEffect(val losses: List<SyncLoss>)
+
 object SyncMetaKeys {
     const val BOUND_USER_ID = "boundUserId"
+    const val CURSOR = "cursor"
     const val LAST_SYNCED_AT = "lastSyncedAt"
     const val MARKED_SCOPE = "markedScope"
 }
@@ -42,6 +60,9 @@ interface SyncLocalStore {
         now: Instant,
         retryDependency: Boolean,
     ): OutcomeEffect
+
+    // Una transacción: filas, versiones base y cursor. Idempotente: una versión ya conocida se omite.
+    suspend fun applyPage(page: PullPage, me: String, now: Instant, commit: PageCommit): PageEffect
 
     suspend fun recordTransientFailure(op: QueuedOp, nextAttemptAt: Instant)
 

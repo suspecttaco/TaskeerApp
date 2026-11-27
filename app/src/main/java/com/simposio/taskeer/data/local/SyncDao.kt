@@ -53,6 +53,15 @@ abstract class SyncDao {
     @Query("SELECT * FROM subtasks WHERE pending = 1")
     abstract suspend fun pendingSubtasks(): List<SubtaskEntity>
 
+    @Query("SELECT * FROM task_lists WHERE deletedAt IS NULL")
+    abstract suspend fun liveLists(): List<TaskListEntity>
+
+    @Query("SELECT * FROM tasks WHERE deletedAt IS NULL")
+    abstract suspend fun liveTasks(): List<TaskEntity>
+
+    @Query("SELECT * FROM subtasks WHERE deletedAt IS NULL")
+    abstract suspend fun liveSubtasks(): List<SubtaskEntity>
+
     @Query("SELECT * FROM task_lists WHERE id = :id")
     abstract suspend fun findList(id: String): TaskListEntity?
 
@@ -196,6 +205,12 @@ abstract class SyncDao {
         upsertSubtask(subtask)
         baseline?.let { upsertBaseline(SyncBaselineEntity(SyncEntity.SUBTASK.wireName, subtask.id, it)) }
         mutationId?.let { removeQueue(it) }
+    }
+
+    // Lectura, decisión y escritura de una página de cambios en un solo bloque: nada puede editarse entre medias.
+    @Transaction
+    open suspend fun inTransaction(block: suspend () -> Unit) {
+        block()
     }
 
     @Transaction

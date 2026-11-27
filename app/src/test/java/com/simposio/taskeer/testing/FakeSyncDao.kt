@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.map
 
 // Las tablas de negocio y de sincronización en memoria. Las operaciones compuestas (@Transaction) ejecutan la
 // implementación real de SyncDao sobre estas filas, así que prueban la misma lógica que Room.
+@Suppress("UNCHECKED_CAST")
 class FakeSyncDao : SyncDao() {
     val lists = MutableStateFlow<Map<String, TaskListEntity>>(emptyMap())
     val tasks = MutableStateFlow<Map<String, TaskEntity>>(emptyMap())
@@ -67,6 +68,36 @@ class FakeSyncDao : SyncDao() {
 
     override suspend fun pendingSubtasks(): List<SubtaskEntity> = subtasks.value.values.filter { it.pending }
 
+    override suspend fun liveLists(): List<TaskListEntity> = lists.value.values.filter { it.deletedAt == null }
+
+    override suspend fun liveTasks(): List<TaskEntity> = tasks.value.values.filter { it.deletedAt == null }
+
+    override suspend fun liveSubtasks(): List<SubtaskEntity> = subtasks.value.values.filter { it.deletedAt == null }
+
+    // Room hace rollback si el bloque lanza; aquí se restaura el estado en memoria para poder probar la atomicidad.
+    var transactions = 0
+        private set
+
+    // Hace fallar la n-ésima escritura de tarea (1 = la primera) para simular un corte a mitad de una página.
+    var failTaskUpsertAt: Int? = null
+    private var taskUpserts = 0
+
+    override suspend fun inTransaction(block: suspend () -> Unit) {
+        transactions++
+        val before = listOf(lists.value, tasks.value, subtasks.value, queueRows.value, baselines.value, metas.value)
+        try {
+            super.inTransaction(block)
+        } catch (error: Throwable) {
+            lists.value = before[0] as Map<String, TaskListEntity>
+            tasks.value = before[1] as Map<String, TaskEntity>
+            subtasks.value = before[2] as Map<String, SubtaskEntity>
+            queueRows.value = before[3] as Map<String, SyncQueueEntity>
+            baselines.value = before[4] as Map<Pair<String, String>, SyncBaselineEntity>
+            metas.value = before[5] as Map<String, String>
+            throw error
+        }
+    }
+
     override suspend fun findList(id: String): TaskListEntity? = lists.value[id]
 
     override suspend fun findTask(id: String): TaskEntity? = tasks.value[id]
@@ -75,7 +106,10 @@ class FakeSyncDao : SyncDao() {
 
     override suspend fun upsertList(list: TaskListEntity) = put(list)
 
-    override suspend fun upsertTask(task: TaskEntity) = put(task)
+    override suspend fun upsertTask(task: TaskEntity) {
+        check(failTaskUpsertAt != ++taskUpserts) { "fallo inyectado al escribir una tarea" }
+        put(task)
+    }
 
     override suspend fun upsertSubtask(subtask: SubtaskEntity) = put(subtask)
 
