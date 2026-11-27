@@ -32,6 +32,11 @@ val hasReleaseSigning = listOf(releaseStoreFile, releaseStorePassword, releaseKe
 // ID de cliente Web de Google Cloud (no es un secreto, pero depende del entorno): vacío oculta el botón de Google.
 val googleWebClientId = providers.gradleProperty("taskeer.googleWebClientId").getOrElse("").trim().replace("\"", "")
 
+// La URL del proyecto de Supabase y la anon key son públicas por diseño, pero dependen del entorno: nunca se versionan.
+// Sin ellas la app compila y el botón de Google queda oculto.
+val supabaseUrl = providers.gradleProperty("taskeer.supabaseUrl").getOrElse("").trim().replace("\"", "")
+val supabaseAnonKey = providers.gradleProperty("taskeer.supabaseAnonKey").getOrElse("").trim().replace("\"", "")
+
 android {
     namespace = "com.simposio.taskeer"
     compileSdk {
@@ -68,6 +73,8 @@ android {
                 .getOrElse("https://backend-taskeerv3-preproduction.onrender.com/api/v1/")
             buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
             buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
+            buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+            buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnonKey\"")
         }
         release {
             buildConfigField(
@@ -76,6 +83,8 @@ android {
                 "\"https://backend-taskeerv3-preproduction.onrender.com/api/v1/\"",
             )
             buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
+            buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+            buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnonKey\"")
             if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
             optimization {
                 enable = true

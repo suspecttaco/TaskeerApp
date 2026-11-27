@@ -102,7 +102,6 @@ fun createAppContainer(context: Context): AppContainer {
     val dayWindowSource = ClockDayWindowSource(Instant::now, timeZoneProvider, zoneChanges = timeZoneProvider.changes)
     val calendarReadGranted = { isGranted(context, Manifest.permission.READ_CALENDAR) }
     val calendarWriteGranted = { isGranted(context, Manifest.permission.WRITE_CALENDAR) }
-    val googleSignInConfig = GoogleSignInConfig(BuildConfig.GOOGLE_WEB_CLIENT_ID)
     val reminderReconciler = ReminderReconciler(
         tasks = taskRepository,
         reminders = reminderRepository,
@@ -117,6 +116,7 @@ fun createAppContainer(context: Context): AppContainer {
         clock = Instant::now,
     )
     val remote = createRemoteRepositories(context, CoroutineScope(SupervisorJob() + Dispatchers.Default))
+    val googleSignInConfig = GoogleSignInConfig(BuildConfig.GOOGLE_WEB_CLIENT_ID, exchangeConfigured = remote.googleExchangeConfigured)
     val syncWiring = createSync(context, database.syncDao(), remote, preferencesRepository) { reminderReconciler.reconcile() }
     val sync = syncWiring.repository
     val roleSignals = LiveRoleChangeSignals(remote.inbox, remote.live)

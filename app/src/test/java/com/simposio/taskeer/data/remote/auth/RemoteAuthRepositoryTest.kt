@@ -59,10 +59,24 @@ class RemoteAuthRepositoryTest {
     private val account = AccountSummary("ana@example.com", "Ana")
     private val network = DomainError.Network("NETWORK_TIMEOUT", "Tiempo agotado")
 
+    // Por defecto el canje devuelve el mismo texto del ID token: así FakeAuthBackend distingue la cuenta por el token.
+    private class FakeGoogleExchange : GoogleTokenExchange {
+        val credentials = mutableListOf<GoogleCredential>()
+        var result: ((GoogleCredential) -> GoogleExchangeResult) = { GoogleExchangeResult.Token(it.idToken) }
+
+        override suspend fun exchange(credential: GoogleCredential): GoogleExchangeResult {
+            credentials += credential
+            return result(credential)
+        }
+    }
+
+    private val exchange = FakeGoogleExchange()
+
     private fun TestScope.repository(
         authSession: AuthSession = session,
         apiClient: RealApiClient = client,
-    ) = RemoteAuthRepository(apiClient, authSession, backgroundScope + UnconfinedTestDispatcher(testScheduler))
+        googleExchange: GoogleTokenExchange? = exchange,
+    ) = RemoteAuthRepository(apiClient, authSession, backgroundScope + UnconfinedTestDispatcher(testScheduler), googleExchange)
 
     private fun loginJson(refresh: String? = "r1", access: String = "a1"): String {
         val json = JSONObject().put("accessToken", access)
@@ -624,7 +638,7 @@ class RemoteAuthRepositoryTest {
 
     @Test
     fun logout_noBorraDatosLocales() {
-        val parameterTypes = RemoteAuthRepository::class.java.constructors.single().parameterTypes.map { it.name }
+        val parameterTypes = RemoteAuthRepository::class.java.constructors.filterNot { it.isSynthetic }.single().parameterTypes.map { it.name }
 
         assertTrue(parameterTypes.none { it.contains("data.local") || it.endsWith("Dao") })
     }
@@ -1721,8 +1735,9 @@ class RemoteAuthRepositoryTest {
         outcome as GoogleSignInOutcome.Failed
 
     @Test
-    fun signInWithGoogle_hacePostSinAuthorizationConElJsonEsperado() = runTest {
+    fun google_cuerpoDelBackend_esSupabaseAccessToken() = runTest {
         transport.enqueue(response(200, googleJson()))
+        exchange.result = { GoogleExchangeResult.Token("supabase-jwt") }
 
         repository().signInWithGoogle(googleCredential())
 
@@ -1732,9 +1747,76 @@ class RemoteAuthRepositoryTest {
         assertNull(request.headers["Authorization"])
         assertEquals("mobile", request.headers["X-Client"])
         val body = JSONObject(requireNotNull(request.body))
-        assertEquals("id-token-secreto", body.getString("idToken"))
-        assertEquals("nonce-claro", body.getString("nonce"))
-        assertEquals(2, body.length())
+        assertEquals("supabase-jwt", body.getString("supabaseAccessToken"))
+        assertFalse(body.has("idToken"))
+        assertFalse(body.has("nonce"))
+        assertEquals(1, body.length())
+    }
+
+    @Test
+    fun google_canjeaYLuegoEntregaAlBackend() = runTest {
+        transport.enqueue(response(200, googleJson()))
+
+        val outcome = repository().signInWithGoogle(googleCredential(token = "id-1", nonce = "nonce-1"))
+
+        val credential = exchange.credentials.single()
+        assertEquals("id-1", credential.idToken)
+        assertEquals("nonce-1", credential.rawNonce)
+        assertEquals(1, transport.requests.size)
+        assertTrue(outcome is GoogleSignInOutcome.SignedIn)
+    }
+
+    @Test
+    fun google_siFallaElCanje_noLlamaAlBackend() = runTest {
+        val failed = DomainError.Unauthenticated("INVALID_GOOGLE_TOKEN", "x")
+        exchange.result = { GoogleExchangeResult.Failed(failed, retryAfterSeconds = 7) }
+        val repository = repository()
+
+        val outcome = failedGoogle(repository.signInWithGoogle(googleCredential()))
+
+        assertEquals(failed, outcome.error)
+        assertEquals(7L, outcome.retryAfterSeconds)
+        assertTrue(transport.requests.isEmpty())
+        assertEquals(SessionState.SignedOut(), repository.sessionState.value)
+        assertFalse(session.hasStoredSession())
+    }
+
+    @Test
+    fun google_sinCanjeConfigurado_noHacePeticion() = runTest {
+        val outcome = failedGoogle(repository(googleExchange = null).signInWithGoogle(googleCredential()))
+
+        assertEquals("GOOGLE_EXCHANGE_NOT_CONFIGURED", outcome.error.code)
+        assertTrue(transport.requests.isEmpty())
+    }
+
+    @Test
+    fun google_conCodigos_devuelveNewAccountCodes() = runTest {
+        transport.enqueue(response(200, googleJson(codes = listOf("ABCD-0001", "ABCD-0002"))))
+
+        val outcome = repository().signInWithGoogle(googleCredential()) as GoogleSignInOutcome.SignedIn
+
+        assertEquals(listOf("ABCD-0001", "ABCD-0002"), outcome.newAccountCodes?.values)
+    }
+
+    @Test
+    fun google_conRefreshTokenExpiresAt_iniciaSesion() = runTest {
+        val body = JSONObject(googleJson()).put("refreshTokenExpiresAt", "2026-12-26T00:00:00.000Z").toString()
+        transport.enqueue(response(200, body))
+        val repository = repository()
+
+        val outcome = repository.signInWithGoogle(googleCredential())
+
+        assertTrue(outcome is GoogleSignInOutcome.SignedIn)
+        assertEquals("r1", store.value)
+    }
+
+    @Test
+    fun google_sinRefreshToken_esNoSoportado() = runTest {
+        transport.enqueue(response(200, googleJson(refresh = null)))
+
+        val outcome = failedGoogle(repository().signInWithGoogle(googleCredential()))
+
+        assertEquals("MOBILE_CLIENT_NOT_SUPPORTED", outcome.error.code)
     }
 
     @Test
@@ -1746,6 +1828,16 @@ class RemoteAuthRepositoryTest {
 
         assertEquals("ALREADY_SIGNED_IN", outcome.error.code)
         assertEquals(1, transport.requests.size)
+    }
+
+    @Test
+    fun google_yaConSesion_noCanjea() = runTest {
+        val repository = repository()
+        repository.signIn()
+
+        repository.signInWithGoogle(googleCredential())
+
+        assertTrue(exchange.credentials.isEmpty())
     }
 
     @Test

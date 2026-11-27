@@ -75,7 +75,7 @@ class AuthWiringRulesTest {
         val bridge = MainSources.kotlin("data/auth/AuthRepositoryFactory.kt")
 
         assertEquals(1, Regex("createApiClient\\(").findAll(bridge.substringAfter("fun createRemoteRepositories")).count())
-        assertTrue(bridge.contains("RemoteAuthRepository(remote.client, remote.session, scope)"))
+        assertTrue(bridge.contains("RemoteAuthRepository(remote.client, remote.session, scope, remote.googleExchange)"))
         assertTrue(bridge.contains("RemoteNotificationInboxRepository(remote.client, auth.sessionState, scope)"))
         assertTrue(bridge.contains("RemoteNotificationLiveChannel(remote.client, remote.streamTransport, inbox, auth.sessionState, remote.config)"))
     }

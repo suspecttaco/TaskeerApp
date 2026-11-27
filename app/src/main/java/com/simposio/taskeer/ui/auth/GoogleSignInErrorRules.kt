@@ -22,7 +22,11 @@ fun googleFailureFor(error: DomainError): LoginFailure = when (error) {
         },
     )
     is DomainError.Validation -> LoginFailure.Inline(
-        if (error.code == AuthRules.ALREADY_SIGNED_IN) LoginError.GOOGLE_UNEXPECTED else LoginError.GOOGLE_REJECTED,
+        when (error.code) {
+            AuthRules.ALREADY_SIGNED_IN -> LoginError.GOOGLE_UNEXPECTED
+            AuthRules.NO_LOCAL_PASSWORD -> LoginError.NO_LOCAL_PASSWORD
+            else -> LoginError.GOOGLE_REJECTED
+        },
     )
     is DomainError.RateLimited -> LoginFailure.Inline(LoginError.RATE_LIMITED)
     is DomainError.Network -> LoginFailure.Inline(LoginError.NETWORK)

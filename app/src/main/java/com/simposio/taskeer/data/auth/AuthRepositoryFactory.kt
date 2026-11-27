@@ -35,13 +35,14 @@ class RemoteRepositories(
     val serverBoards: ServerBoardsRepository,
     val boardAccess: BoardAccessRepository,
     val syncTransport: SyncTransport,
+    val googleExchangeConfigured: Boolean,
 )
 
 // Único puente hacia data.remote: di/ compone esta función sin conocer el cliente HTTP.
 // Los repositorios comparten un solo cliente y una sola sesión: dos sesiones no compartirían el access token ni su renovación.
 fun createRemoteRepositories(context: Context, scope: CoroutineScope): RemoteRepositories {
     val remote = createApiClient(context)
-    val auth = RemoteAuthRepository(remote.client, remote.session, scope)
+    val auth = RemoteAuthRepository(remote.client, remote.session, scope, remote.googleExchange)
     val inbox = RemoteNotificationInboxRepository(remote.client, auth.sessionState, scope)
     val live = RemoteNotificationLiveChannel(remote.client, remote.streamTransport, inbox, auth.sessionState, remote.config)
     val workspaces = RemoteWorkspaceRepository(remote.client, auth.sessionState, scope)
@@ -53,5 +54,6 @@ fun createRemoteRepositories(context: Context, scope: CoroutineScope): RemoteRep
     return RemoteRepositories(
         auth, inbox, live, workspaces, workspaceMembers, workspaceInvitations, myInvitations, serverBoards, boardAccess,
         RemoteSyncTransport(remote.client),
+        googleExchangeConfigured = remote.googleExchange != null,
     )
 }

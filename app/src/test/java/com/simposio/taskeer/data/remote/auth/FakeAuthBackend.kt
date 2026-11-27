@@ -74,10 +74,9 @@ class FakeAuthBackend(private val b8: Boolean) : HttpTransport {
     private fun google(request: HttpRequest): TransportResult {
         if (!googleEndpoint) return response(404, errorBody("ROUTE_NOT_FOUND"))
         val body = JSONObject(requireNotNull(request.body))
-        if (body.optString("nonce").isBlank()) return response(400, errorBody("INVALID_OAUTH_STATE"))
-        val idToken = body.optString("idToken")
-        if (!idToken.startsWith(GOOGLE_TOKEN_PREFIX)) return response(401, errorBody("INVALID_GOOGLE_TOKEN"))
-        val email = idToken.removePrefix(GOOGLE_TOKEN_PREFIX).lowercase()
+        val supabaseToken = body.optString("supabaseAccessToken")
+        if (!supabaseToken.startsWith(GOOGLE_TOKEN_PREFIX)) return response(401, errorBody("INVALID_GOOGLE_TOKEN"))
+        val email = supabaseToken.removePrefix(GOOGLE_TOKEN_PREFIX).lowercase()
         var created = false
         when {
             email in linkedGoogleEmails || email in googleOnlyEmails -> Unit
