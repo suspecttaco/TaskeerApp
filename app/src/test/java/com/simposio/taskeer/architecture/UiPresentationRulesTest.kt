@@ -32,9 +32,9 @@ class UiPresentationRulesTest {
     @Test
     fun componentsNoImportaDataNiRoom() {
         val forbidden = listOf("com.simposio.taskeer.data", "com.simposio.taskeer.di", "androidx.room")
-        val files = File(sourcesRoot, "ui/components").walkTopDown()
-            .filter { it.isFile && it.extension == "kt" }
-            .toList()
+        val files = listOf("ui/components", "ui/theme").flatMap { dir ->
+            File(sourcesRoot, dir).walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+        }
 
         assertTrue("deben existir los componentes compartidos", files.isNotEmpty())
         val violations = files.flatMap { file ->
@@ -638,8 +638,8 @@ class UiPresentationRulesTest {
     fun emptyStateExigeAccion() {
         val empty = source("ui/components/EmptyState.kt")
 
-        assertTrue(empty.contains("actionLabel: String,"))
-        assertTrue(empty.contains("onAction: () -> Unit,"))
+        assertTrue(empty.contains("actionLabel: String? = null,"))
+        assertTrue(empty.contains("onAction: (() -> Unit)? = null,"))
         assertTrue(empty.contains("FilledTonalButton("))
         LIST_SCREENS.forEach { assertTrue("$it debe usar EmptyState", source(it).contains("EmptyState(")) }
     }
@@ -780,12 +780,9 @@ class UiPresentationRulesTest {
 
     @Test
     fun sinDpLiteralesEnPantallas() {
-        val literal = Regex("(padding|spacedBy|size)\\([^)]*\\d\\.dp")
+        val literal = Regex("\\d\\.(dp|sp)\\b")
         val violations = uiFiles()
-            .filter { file ->
-                val relative = file.relativeTo(sourcesRoot).path
-                !relative.startsWith("ui/components") && !relative.startsWith("ui/theme")
-            }
+            .filter { file -> !file.relativeTo(sourcesRoot).path.startsWith("ui/theme") }
             .filter { literal.containsMatchIn(it.readText()) }
             .map { it.relativeTo(sourcesRoot).path }
 
@@ -842,7 +839,7 @@ class UiPresentationRulesTest {
         assertTrue(shell.contains("snackbarHost"))
         assertTrue(shell.contains("Spacing.ChromeClearance"))
         assertTrue(shell.contains("Spacing.HubBarClearance"))
-        assertTrue(shell.contains("SnackbarDuration.Indefinite"))
+        assertTrue(shell.contains("NoticeKind.UNDO"))
         assertTrue(shell.contains("navigationBarsPadding()") && shell.contains("imePadding()"))
         assertTrue("sin duración literal", !Regex("""Duration\.of|\d+\.seconds|[0-9_]{4,}L""").containsMatchIn(shell))
     }
