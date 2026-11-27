@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -45,6 +44,8 @@ import com.simposio.taskeer.ui.calendar.EventEditorActions
 import com.simposio.taskeer.ui.calendar.EventEditorSheet
 import com.simposio.taskeer.ui.calendar.EventEditorViewModel
 import com.simposio.taskeer.ui.boards.BoardsViewModel
+import com.simposio.taskeer.ui.components.NoticeKind
+import com.simposio.taskeer.ui.components.showNotice
 import com.simposio.taskeer.ui.lists.ListViewModel
 import com.simposio.taskeer.ui.lists.TaskListsViewModel
 import com.simposio.taskeer.ui.navigation.AppDestination
@@ -181,10 +182,10 @@ fun AppShell(
     // Indefinite: el cierre lo decide el ViewModel al vencer la ventana de deshacer, no la duración de Material.
     LaunchedEffect(pendingUndo?.token) {
         if (pendingUndo == null) return@LaunchedEffect
-        val result = snackbarHost.showSnackbar(
+        val result = snackbarHost.showNotice(
             message = deletedMessage,
+            kind = NoticeKind.UNDO,
             actionLabel = undoLabel,
-            duration = SnackbarDuration.Indefinite,
         )
         if (result == SnackbarResult.ActionPerformed) deletion.undo()
     }
@@ -193,7 +194,7 @@ fun AppShell(
     }
     LaunchedEffect(deletionFailure) {
         val text = failureText ?: return@LaunchedEffect
-        snackbarHost.showSnackbar(message = text, duration = SnackbarDuration.Short)
+        snackbarHost.showNotice(message = text, kind = NoticeKind.ERROR)
         deletion.consumeError()
     }
     LaunchedEffect(destination) {
@@ -204,10 +205,10 @@ fun AppShell(
         if (!sessionExpired) return@LaunchedEffect
         session.acknowledgeExpiration()
         scope.launch {
-            val result = snackbarHost.showSnackbar(
+            val result = snackbarHost.showNotice(
                 message = sessionExpiredText,
+                kind = NoticeKind.ACTION,
                 actionLabel = signInLabel,
-                duration = SnackbarDuration.Long,
             )
             if (result == SnackbarResult.ActionPerformed) {
                 navController.navigate(AppDestination.LOGIN.route) { launchSingleTop = true }
@@ -220,7 +221,7 @@ fun AppShell(
                 SessionMessage.LOGGED_OUT -> loggedOutText
                 SessionMessage.LOGGED_OUT_SERVER_UNREACHABLE -> loggedOutOfflineText
             }
-            snackbarHost.showSnackbar(message = text, duration = SnackbarDuration.Short)
+            snackbarHost.showNotice(message = text, kind = NoticeKind.INFO)
         }
     }
     // El avance de la fecha y el aviso salen del shell porque la hoja y el Calendario son hermanos, no padre e hijo.
@@ -228,7 +229,7 @@ fun AppShell(
         val date = eventState.createdDate ?: return@LaunchedEffect
         calendarViewModel?.selectDate(date)
         eventEditor.consumeCreated()
-        scope.launch { snackbarHost.showSnackbar(message = eventAddedText, duration = SnackbarDuration.Short) }
+        scope.launch { snackbarHost.showNotice(message = eventAddedText, kind = NoticeKind.INFO) }
     }
     LaunchedEffect(destination, listId) {
         quickAdd.close()

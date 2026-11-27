@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -17,6 +16,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.DomainError
+import com.simposio.taskeer.ui.components.InlineError
 
 @Composable
 fun BoardNameDialog(
@@ -43,10 +43,8 @@ fun BoardNameDialog(
                     keyboardActions = KeyboardActions(onDone = { onConfirm(name) }),
                 )
                 error?.let {
-                    Text(
-                        text = it.message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
+                    InlineError(
+                        message = it.message,
                     )
                 }
             }
@@ -70,7 +68,7 @@ fun ConfirmDeleteBoardDialog(
             Column {
                 Text(stringResource(R.string.board_delete_message))
                 error?.let {
-                    Text(text = it.message, color = MaterialTheme.colorScheme.error)
+                    InlineError(message = it.message)
                 }
             }
         },

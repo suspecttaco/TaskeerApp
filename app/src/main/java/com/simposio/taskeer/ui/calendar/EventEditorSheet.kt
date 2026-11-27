@@ -61,6 +61,7 @@ import com.simposio.taskeer.domain.calendar.EventSpan
 import com.simposio.taskeer.domain.calendar.eventEndLocal
 import com.simposio.taskeer.domain.calendar.eventStartLocal
 import com.simposio.taskeer.ui.components.ActionIcon
+import com.simposio.taskeer.ui.components.InlineError
 import com.simposio.taskeer.ui.components.rememberAnimationsEnabled
 import com.simposio.taskeer.ui.navigation.editorPanelTransition
 import com.simposio.taskeer.ui.permission.CalendarNotice
@@ -239,10 +240,8 @@ private fun ColumnScope.EventForm(state: EventEditorUiState, actions: EventEdito
         }
     }
     state.error?.let { error ->
-        Text(
-            text = error.message,
-            color = MaterialTheme.colorScheme.error,
-            style = MaterialTheme.typography.bodyMedium,
+        InlineError(
+            message = error.message,
             modifier = Modifier
                 .padding(vertical = Spacing.InlineGap)
                 .semantics { liveRegion = LiveRegionMode.Polite },
@@ -288,28 +287,19 @@ private fun ColumnScope.EventForm(state: EventEditorUiState, actions: EventEdito
             onTime = { actions.onOpenPanel(EventPanel.EndTime) },
         )
         if (validation?.code == CODE_END_BEFORE_START) {
-            Text(
-                text = validation.message,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            InlineError(
+                message = validation.message,
             )
         }
         CalendarChoice(calendar = calendar, onClick = { actions.onOpenPanel(EventPanel.Calendars) })
         val calendarError = validation?.takeIf { it.code in CALENDAR_CODES }
         if (!state.hasWritableCalendar) {
-            Text(
-                text = stringResource(R.string.event_no_writable),
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            InlineError(
+                message = stringResource(R.string.event_no_writable),
             )
         } else if (calendarError != null) {
-            Text(
-                text = calendarError.message,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            InlineError(
+                message = calendarError.message,
             )
         }
     }

@@ -9,8 +9,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
@@ -30,6 +28,7 @@ import com.simposio.taskeer.domain.planned.DayLabel
 import com.simposio.taskeer.domain.planned.toggleCollapsed
 import com.simposio.taskeer.ui.components.DateGroupHeader
 import com.simposio.taskeer.ui.components.EmptyState
+import com.simposio.taskeer.ui.components.InlineError
 import com.simposio.taskeer.ui.components.RowAction
 import com.simposio.taskeer.ui.components.RowContext
 import com.simposio.taskeer.ui.components.rowItemModifier
@@ -106,10 +105,8 @@ fun UpcomingContent(
     val addDescriptions = titles.map { stringResource(R.string.group_add_to, it) }
     Column(modifier = modifier.fillMaxSize()) {
         state.error?.let { error ->
-            Text(
-                text = error.message,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
+            InlineError(
+                message = error.message,
                 modifier = Modifier.padding(Spacing.ScreenPadding),
             )
         }

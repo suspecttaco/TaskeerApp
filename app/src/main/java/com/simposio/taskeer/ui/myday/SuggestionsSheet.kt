@@ -34,6 +34,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import com.simposio.taskeer.R
 import com.simposio.taskeer.ui.components.ActionIcon
+import com.simposio.taskeer.ui.components.EmptyHint
+import com.simposio.taskeer.ui.components.InlineError
 import com.simposio.taskeer.ui.components.TonalActionIcon
 import com.simposio.taskeer.ui.components.rowItemModifier
 import com.simposio.taskeer.ui.theme.Spacing
@@ -82,18 +84,14 @@ fun SuggestionsSheet(
                 )
             }
             errorMessage?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
+                InlineError(
+                    message = it,
                     modifier = Modifier.padding(horizontal = Spacing.ScreenPadding),
                 )
             }
             if (items.isEmpty()) {
-                Text(
+                EmptyHint(
                     text = stringResource(R.string.my_day_suggestions_sheet_empty),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .fillMaxWidth()

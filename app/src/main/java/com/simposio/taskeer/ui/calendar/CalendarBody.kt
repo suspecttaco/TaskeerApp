@@ -1,6 +1,5 @@
 package com.simposio.taskeer.ui.calendar
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -13,7 +12,8 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material.icons.filled.EventBusy
+import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -29,13 +29,13 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.calendar.DayItem
 import com.simposio.taskeer.ui.components.DecorativeIcon
+import com.simposio.taskeer.ui.components.EmptyState
 import com.simposio.taskeer.ui.components.rowItemModifier
 import com.simposio.taskeer.ui.theme.Spacing
+import com.simposio.taskeer.ui.theme.emphasized
 import com.simposio.taskeer.ui.upcoming.weekdayLabel
 import java.time.ZoneId
 
@@ -61,8 +61,16 @@ fun CalendarBody(
                     onOpen = { onOpenTask(row.item.task.taskId) },
                     modifier = rowItemModifier(),
                 )
-                is BodyRow.EmptyDay -> EmptyText(R.string.calendar_empty_day, rowItemModifier())
-                BodyRow.EmptyMonth -> EmptyText(R.string.calendar_empty_month, rowItemModifier())
+                is BodyRow.EmptyDay -> EmptyState(
+                    icon = Icons.Filled.EventBusy,
+                    text = stringResource(R.string.calendar_empty_day),
+                    modifier = rowItemModifier().fillMaxWidth(),
+                )
+                BodyRow.EmptyMonth -> EmptyState(
+                    icon = Icons.Filled.EventBusy,
+                    text = stringResource(R.string.calendar_empty_month),
+                    modifier = rowItemModifier().fillMaxWidth(),
+                )
             }
         }
     }
@@ -74,8 +82,7 @@ private fun DayHeaderRow(row: BodyRow.DayHeader, modifier: Modifier = Modifier) 
     val text = if (row.isToday) stringResource(R.string.calendar_day_today, label) else label
     Text(
         text = text,
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.SemiBold,
+        style = MaterialTheme.typography.titleSmall.emphasized(),
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = Spacing.ScreenPadding, vertical = Spacing.InlineGap)
@@ -121,7 +128,7 @@ private fun TaskDueRow(item: DayItem.Task, onOpen: () -> Unit, modifier: Modifie
     ListItem(
         headlineContent = { Text(item.task.title) },
         supportingContent = { Text(listOfNotNull(time, place).joinToString(" · ")) },
-        leadingContent = { DecorativeIcon(Icons.Outlined.TaskAlt, tint = MaterialTheme.colorScheme.tertiary) },
+        leadingContent = { DecorativeIcon(Icons.Filled.TaskAlt, tint = MaterialTheme.colorScheme.tertiary) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = modifier
             .minimumInteractiveComponentSize()
@@ -130,15 +137,3 @@ private fun TaskDueRow(item: DayItem.Task, onOpen: () -> Unit, modifier: Modifie
     )
 }
 
-@Composable
-private fun EmptyText(@StringRes textRes: Int, modifier: Modifier = Modifier) {
-    Text(
-        text = stringResource(textRes),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = TextAlign.Center,
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = Spacing.ScreenPadding, vertical = Spacing.SectionGap),
-    )
-}

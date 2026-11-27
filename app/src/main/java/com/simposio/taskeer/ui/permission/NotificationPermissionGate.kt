@@ -10,7 +10,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -27,6 +26,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.simposio.taskeer.R
+import com.simposio.taskeer.ui.components.InlineError
 import com.simposio.taskeer.ui.theme.Spacing
 
 // El estado vive en la actividad, no en cada destino de navegación: la compuerta, Configuración y
@@ -77,10 +77,8 @@ fun NotificationPermissionNotice(
     }
     val context = LocalContext.current
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap)) {
-        Text(
-            text = stringResource(R.string.notifications_blocked),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.error,
+        InlineError(
+            message = stringResource(R.string.notifications_blocked),
         )
         TextButton(onClick = { openNotificationSettings(context) }) {
             Text(stringResource(R.string.notifications_open_settings))

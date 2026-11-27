@@ -11,7 +11,6 @@ import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
@@ -24,7 +23,9 @@ import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.Subtask
 import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.ui.components.ActionIcon
+import com.simposio.taskeer.ui.components.EmptyHint
 import com.simposio.taskeer.ui.components.InlineAddField
+import com.simposio.taskeer.ui.components.InlineError
 import com.simposio.taskeer.ui.components.SectionHeader
 import com.simposio.taskeer.ui.components.rememberAnimationsEnabled
 import com.simposio.taskeer.ui.navigation.editorRowEnter
@@ -66,10 +67,7 @@ fun SubtasksSection(
             enter = editorRowEnter(animated),
             exit = editorRowExit(animated),
         ) {
-            Text(
-                text = stringResource(R.string.subtasks_empty),
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            EmptyHint(text = stringResource(R.string.subtasks_empty))
         }
         state.items.forEach { subtask ->
             key(subtask.id) {
@@ -106,10 +104,8 @@ fun SubtasksSection(
             enabled = state.newTitle.isNotBlank(),
         )
         state.error?.let { error ->
-            Text(
-                text = error.message,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
+            InlineError(
+                message = error.message,
             )
         }
     }

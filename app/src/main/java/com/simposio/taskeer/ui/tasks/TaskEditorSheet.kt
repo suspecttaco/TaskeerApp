@@ -63,6 +63,7 @@ import androidx.compose.ui.semantics.semantics
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.DEFAULT_REMINDER_TIME
 import com.simposio.taskeer.ui.components.ActionIcon
+import com.simposio.taskeer.ui.components.InlineError
 import com.simposio.taskeer.ui.components.rememberAnimationsEnabled
 import com.simposio.taskeer.ui.navigation.editorPanelTransition
 import com.simposio.taskeer.ui.navigation.panelEnter
@@ -262,10 +263,8 @@ private fun ColumnScope.EditorForm(
         enter = panelEnter(animated),
         exit = panelExit(animated),
     ) {
-        Text(
-            text = shownError.orEmpty(),
-            color = MaterialTheme.colorScheme.error,
-            style = MaterialTheme.typography.bodyMedium,
+        InlineError(
+            message = shownError.orEmpty(),
             modifier = Modifier.padding(bottom = Spacing.InlineGap),
         )
     }

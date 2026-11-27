@@ -21,6 +21,7 @@ import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.SyncMetadata
 import com.simposio.taskeer.domain.model.TaskListSummary
 import com.simposio.taskeer.ui.components.AppDivider
+import com.simposio.taskeer.ui.components.InlineError
 import com.simposio.taskeer.ui.components.SectionHeader
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
@@ -75,10 +76,8 @@ internal fun DestinationOptions(
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap)) {
         error?.let { failure ->
-            Text(
-                text = failure.message,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
+            InlineError(
+                message = failure.message,
             )
         }
         if (lists.isNotEmpty()) {
