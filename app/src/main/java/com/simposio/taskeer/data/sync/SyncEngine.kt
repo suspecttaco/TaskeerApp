@@ -170,10 +170,12 @@ class SyncEngine(
     }
 
     // Lo que no estaba en alcance conserva pending; al entrar en alcance necesita una marca nueva, como un primer sync parcial.
+    // El cursor también se descarta: lo emitido mientras la entidad estaba fuera de alcance se ignoró y no volvería en el flujo incremental.
     private suspend fun markIfScopeGrew(effective: Set<SyncEntity>) {
         val marked = store.meta(SyncMetaKeys.MARKED_SCOPE)?.split(',')?.mapNotNull(SyncEntity::fromWire)?.toSet().orEmpty()
         if (marked.containsAll(effective)) return
         store.markAllUnsyncedPending()
+        store.setMeta(SyncMetaKeys.CURSOR, null)
         store.setMeta(SyncMetaKeys.MARKED_SCOPE, (marked + effective).joinToString(",") { it.wireName })
     }
 
