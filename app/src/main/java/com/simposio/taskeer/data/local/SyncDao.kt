@@ -316,6 +316,12 @@ abstract class SyncDao {
         removeQueue(mutationId)
     }
 
+    @Transaction
+    open suspend fun commitDeletedWithoutRecord(entity: String, id: String, sentVersion: Long, mutationId: String) {
+        clearPending(entity, id, sentVersion)
+        removeQueue(mutationId)
+    }
+
     // Sin sentVersion: la fila adoptada o descartada sustituye a la local aunque haya cambiado.
     @Transaction
     open suspend fun commitList(list: TaskListEntity, baseline: Long?, mutationId: String?) {

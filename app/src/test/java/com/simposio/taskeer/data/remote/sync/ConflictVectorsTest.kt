@@ -62,7 +62,7 @@ class ConflictVectorsTest {
             val outcome = (backend.push(listOf(mutation)) as TransportResult.Ok).value.single()
 
             val record = when (outcome) {
-                is PushOutcome.Applied -> outcome.record
+                is PushOutcome.Applied -> outcome.record!!
                 is PushOutcome.Conflict -> outcome.record
                 is PushOutcome.Rejected -> error("$label: rechazado")
             }
@@ -99,7 +99,7 @@ class ConflictVectorsTest {
         backend.serverNow = backend.serverNow.plusSeconds(60)
         val second = (backend.push(batch) as TransportResult.Ok).value.single() as PushOutcome.Applied
 
-        assertEquals(first.record.updatedAt, second.record.updatedAt)
+        assertEquals(first.record!!.updatedAt, second.record!!.updatedAt)
         assertEquals(1, backend.records.keys.count { it.first == SyncEntity.TASK })
         assertTrue(v.getJSONObject("expect").getBoolean("sameResult"))
     }

@@ -59,11 +59,11 @@ class FakeSyncBackendConformanceTest {
 
         val renewed = push(backend, v.getJSONObject("request").getJSONArray("mutations").getJSONObject(0)) as PushOutcome.Applied
 
-        assertEquals(expected.getString("id"), renewed.record.id)
-        assertEquals(expected.getString("taskId"), renewed.record.fields["taskId"])
-        assertEquals(expected.getString("addedAt"), renewed.record.fields["addedAt"])
-        assertEquals(SyncTimestamps.parse(expected.getString("updatedAt")), renewed.record.updatedAt)
-        assertNull(renewed.record.deletedAt)
+        assertEquals(expected.getString("id"), renewed.record!!.id)
+        assertEquals(expected.getString("taskId"), renewed.record!!.fields["taskId"])
+        assertEquals(expected.getString("addedAt"), renewed.record!!.fields["addedAt"])
+        assertEquals(SyncTimestamps.parse(expected.getString("updatedAt")), renewed.record!!.updatedAt)
+        assertNull(renewed.record!!.deletedAt)
         val cases = v.getJSONArray("followUps")
         for (i in 0 until cases.length()) {
             val case = cases.getJSONObject(i)
@@ -97,9 +97,9 @@ class FakeSyncBackendConformanceTest {
 
         val created = push(backend, v.getJSONObject("request").getJSONArray("mutations").getJSONObject(0)) as PushOutcome.Applied
 
-        assertEquals(expected.getString("id"), created.record.id)
-        assertEquals("MOBILE", created.record.fields["origin"])
-        assertEquals(expected.getString("status"), created.record.fields["status"])
+        assertEquals(expected.getString("id"), created.record!!.id)
+        assertEquals("MOBILE", created.record!!.fields["origin"])
+        assertEquals(expected.getString("status"), created.record!!.fields["status"])
         val cases = v.getJSONArray("followUps")
         val sent = push(backend, cases.getJSONObject(0).getJSONObject("mutation"))
         assertEquals("SENT", recordOf(sent)?.fields?.get("status"))

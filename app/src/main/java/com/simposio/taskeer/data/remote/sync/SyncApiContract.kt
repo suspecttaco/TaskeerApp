@@ -5,6 +5,7 @@ import com.simposio.taskeer.data.sync.PullPage
 import com.simposio.taskeer.data.sync.PushMutation
 import com.simposio.taskeer.data.sync.PushOutcome
 import com.simposio.taskeer.data.sync.ServerRecord
+import com.simposio.taskeer.data.sync.SyncCodes
 import com.simposio.taskeer.domain.sync.SyncEntity
 import com.simposio.taskeer.domain.sync.SyncOp
 import com.simposio.taskeer.domain.sync.SyncTimestamps
@@ -135,8 +136,10 @@ object SyncApiContract {
         val entity = entities[id] ?: return null
         val record = node.optJSONObject("record")?.let { parseRecord(it, entity) ?: return null }
         return when (node.optString("status")) {
-            "applied" -> PushOutcome.Applied(id, record ?: return null)
-            "conflict" -> PushOutcome.Conflict(id, record ?: return null)
+            "applied" -> PushOutcome.Applied(id, record)
+            // El backend siempre adjunta el registro vigente en un conflicto; sin él no hay nada que adoptar y se
+            // trata como fallo de forma reintentable, sin invalidar el resto del lote.
+            "conflict" -> if (record != null) PushOutcome.Conflict(id, record) else PushOutcome.Rejected(id, SyncCodes.VALIDATION_ERROR, null)
             "rejected" -> PushOutcome.Rejected(id, node.optJSONObject("error")?.optString("code").orEmpty().ifEmpty { CODE_UNKNOWN_RESULT }, record)
             else -> PushOutcome.Rejected(id, CODE_UNKNOWN_RESULT, record)
         }

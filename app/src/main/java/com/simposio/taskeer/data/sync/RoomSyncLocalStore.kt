@@ -292,8 +292,15 @@ class RoomSyncLocalStore(
     // «Aplicado» no implica «tal como se envió»: el servidor renumera posiciones y puede aplicar solo una parte, así que
     // la fila adopta su registro. La edición hecha mientras viajaba el envío manda y solo avanza la versión base; la
     // versión local se conserva para que esa comparación siga valiendo en el siguiente ciclo.
-    private suspend fun applied(prepared: PreparedOp, record: ServerRecord, me: String): OutcomeEffect {
+    private suspend fun applied(prepared: PreparedOp, record: ServerRecord?, me: String): OutcomeEffect {
         val op = prepared.op
+        if (record == null) {
+            // Sin registro (borrado idempotente) no hay versión que adoptar. Un upsert «aplicado» sin registro es
+            // inesperado: la fila se conserva pendiente y el fallo cuenta hacia «atascada» sin bloquear el lote.
+            if (op.op != SyncOp.DELETE) return keepForRetry(op, CODE_APPLIED_WITHOUT_RECORD)
+            dao.commitDeletedWithoutRecord(op.entity.wireName, op.entityId, prepared.sentVersion, op.mutationId)
+            return OutcomeEffect.APPLIED
+        }
         val row = rowOf(op.entity, op.entityId)
         val baseline = record.updatedAt.toEpochMilli()
         if (op.entity == SyncEntity.BOARD && op.op == SyncOp.UPSERT) recordSeededColumns(record)
@@ -739,6 +746,7 @@ class RoomSyncLocalStore(
             SyncEntity.LIST, SyncEntity.TASK, SyncEntity.SUBTASK, SyncEntity.MY_DAY, SyncEntity.REMINDER,
         )
         const val CODE_DEPENDENCY_NOT_FOUND = "DEPENDENCY_NOT_FOUND"
+        const val CODE_APPLIED_WITHOUT_RECORD = "APPLIED_WITHOUT_RECORD"
         const val CODE_LIST_NAME_TAKEN = "LIST_NAME_TAKEN"
         const val CODE_TRANSIENT = "TRANSIENT"
     }

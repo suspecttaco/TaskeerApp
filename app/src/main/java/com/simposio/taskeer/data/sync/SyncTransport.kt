@@ -60,7 +60,8 @@ class PullPage(
 sealed interface PushOutcome {
     val clientMutationId: String
 
-    class Applied(override val clientMutationId: String, val record: ServerRecord) : PushOutcome {
+    // Un borrado idempotente (inexistente, ajeno o ya borrado) se confirma con `record` nulo.
+    class Applied(override val clientMutationId: String, val record: ServerRecord?) : PushOutcome {
         override fun toString(): String = "Applied"
     }
 

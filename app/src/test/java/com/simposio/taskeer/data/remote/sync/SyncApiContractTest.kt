@@ -3,6 +3,7 @@ package com.simposio.taskeer.data.remote.sync
 import com.simposio.taskeer.data.sync.PullPage
 import com.simposio.taskeer.data.sync.PushMutation
 import com.simposio.taskeer.data.sync.PushOutcome
+import com.simposio.taskeer.data.sync.SyncCodes
 import com.simposio.taskeer.domain.sync.SyncEntity
 import com.simposio.taskeer.domain.sync.SyncOp
 import com.simposio.taskeer.domain.sync.SyncTimestamps
@@ -88,6 +89,33 @@ class SyncApiContractTest {
         ) as SyncApiContract.Parsed.Ok).value.single() as PushOutcome.Rejected
         assertEquals("LIST_NAME_TAKEN", taken.code)
         assertEquals("Tareas", taken.record!!.fields["name"])
+    }
+
+    @Test
+    fun appliedConRecordNulo_seAceptaSinInvalidarElLote() {
+        val v = vector("V11")
+        val batch = mutationsOf(v.getJSONObject("request"))
+        val results = JSONArray()
+        batch.forEach {
+            results.put(JSONObject().put("clientMutationId", it.clientMutationId).put("status", "applied").put("record", JSONObject.NULL))
+        }
+        val response = v.getJSONObject("response").put("results", results)
+
+        val parsed = SyncApiContract.parsePush(response.toString(), batch) as SyncApiContract.Parsed.Ok
+
+        assertEquals(batch.size, parsed.value.size)
+        assertTrue(parsed.value.all { it is PushOutcome.Applied && it.record == null })
+    }
+
+    @Test
+    fun conflictSinRecord_seTrataComoFalloReintentableSinInvalidarElLote() {
+        val v = vector("V05")
+        val response = v.getJSONObject("response")
+        response.getJSONArray("results").getJSONObject(0).put("status", "conflict").put("record", JSONObject.NULL)
+
+        val parsed = SyncApiContract.parsePush(response.toString(), mutationsOf(v.getJSONObject("request"))) as SyncApiContract.Parsed.Ok
+
+        assertEquals(SyncCodes.VALIDATION_ERROR, (parsed.value.single() as PushOutcome.Rejected).code)
     }
 
     @Test
@@ -288,25 +316,25 @@ class SyncApiContractTest {
 
         val parsed = (SyncApiContract.parsePush(v.getJSONObject("response").toString(), batch) as SyncApiContract.Parsed.Ok).value
 
-        val board = (parsed[0] as PushOutcome.Applied).record
+        val board = (parsed[0] as PushOutcome.Applied).record!!
         assertEquals(SyncEntity.BOARD, board.entity)
         assertEquals(2, (board.fields["columns"] as List<*>).size)
         assertEquals("a0000000-0000-4000-8000-000000000001", board.fields["workspaceId"])
-        assertEquals(SyncEntity.COLUMN, (parsed[1] as PushOutcome.Applied).record.entity)
+        assertEquals(SyncEntity.COLUMN, (parsed[1] as PushOutcome.Applied).record!!.entity)
     }
 
     @Test
     fun v18v19_miDiaYRecordatorio_lecturaDeLaRespuesta() {
         val v18 = vector("V18")
         val mark = ((SyncApiContract.parsePush(v18.getJSONObject("response").toString(), mutationsOf(v18.getJSONObject("request"))) as SyncApiContract.Parsed.Ok)
-            .value.single() as PushOutcome.Applied).record
+            .value.single() as PushOutcome.Applied).record!!
         assertEquals(SyncEntity.MY_DAY, mark.entity)
         assertEquals("30000000-0000-4000-8000-000000000001", mark.id)
         assertEquals("2026-11-26T08:00:00.000Z", mark.fields["addedAt"])
 
         val v19 = vector("V19")
         val reminder = ((SyncApiContract.parsePush(v19.getJSONObject("response").toString(), mutationsOf(v19.getJSONObject("request"))) as SyncApiContract.Parsed.Ok)
-            .value.single() as PushOutcome.Applied).record
+            .value.single() as PushOutcome.Applied).record!!
         assertEquals(SyncEntity.REMINDER, reminder.entity)
         assertEquals("MOBILE", reminder.fields["origin"])
         assertEquals("PENDING", reminder.fields["status"])

@@ -64,7 +64,7 @@ class RestBridgeContractTest {
         assertEquals("col-9", body.getString("columnId"))
         assertEquals(setOf("id", "columnId", "title", "priority"), body.keys().asSequence().toSet())
         val applied = result.value.single() as PushOutcome.Applied
-        assertEquals(Instant.parse("2026-11-26T18:30:01Z"), applied.record.updatedAt)
+        assertEquals(Instant.parse("2026-11-26T18:30:01Z"), applied.record!!.updatedAt)
     }
 
     @Test
@@ -131,7 +131,7 @@ class RestBridgeContractTest {
 
         assertEquals("lists", client.requests.last().path)
         val applied = result.value.single() as PushOutcome.Applied
-        assertEquals("col-2", applied.record.fields["columnId"])
+        assertEquals("col-2", applied.record!!.fields["columnId"])
     }
 
     @Test
@@ -183,7 +183,7 @@ class RestBridgeContractTest {
         val result = bridge.push(deletes) as TransportResult.Ok
 
         assertEquals(listOf("tasks/t1", "tasks/t2"), client.requests.drop(2).map { it.path })
-        assertTrue(result.value.all { it is PushOutcome.Applied && it.record.isDeleted })
+        assertTrue(result.value.all { it is PushOutcome.Applied && it.record?.isDeleted == true })
     }
 
     @Test

@@ -46,6 +46,9 @@ class FakeSyncBackend(
     val rejectIds = mutableMapOf<String, Rejection>()
     var maxBatch: Int? = null
     var poisonedIds = mutableSetOf<String>()
+
+    // Entidades cuya mutación se responde «applied» sin registro, como hace el backend real con un borrado idempotente.
+    val appliedWithoutRecordIds = mutableSetOf<String>()
     var onProcessing: suspend () -> Unit = {}
     var serverRewrite: ((PushMutation, Map<String, Any?>) -> Map<String, Any?>)? = null
     var identifyResult: TransportResult<Identity>? = null
@@ -147,6 +150,7 @@ class FakeSyncBackend(
             if (rejection.once) rejectIds.remove(m.id)
             return PushOutcome.Rejected(id, rejection.code, if (rejection.withRecord) records[m.entity to (rejection.recordId ?: m.id)]?.record() else null)
         }
+        if (m.id in appliedWithoutRecordIds) return PushOutcome.Applied(id, null)
         val key = m.entity to m.id
         val existing = records[key]
         if (m.op == SyncOp.DELETE) {

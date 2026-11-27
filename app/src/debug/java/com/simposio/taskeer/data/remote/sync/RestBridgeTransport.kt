@@ -90,7 +90,7 @@ class RestBridgeTransport(
             }
             val outcome = verdict(m, known)?.let { PushOutcome.Conflict(m.clientMutationId, it) }
                 ?: when (val sent = send(m, known, lists)) {
-                    is Sent.Done -> PushOutcome.Applied(m.clientMutationId, sent.record).also { remember(it.record, lists, tasks) }
+                    is Sent.Done -> PushOutcome.Applied(m.clientMutationId, sent.record).also { remember(sent.record, lists, tasks) }
                     is Sent.Rejected -> PushOutcome.Rejected(m.clientMutationId, sent.code, null)
                     is Sent.Transient -> return sent.result
                 }
