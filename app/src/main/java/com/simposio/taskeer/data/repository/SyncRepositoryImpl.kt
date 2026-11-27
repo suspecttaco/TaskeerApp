@@ -2,6 +2,7 @@ package com.simposio.taskeer.data.repository
 
 import com.simposio.taskeer.data.sync.SyncEngine
 import com.simposio.taskeer.data.sync.SyncTriggers
+import com.simposio.taskeer.domain.sync.CycleOutcome
 import com.simposio.taskeer.domain.sync.SyncNotice
 import com.simposio.taskeer.domain.sync.SyncSnapshot
 import kotlinx.coroutines.flow.Flow
@@ -14,6 +15,7 @@ class SyncRepositoryImpl(
 
     override val status: Flow<SyncSnapshot> = engine.snapshots
     override val notices: Flow<SyncNotice> = engine.notices
+    override val manualOutcomes: Flow<CycleOutcome> = engine.manualOutcomes
     override val accountSwitchPrompt: StateFlow<Boolean> = engine.accountSwitchPrompt
 
     override fun requestSync() = triggers.manual()

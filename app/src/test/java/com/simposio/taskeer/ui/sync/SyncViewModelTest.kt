@@ -1,6 +1,8 @@
 package com.simposio.taskeer.ui.sync
 
 import com.simposio.taskeer.data.repository.SyncRepository
+import com.simposio.taskeer.domain.sync.CycleOutcome
+import com.simposio.taskeer.domain.sync.ManualSyncFeedback
 import com.simposio.taskeer.domain.sync.PauseReason
 import com.simposio.taskeer.domain.sync.SyncErrorKind
 import com.simposio.taskeer.domain.sync.SyncLoss
@@ -32,12 +34,14 @@ class SyncViewModelTest {
     private class FakeSyncRepository : SyncRepository {
         val snapshot = MutableStateFlow(SyncSnapshot(signedIn = true))
         val prompt = MutableStateFlow(false)
+        val outcomes = MutableSharedFlow<CycleOutcome>(extraBufferCapacity = 4)
         val noticeFlow = MutableSharedFlow<SyncNotice>(extraBufferCapacity = 4)
         var requests = 0
         var wipes = 0
         var cancels = 0
         override val status = snapshot
         override val notices = noticeFlow
+        override val manualOutcomes = outcomes
         override val accountSwitchPrompt: StateFlow<Boolean> = prompt
 
         override fun requestSync() { requests++ }
@@ -124,6 +128,86 @@ class SyncViewModelTest {
     @Test
     fun manual_llamaRequestSync() = runTest {
         viewModel().sync()
+
+        assertEquals(1, repo.requests)
+    }
+
+    private fun collectFeedback(vm: SyncViewModel): MutableList<ManualSyncFeedback> {
+        val feedback = mutableListOf<ManualSyncFeedback>()
+        kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch { vm.manualFeedback.collect { feedback += it } }
+        return feedback
+    }
+
+    @Test
+    fun manual_avisaSincronizandoYLuegoTodoSincronizado() = runTest {
+        val vm = viewModel()
+        val feedback = collectFeedback(vm)
+
+        vm.sync()
+        repo.outcomes.emit(CycleOutcome.COMPLETED)
+
+        assertEquals(
+            listOf(
+                ManualSyncFeedback.Status(SyncStatus.Syncing),
+                ManualSyncFeedback.Status(SyncStatus.Idle(null)),
+            ),
+            feedback,
+        )
+    }
+
+    @Test
+    fun manual_pausadoAvisaConLaRazon() = runTest {
+        repo.snapshot.value = SyncSnapshot(signedIn = true, paused = PauseReason.UPDATE_REQUIRED)
+        val vm = viewModel()
+        val feedback = collectFeedback(vm)
+
+        vm.sync()
+        repo.outcomes.emit(CycleOutcome.PAUSED)
+
+        assertEquals(
+            ManualSyncFeedback.Status(SyncStatus.Paused(PauseReason.UPDATE_REQUIRED)),
+            feedback.last(),
+        )
+    }
+
+    @Test
+    fun manual_respuestaInesperadaAvisaError() = runTest {
+        val vm = viewModel()
+        val feedback = collectFeedback(vm)
+
+        vm.sync()
+        repo.outcomes.emit(CycleOutcome.STOPPED_BY_ERROR)
+
+        assertEquals(
+            ManualSyncFeedback.Status(SyncStatus.Error(SyncErrorKind.UNEXPECTED_RESPONSE)),
+            feedback.last(),
+        )
+    }
+
+    @Test
+    fun manual_conCicloEnCursoNoPideOtro() = runTest {
+        repo.snapshot.value = SyncSnapshot(signedIn = true, syncing = true)
+
+        viewModel().sync()
+
+        assertEquals(0, repo.requests)
+    }
+
+    @Test
+    fun manual_sinSesionNoPideCiclo() = runTest {
+        repo.snapshot.value = SyncSnapshot(signedIn = false)
+
+        viewModel().sync()
+
+        assertEquals(0, repo.requests)
+    }
+
+    @Test
+    fun manual_dosToquesSeguidosPidenUnSoloCiclo() = runTest {
+        val vm = viewModel()
+
+        vm.sync()
+        vm.sync()
 
         assertEquals(1, repo.requests)
     }

@@ -40,6 +40,7 @@ class RoomSyncLocalStore(
     private val dao: SyncDao,
     private val scopeHolder: SyncScopeHolder,
     private val newMutationId: () -> String = ::newClientId,
+    private val debugLog: SyncDebugLog = SyncDebugLog.None,
 ) : SyncLocalStore {
 
     private val purger = LocalBoardPurger(dao)
@@ -344,18 +345,22 @@ class RoomSyncLocalStore(
     ): OutcomeEffect {
         val op = prepared.op
         val record = outcome.record
-        return when {
-            outcome.code == SyncCodes.VALIDATION_ERROR -> keepForRetry(op, outcome.code)
-            outcome.code == CODE_DEPENDENCY_NOT_FOUND && retryDependency -> reissue(op)
-            outcome.code == CODE_LIST_NAME_TAKEN && op.entity == SyncEntity.LIST ->
+        val code = outcome.code
+        val action: RejectAction
+        val effect = when {
+            code == SyncCodes.VALIDATION_ERROR -> keepForRetry(op, code).also { action = RejectAction.KEPT_FOR_RETRY }
+            code == CODE_DEPENDENCY_NOT_FOUND && retryDependency -> reissue(op).also { action = RejectAction.RETRY_AFTER_PARENT }
+            code == CODE_LIST_NAME_TAKEN && op.entity == SyncEntity.LIST ->
                 if (record != null && record.entity == SyncEntity.LIST && dao.baseline(op.entity.wireName, op.entityId) == null) {
-                    adoptList(prepared, record)
+                    adoptList(prepared, record).also { action = RejectAction.LIST_ADOPTED }
                 } else {
-                    keepForRetry(op, outcome.code)
+                    keepForRetry(op, code).also { action = RejectAction.KEPT_FOR_RETRY }
                 }
-            record != null -> adopt(prepared, record, me, OutcomeEffect.REVERTED)
-            else -> discard(prepared, now)
+            record != null -> adopt(prepared, record, me, OutcomeEffect.REVERTED).also { action = RejectAction.ADOPTED_SERVER_RECORD }
+            else -> discard(prepared, now).also { action = RejectAction.DISCARDED }
         }
+        debugLog.rejected(op, code, record != null, action)
+        return effect
     }
 
     // Un fallo de forma de la petición es un defecto del cliente, no un veredicto sobre el dato:
@@ -459,11 +464,17 @@ class RoomSyncLocalStore(
 
     // Verdadero si el registro se aplicó (no estaba fuera de alcance ni era una versión ya conocida).
     private suspend fun applyRecord(record: ServerRecord, scope: Set<SyncEntity>, me: String, now: Instant, losses: MutableList<SyncLoss>): Boolean {
-        if (record.entity !in PULLED || !recordInScope(record, scope)) return false
+        if (record.entity !in PULLED || !recordInScope(record, scope)) {
+            skipped(record, "out of scope")
+            return false
+        }
         val serverMillis = record.updatedAt.toEpochMilli()
         val base = dao.baseline(record.entity.wireName, record.id)?.serverUpdatedAt
         // Una versión ya conocida (o más vieja) no cambia nada: así repetir una página no pisa ni resucita filas.
-        if (base != null && serverMillis <= base) return false
+        if (base != null && serverMillis <= base) {
+            skipped(record, "known version base=$base")
+            return false
+        }
         val usable = when (record.entity) {
             SyncEntity.WORKSPACE -> true.also { applyWorkspace(record, losses) }
             SyncEntity.BOARD_ACCESS -> true.also { applyAccess(record, losses) }
@@ -471,9 +482,12 @@ class RoomSyncLocalStore(
                 if (record.isDeleted) true.also { retireBoard(record.id, losses, SyncLoss.DELETED_BY_SERVER) } else applyRow(record, base, me, now, losses)
             else -> applyRow(record, base, me, now, losses)
         }
-        if (usable) recordBaseline(record)
+        if (usable) recordBaseline(record) else skipped(record, "unusable shape")
         return usable
     }
+
+    private fun skipped(record: ServerRecord, reason: String) =
+        debugLog.line("pull skip entity=${record.entity.wireName} id=${record.id} reason=$reason record=${describe(record)}")
 
     // El servidor retiró el tablero (o ya no lo vemos): no hay tombstone que conservar, solo se limpia todo lo suyo.
     private suspend fun retireBoard(boardId: String, losses: MutableList<SyncLoss>, loss: SyncLoss) {
@@ -542,6 +556,7 @@ class RoomSyncLocalStore(
                 val server = ServerVersion(record.updatedAt, record.isDeleted)
                 val local = LocalVersion(Instant.ofEpochMilli(row.updatedAt), localDeleted)
                 val verdict = ConflictRules.resolve(base?.let(Instant::ofEpochMilli), server, local, now)
+                debugLog.line("pull conflict entity=${record.entity.wireName} id=${record.id} verdict=$verdict")
                 if (verdict == ConflictVerdict.ServerWins) {
                     save(row.adoptedFrom(record, me))
                     dropQueueEntry(record.entity, record.id)

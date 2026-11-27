@@ -21,6 +21,7 @@ import com.simposio.taskeer.data.repository.ServerBoardsRepository
 import com.simposio.taskeer.data.repository.WorkspaceInvitationsRepository
 import com.simposio.taskeer.data.repository.WorkspaceMembersRepository
 import com.simposio.taskeer.data.repository.WorkspaceRepository
+import com.simposio.taskeer.data.sync.SyncDebugLog
 import com.simposio.taskeer.data.sync.SyncTransport
 import kotlinx.coroutines.CoroutineScope
 
@@ -40,7 +41,11 @@ class RemoteRepositories(
 
 // Único puente hacia data.remote: di/ compone esta función sin conocer el cliente HTTP.
 // Los repositorios comparten un solo cliente y una sola sesión: dos sesiones no compartirían el access token ni su renovación.
-fun createRemoteRepositories(context: Context, scope: CoroutineScope): RemoteRepositories {
+fun createRemoteRepositories(
+    context: Context,
+    scope: CoroutineScope,
+    syncDebugLog: SyncDebugLog = SyncDebugLog.None,
+): RemoteRepositories {
     val remote = createApiClient(context)
     val auth = RemoteAuthRepository(remote.client, remote.session, scope, remote.googleExchange)
     val inbox = RemoteNotificationInboxRepository(remote.client, auth.sessionState, scope)
@@ -53,7 +58,7 @@ fun createRemoteRepositories(context: Context, scope: CoroutineScope): RemoteRep
     val boardAccess = RemoteBoardAccessRepository(remote.client, auth.sessionState, scope)
     return RemoteRepositories(
         auth, inbox, live, workspaces, workspaceMembers, workspaceInvitations, myInvitations, serverBoards, boardAccess,
-        RemoteSyncTransport(remote.client),
+        RemoteSyncTransport(remote.client, syncDebugLog),
         googleExchangeConfigured = remote.googleExchange != null,
     )
 }

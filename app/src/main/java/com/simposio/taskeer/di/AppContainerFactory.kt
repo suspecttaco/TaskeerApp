@@ -115,7 +115,7 @@ fun createAppContainer(context: Context): AppContainer {
         timeZone = timeZoneProvider,
         clock = Instant::now,
     )
-    val remote = createRemoteRepositories(context, CoroutineScope(SupervisorJob() + Dispatchers.Default))
+    val remote = createRemoteRepositories(context, CoroutineScope(SupervisorJob() + Dispatchers.Default), AndroidSyncDebugLog)
     val googleSignInConfig = GoogleSignInConfig(BuildConfig.GOOGLE_WEB_CLIENT_ID, exchangeConfigured = remote.googleExchangeConfigured)
     val syncWiring = createSync(context, database.syncDao(), remote, preferencesRepository) { reminderReconciler.reconcile() }
     val sync = syncWiring.repository
@@ -236,7 +236,7 @@ private fun createSync(
     onRemindersChanged: suspend () -> Unit,
 ): SyncWiring {
     val scopeHolder = SyncScopeHolder()
-    val store = RoomSyncLocalStore(dao, scopeHolder)
+    val store = RoomSyncLocalStore(dao, scopeHolder, debugLog = AndroidSyncDebugLog)
     val scheduler = WorkManagerBackgroundScheduler(context)
     val triggers = SyncTriggers(
         connectivity = AndroidConnectivitySource(context).isOnline,
@@ -260,6 +260,7 @@ private fun createSync(
         retry = CompositeRetryScheduler(triggers, BackgroundRetryScheduler(scheduler) { controller.active.value }),
         clock = Instant::now,
         onRemindersChanged = onRemindersChanged,
+        debugLog = AndroidSyncDebugLog,
     )
     val runner = BackgroundSyncRunner(
         session = remote.auth.sessionState,

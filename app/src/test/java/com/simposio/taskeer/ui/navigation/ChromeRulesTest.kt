@@ -341,4 +341,12 @@ class ChromeRulesTest {
         }
         assertTrue(chromeFor(AppDestination.HOME).topBar.showsAccountEntry())
     }
+
+    @Test
+    fun withSync_sinSesionQuitaSincronizarYConservaElResto() {
+        val menu = overflowMenuFor(AppDestination.MY_DAY)
+
+        assertEquals(listOf(MenuAction.PRINT, MenuAction.SHARE), menu.withSync(false).actions)
+        assertEquals(menu, menu.withSync(true))
+    }
 }

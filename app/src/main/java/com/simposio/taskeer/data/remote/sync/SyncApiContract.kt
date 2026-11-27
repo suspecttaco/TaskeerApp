@@ -61,14 +61,14 @@ object SyncApiContract {
         return JSONObject().put("mutations", mutations).toString()
     }
 
-    fun parsePush(body: String, batch: List<PushMutation>): Parsed<List<PushOutcome>> = try {
+    fun parsePush(body: String, batch: List<PushMutation>, onDiscard: (String) -> Unit = {}): Parsed<List<PushOutcome>> = try {
         val root = JSONObject(body)
         if (!sameMajor(root.optString("contractVersion", VERSION))) {
             Parsed.UpdateRequired
         } else {
             val entities = batch.associate { it.clientMutationId to it.entity }
             val results = root.getJSONArray("results")
-            val outcomes = (0 until results.length()).map { parseResult(results.getJSONObject(it), entities) }
+            val outcomes = (0 until results.length()).map { parseResult(results.getJSONObject(it), entities, onDiscard) }
             if (outcomes.any { it == null }) Parsed.Malformed else Parsed.Ok(outcomes.filterNotNull())
         }
     } catch (_: JSONException) {
@@ -88,7 +88,7 @@ object SyncApiContract {
     }
 
     // `changes` lleva siempre todas las claves, pero una ausente se lee como vacía; las claves que la app no conoce se ignoran.
-    fun parsePull(body: String): Parsed<PullPage> = try {
+    fun parsePull(body: String, onDiscard: (String) -> Unit = {}): Parsed<PullPage> = try {
         val root = JSONObject(body)
         val version = root.optString("contractVersion", VERSION)
         if (!sameMajor(version)) {
@@ -97,7 +97,7 @@ object SyncApiContract {
             val changes = root.optJSONObject("changes")
             val records = CHANGE_KEYS.flatMap { (key, entity) ->
                 val array = changes?.optJSONArray(key) ?: return@flatMap emptyList()
-                (0 until array.length()).mapNotNull { parseRecord(array.getJSONObject(it), entity) }
+                (0 until array.length()).mapNotNull { parseRecord(array.getJSONObject(it), entity, onDiscard) }
             }
             Parsed.Ok(
                 PullPage(
@@ -131,10 +131,11 @@ object SyncApiContract {
 
     private fun sameMajor(version: String): Boolean = version.substringBefore('.').toIntOrNull() == MAJOR
 
-    private fun parseResult(node: JSONObject, entities: Map<String, SyncEntity>): PushOutcome? {
-        val id = node.optString("clientMutationId").takeIf { it.isNotEmpty() } ?: return null
-        val entity = entities[id] ?: return null
-        val record = node.optJSONObject("record")?.let { parseRecord(it, entity) ?: return null }
+    private fun parseResult(node: JSONObject, entities: Map<String, SyncEntity>, onDiscard: (String) -> Unit): PushOutcome? {
+        val id = node.optString("clientMutationId").takeIf { it.isNotEmpty() }
+            ?: return null.also { onDiscard("push result without clientMutationId: $node") }
+        val entity = entities[id] ?: return null.also { onDiscard("push result for unknown clientMutationId=$id: $node") }
+        val record = node.optJSONObject("record")?.let { parseRecord(it, entity, onDiscard) ?: return null }
         return when (node.optString("status")) {
             "applied" -> PushOutcome.Applied(id, record)
             // El backend siempre adjunta el registro vigente en un conflicto; sin él no hay nada que adoptar y se
@@ -145,12 +146,15 @@ object SyncApiContract {
         }
     }
 
-    private fun parseRecord(node: JSONObject, entity: SyncEntity): ServerRecord? {
+    private fun parseRecord(node: JSONObject, entity: SyncEntity, onDiscard: (String) -> Unit): ServerRecord? {
         // El acceso se identifica por su tablero: `boardAccess` no lleva `id` propio.
         val idKey = if (entity == SyncEntity.BOARD_ACCESS) "boardId" else "id"
-        val id = node.optString(idKey).takeIf { it.isNotEmpty() } ?: return null
-        val updatedAt = SyncTimestamps.parse(node.optString("updatedAt")) ?: return null
-        val deletedAt = if (node.isNull("deletedAt")) null else SyncTimestamps.parse(node.optString("deletedAt")) ?: return null
+        val id = node.optString(idKey).takeIf { it.isNotEmpty() }
+            ?: return null.also { onDiscard("${entity.wireName} record without $idKey: $node") }
+        val updatedAt = SyncTimestamps.parse(node.optString("updatedAt"))
+            ?: return null.also { onDiscard("${entity.wireName} id=$id unparseable updatedAt: $node") }
+        val deletedAt = if (node.isNull("deletedAt")) null else SyncTimestamps.parse(node.optString("deletedAt"))
+            ?: return null.also { onDiscard("${entity.wireName} id=$id unparseable deletedAt: $node") }
         val fields = node.keys().asSequence()
             .filterNot { it == idKey || it == "updatedAt" || it == "deletedAt" }
             .associateWith { fromJson(node.get(it)) }

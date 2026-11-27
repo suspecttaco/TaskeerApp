@@ -22,6 +22,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -41,6 +42,10 @@ import com.simposio.taskeer.ui.auth.SessionMessage
 import com.simposio.taskeer.ui.auth.SessionViewModel
 import com.simposio.taskeer.ui.sync.AccountSwitchDialog
 import com.simposio.taskeer.ui.sync.SyncViewModel
+import com.simposio.taskeer.ui.sync.manualSyncText
+import com.simposio.taskeer.ui.sync.noticeKindFor
+import com.simposio.taskeer.domain.sync.SyncStatus
+import com.simposio.taskeer.ui.navigation.withSync
 import com.simposio.taskeer.domain.myday.shouldAutoOpenSuggestions
 import com.simposio.taskeer.domain.workspace.WorkspaceRole
 import com.simposio.taskeer.ui.board.BoardViewModel
@@ -134,6 +139,7 @@ fun AppShell(
     val loggedOutText = stringResource(R.string.auth_logged_out)
     val loggedOutOfflineText = stringResource(R.string.auth_logged_out_server_unreachable)
     val scope = rememberCoroutineScope()
+    val resources = LocalContext.current.resources
 
     // Los ViewModels de lista y tablero comparten dueño con su pantalla (la entrada de navegación).
     val entry = currentEntry
@@ -234,6 +240,13 @@ fun AppShell(
         }
     }
     LaunchedEffect(syncViewModel) {
+        syncViewModel.manualFeedback.collect { feedback ->
+            snackbarHost.currentSnackbarData?.dismiss()
+            val text = manualSyncText(feedback, resources)
+            scope.launch { snackbarHost.showNotice(message = text, kind = noticeKindFor(feedback)) }
+        }
+    }
+    LaunchedEffect(syncViewModel) {
         syncViewModel.noticeMessages.collect { snackbarHost.showNotice(message = it, kind = NoticeKind.INFO) }
     }
     LaunchedEffect(session) {
@@ -258,7 +271,7 @@ fun AppShell(
     }
 
     val menu: OverflowMenu = overflowMenuFor(destination).withListCount(listCount).withBoardPresent(boardName != null)
-        .withBoardAccess(boardWorkspaceId != null)
+        .withBoardAccess(boardWorkspaceId != null).withSync(syncState.visible)
     val title = destination.title(listName, boardName, workspaceName, boardRole)
     val back = backStep(
         destination,
@@ -292,6 +305,7 @@ fun AppShell(
                         menu = menu,
                         clearEnabled = clearState.clearEnabled,
                         calendarsEnabled = calendarsReadable,
+                        syncEnabled = syncState.status != SyncStatus.Syncing,
                         accountEntry = if (chrome.topBar.showsAccountEntry()) accountEntryFor(sessionState) else null,
                         actions = TopBarActions(
                             onOpenSearch = {

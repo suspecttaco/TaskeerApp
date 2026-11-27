@@ -3,17 +3,27 @@ package com.simposio.taskeer.ui.sync
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.simposio.taskeer.data.repository.SyncRepository
+import com.simposio.taskeer.domain.sync.ManualSyncFeedback
+import com.simposio.taskeer.domain.sync.ManualSyncRules
 import com.simposio.taskeer.domain.sync.SyncNotice
 import com.simposio.taskeer.domain.sync.SyncNoticeRules
 import com.simposio.taskeer.domain.sync.SyncStatus
 import com.simposio.taskeer.domain.sync.SyncStatusRules
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 data class SyncUiState(
     val status: SyncStatus,
@@ -34,7 +44,27 @@ class SyncViewModel(private val repository: SyncRepository) : ViewModel() {
 
     val noticeMessages: Flow<String> = repository.notices.map { notice: SyncNotice -> SyncNoticeRules.message(notice) }
 
-    fun sync() = repository.requestSync()
+    private val feedbackChannel = Channel<ManualSyncFeedback>(Channel.BUFFERED)
+    private var manualJob: Job? = null
+
+    val manualFeedback: Flow<ManualSyncFeedback> = feedbackChannel.receiveAsFlow()
+
+    fun sync() {
+        if (!ManualSyncRules.canRequest(state.value.status, inFlight = manualJob?.isActive == true)) return
+        manualJob = viewModelScope.launch {
+            feedbackChannel.send(ManualSyncFeedback.Status(SyncStatus.Syncing))
+            // Sin conexión el motor no atiende la petición: el plazo evita dejar «Sincronizando…» sin cierre.
+            val outcome = coroutineScope {
+                val pending = async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeoutOrNull(MANUAL_TIMEOUT_MS) { repository.manualOutcomes.first() }
+                }
+                repository.requestSync()
+                pending.await()
+            }
+            val current = SyncStatusRules.resolve(repository.status.first())
+            ManualSyncRules.result(outcome, current)?.let { feedbackChannel.send(it) }
+        }
+    }
 
     fun onForeground() = repository.notifyForeground()
 
@@ -46,5 +76,6 @@ class SyncViewModel(private val repository: SyncRepository) : ViewModel() {
 
     private companion object {
         const val STOP_TIMEOUT_MS = 5_000L
+        const val MANUAL_TIMEOUT_MS = 30_000L
     }
 }

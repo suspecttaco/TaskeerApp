@@ -33,7 +33,7 @@ internal class DebugHttpLogInterceptor(
             sink("<cuerpo omitido: contenido de tareas>")
         } else if (!isEventStream(response)) {
             val body = runCatching { response.peekBody(PEEK_BYTES).string() }.getOrDefault("")
-            if (body.isNotEmpty()) sink(mask(body).take(MAX_BODY_CHARS))
+            if (body.isNotEmpty()) sinkChunked(mask(body))
         }
         return response
     }
@@ -58,15 +58,24 @@ internal class DebugHttpLogInterceptor(
             return
         }
         val text = runCatching { Buffer().also(body::writeTo).readUtf8() }.getOrNull()
-        sink(if (text != null) mask(text).take(MAX_BODY_CHARS) else "<$length bytes>")
+        if (text != null) sinkChunked(mask(text)) else sink("<$length bytes>")
+    }
+
+    // Logcat trunca cerca de 4000 caracteres por línea: un lote de 100 mutaciones se parte en trozos numerados.
+    private fun sinkChunked(text: String) {
+        val clipped = text.take(MAX_BODY_CHARS)
+        val chunks = clipped.chunked(CHUNK_CHARS)
+        chunks.forEachIndexed { i, chunk -> sink(if (chunks.size == 1) chunk else "[${i + 1}/${chunks.size}] $chunk") }
+        if (clipped.length < text.length) sink("<truncado: ${text.length} caracteres>")
     }
 
     // Un stream SSE no termina: peekBody se bloquearía esperando bytes.
     private fun isEventStream(response: Response) =
         response.header("Content-Type")?.contains("text/event-stream", ignoreCase = true) == true
 
-    // La URL real lleva el prefijo /api/v1/, así que «sync» no es el primer segmento: se busca en cualquier posición.
-    // Sincronización, listas, tareas y subtareas llevan títulos y descripciones del usuario.
+    // La URL real lleva el prefijo /api/v1/, así que el segmento no es el primero: se busca en cualquier posición.
+    // Listas, tareas y subtareas llevan títulos y descripciones del usuario; sync se muestra completo solo porque
+    // este interceptor existe únicamente en builds debug (ver ApiClientFactory) y se necesita para diagnosticar rechazos.
     private fun carriesTaskContent(path: String): Boolean {
         val segments = path.trim('/').split('/')
         return segments.any { it in CONTENT_SEGMENTS }
@@ -79,10 +88,11 @@ internal class DebugHttpLogInterceptor(
 
     internal companion object {
         const val TAG = "TaskeerHttp"
-        private const val MAX_BODY_CHARS = 2000
-        private const val PEEK_BYTES = 8192L
-        private const val MAX_REQUEST_BYTES = 65_536L
-        private val CONTENT_SEGMENTS = setOf("sync", "lists", "tasks", "subtasks")
+        private const val MAX_BODY_CHARS = 400_000
+        private const val CHUNK_CHARS = 3500
+        private const val PEEK_BYTES = 1_048_576L
+        private const val MAX_REQUEST_BYTES = 1_048_576L
+        private val CONTENT_SEGMENTS = setOf("lists", "tasks", "subtasks")
         private const val MASK = "***"
         private val MASKED_HEADERS = setOf("authorization", "proxy-authorization", "cookie", "set-cookie", "apikey")
         private val RESPONSE_HEADERS = setOf("content-type", "retry-after")

@@ -65,7 +65,16 @@ class SyncSecretsRulesTest {
 
         val offenders = syncFiles.filter { logging.containsMatchIn(it.readText()) }.map { it.name }
 
-        assertTrue("la sincronización maneja títulos y tokens; sin logs: $offenders", offenders.isEmpty())
+        assertTrue("el log vive solo en di/ tras SyncDebugLog: $offenders", offenders.isEmpty())
+    }
+
+    @Test
+    fun logDeSyncSoloEnDiYTrasLaCostura() {
+        val direct = Regex("""\bLog\.[a-z]\(""")
+        val offenders = MainSources.kotlinFiles("").filter { direct.containsMatchIn(it.readText()) }.map { it.name }.sorted()
+
+        assertEquals(listOf("AndroidSyncDebugLog.kt", "DebugHttpLogInterceptor.kt"), offenders.filter { it.contains("Debug") })
+        assertTrue(MainSources.kotlin("di/AndroidSyncDebugLog.kt").contains("if (BuildConfig.DEBUG)"))
     }
 
     @Test
@@ -108,10 +117,11 @@ class SyncSecretsRulesTest {
     }
 
     @Test
-    fun interceptorOmiteSync() {
+    fun interceptorMuestraSyncSoloEnDebug() {
         val source = MainSources.kotlin("data/remote/transport/DebugHttpLogInterceptor.kt")
 
-        assertTrue(source.contains("CONTENT_SEGMENTS = setOf(\"sync\""))
+        assertTrue(source.contains("CONTENT_SEGMENTS = setOf(\"lists\", \"tasks\", \"subtasks\")"))
         assertTrue(source.contains("carriesTaskContent"))
+        assertTrue(MainSources.kotlin("data/remote/ApiClientFactory.kt").contains("httpLogging = BuildConfig.DEBUG"))
     }
 }
