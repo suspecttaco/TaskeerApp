@@ -71,6 +71,13 @@ class PreferencesRepositoryImpl(
             )
         }
 
+    override val backgroundSync: Flow<Boolean> = readPreferences()
+        .map { it[KEY_BACKGROUND_SYNC] ?: DEFAULT_BACKGROUND_SYNC }
+
+    override suspend fun setBackgroundSyncEnabled(enabled: Boolean) {
+        dataStore.edit { it[KEY_BACKGROUND_SYNC] = enabled }
+    }
+
     override suspend fun setThemeMode(mode: ThemeMode) {
         dataStore.edit { it[KEY_THEME_MODE] = mode.name }
     }
@@ -165,6 +172,7 @@ class PreferencesRepositoryImpl(
     companion object {
         const val DATA_STORE_NAME: String = "user_preferences"
         const val DEFAULT_DYNAMIC_COLOR: Boolean = true
+        const val DEFAULT_BACKGROUND_SYNC: Boolean = true
 
         private const val MINUTES_PER_HOUR = 60
         private const val MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR
@@ -181,6 +189,7 @@ class PreferencesRepositoryImpl(
         private val KEY_SUGGESTIONS_LAST_SHOWN_DAY = stringPreferencesKey("suggestions_last_shown_day")
         private val KEY_REGION_COUNTRY = stringPreferencesKey("region_country_iso")
         private val KEY_REGION_TIME_ZONE = stringPreferencesKey("region_timezone_iana")
+        private val KEY_BACKGROUND_SYNC = booleanPreferencesKey("background_sync_enabled")
         private val KEY_HIDDEN_CALENDAR_IDS = stringSetPreferencesKey("calendar_hidden_ids")
     }
 }

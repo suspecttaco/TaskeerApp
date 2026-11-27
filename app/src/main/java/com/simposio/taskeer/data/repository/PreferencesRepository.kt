@@ -28,6 +28,10 @@ interface PreferencesRepository {
 
     val region: Flow<RegionPreferences>
 
+    val backgroundSync: Flow<Boolean>
+
+    suspend fun setBackgroundSyncEnabled(enabled: Boolean)
+
     suspend fun setThemeMode(mode: ThemeMode)
 
     suspend fun setDynamicColor(enabled: Boolean)
