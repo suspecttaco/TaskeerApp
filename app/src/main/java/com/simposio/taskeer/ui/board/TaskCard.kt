@@ -1,5 +1,6 @@
 package com.simposio.taskeer.ui.board
 
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,12 +17,12 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.unit.dp
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.TaskPriority
 import com.simposio.taskeer.ui.components.CompleteCheckbox
@@ -29,9 +30,12 @@ import com.simposio.taskeer.ui.components.IconLabel
 import com.simposio.taskeer.ui.components.MyDayToggle
 import com.simposio.taskeer.ui.components.color
 import com.simposio.taskeer.ui.components.labelRes
+import com.simposio.taskeer.ui.components.rememberAnimationsEnabled
 import com.simposio.taskeer.ui.tasks.DUE_DATE_TIME_FORMATTER
+import com.simposio.taskeer.ui.theme.Elevation
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
+import com.simposio.taskeer.ui.theme.stateDpSpec
 import java.time.Instant
 import java.time.LocalDateTime
 
@@ -43,10 +47,15 @@ internal fun TaskCard(
     onToggleMyDay: (String) -> Unit = {},
     onToggleCompleted: (String) -> Unit = {},
 ) {
+    val elevation by animateDpAsState(
+        targetValue = if (elevated) Elevation.Dragged else Elevation.Resting,
+        animationSpec = stateDpSpec(rememberAnimationsEnabled()),
+        label = "cardElevation",
+    )
     Card(
         modifier = modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (elevated) 8.dp else 1.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = elevation),
+        border = BorderStroke(Spacing.CardBorder, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column(
             modifier = Modifier.padding(horizontal = Spacing.CardPadding, vertical = Spacing.ItemGap),

@@ -39,6 +39,8 @@ import com.simposio.taskeer.ui.permission.rememberCalendarPermissionRequest
 import com.simposio.taskeer.ui.permission.rememberOpenAppSettings
 import com.simposio.taskeer.ui.tasks.rememberTaskEditorHost
 import com.simposio.taskeer.ui.theme.Spacing
+import com.simposio.taskeer.ui.theme.stateFadeEnter
+import com.simposio.taskeer.ui.theme.stateFadeExit
 import java.time.ZoneId
 
 @Composable
@@ -93,7 +95,11 @@ fun CalendarScreen(
             onOpenSettings = openSettings,
             onRetry = viewModel::retry,
         )
-        if (state.load == CalendarLoad.Loading) {
+        AnimatedVisibility(
+            visible = state.load == CalendarLoad.Loading,
+            enter = stateFadeEnter(animated),
+            exit = stateFadeExit(animated),
+        ) {
             val loading = stringResource(R.string.calendar_loading)
             LinearProgressIndicator(
                 modifier = Modifier

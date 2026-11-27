@@ -1,5 +1,6 @@
 package com.simposio.taskeer.ui.board
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +23,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -34,7 +37,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.simposio.taskeer.R
 import com.simposio.taskeer.ui.components.DecorativeIcon
+import com.simposio.taskeer.ui.components.EmptyHint
+import com.simposio.taskeer.ui.components.rememberAnimationsEnabled
+import com.simposio.taskeer.ui.theme.Motion
 import com.simposio.taskeer.ui.theme.Spacing
+import com.simposio.taskeer.ui.theme.stateFloatSpec
 
 @Composable
 internal fun BoardColumnView(
@@ -57,7 +64,7 @@ internal fun BoardColumnView(
 
     Card(
         modifier = Modifier
-            .width(ColumnWidth)
+            .width(Spacing.BoardColumnWidth)
             .fillMaxHeight()
             .onGloballyPositioned { onColumnPositioned(it.boundsInRoot().toBounds()) },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -95,33 +102,38 @@ internal fun BoardColumnView(
                 verticalArrangement = Arrangement.spacedBy(Spacing.InlineGap),
             ) {
                 if (column.cards.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.board_column_empty),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    EmptyHint(text = stringResource(R.string.board_column_empty))
                 }
+                val animated = rememberAnimationsEnabled()
                 column.cards.forEach { card ->
-                    DisposableEffect(card.id) { onDispose { onCardDisposed(card.id) } }
-                    TaskCard(
-                        card = card,
-                        onToggleMyDay = onToggleMyDay,
-                        onToggleCompleted = onToggleCompleted,
-                        modifier = Modifier
-                            .alpha(if (card.id == draggedId) 0.3f else 1f)
-                            .onGloballyPositioned { onCardPositioned(card.id, it.boundsInRoot().toBounds()) }
-                            .pointerInput(card.id) {
-                                detectDragGesturesAfterLongPress(
-                                    onDragStart = { onDragStart(card, it) },
-                                    onDrag = { change, amount ->
-                                        change.consume()
-                                        onDrag(amount)
-                                    },
-                                    onDragEnd = onDragEnd,
-                                    onDragCancel = onDragCancel,
-                                )
-                            }
-                            .clickable { onEditTask(card.id) },
-                    )
+                    key(card.id) {
+                        DisposableEffect(card.id) { onDispose { onCardDisposed(card.id) } }
+                        val sourceAlpha by animateFloatAsState(
+                            targetValue = if (card.id == draggedId) Motion.DraggedSourceAlpha else 1f,
+                            animationSpec = stateFloatSpec(animated),
+                            label = "cardSourceAlpha",
+                        )
+                        TaskCard(
+                            card = card,
+                            onToggleMyDay = onToggleMyDay,
+                            onToggleCompleted = onToggleCompleted,
+                            modifier = Modifier
+                                .alpha(sourceAlpha)
+                                .onGloballyPositioned { onCardPositioned(card.id, it.boundsInRoot().toBounds()) }
+                                .pointerInput(card.id) {
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = { onDragStart(card, it) },
+                                        onDrag = { change, amount ->
+                                            change.consume()
+                                            onDrag(amount)
+                                        },
+                                        onDragEnd = onDragEnd,
+                                        onDragCancel = onDragCancel,
+                                    )
+                                }
+                                .clickable { onEditTask(card.id) },
+                        )
+                    }
                 }
             }
             TextButton(onClick = onCreateTask) {

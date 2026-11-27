@@ -1,6 +1,7 @@
 package com.simposio.taskeer.ui.notifications
 
 import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -35,7 +36,6 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.model.AppNotificationKind
@@ -43,8 +43,12 @@ import com.simposio.taskeer.domain.reminder.SnoozeOption
 import com.simposio.taskeer.ui.components.ActionIcon
 import com.simposio.taskeer.ui.components.DecorativeIcon
 import com.simposio.taskeer.ui.components.IconLabel
+import com.simposio.taskeer.ui.components.rememberAnimationsEnabled
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
+import com.simposio.taskeer.ui.theme.stateFadeEnter
+import com.simposio.taskeer.ui.theme.stateFadeExit
+import com.simposio.taskeer.ui.theme.unread
 
 @Composable
 fun NotificationRow(
@@ -68,8 +72,7 @@ fun NotificationRow(
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.ItemGap)) {
             Text(
                 text = row.title(),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (row.unread) FontWeight.Bold else FontWeight.Normal,
+                style = MaterialTheme.typography.bodyLarge.unread(row.unread),
             )
             Text(text = row.text(), style = MaterialTheme.typography.bodyMedium)
             Text(
@@ -94,14 +97,17 @@ fun NotificationRow(
                 )
             }
         }
-        if (row.unread) {
-            val unreadDescription = stringResource(R.string.notifications_unread_mark)
+        val animated = rememberAnimationsEnabled()
+        val unreadDescription = stringResource(R.string.notifications_unread_mark)
+        AnimatedVisibility(visible = row.unread, enter = stateFadeEnter(animated), exit = stateFadeExit(animated)) {
             Box(
                 modifier = Modifier
                     .size(Spacing.DotSize)
                     .background(MaterialTheme.colorScheme.primary, CircleShape)
                     .semantics { contentDescription = unreadDescription },
             )
+        }
+        if (row.unread) {
             ActionIcon(
                 icon = Icons.Filled.Done,
                 contentDescription = stringResource(R.string.notifications_mark_read),

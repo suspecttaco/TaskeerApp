@@ -59,6 +59,7 @@ import com.simposio.taskeer.ui.boards.BoardsUiState
 import com.simposio.taskeer.ui.boards.BoardsViewModel
 import com.simposio.taskeer.ui.auth.SessionViewModel
 import com.simposio.taskeer.ui.components.DecorativeIcon
+import com.simposio.taskeer.ui.components.rowItemModifier
 import com.simposio.taskeer.ui.lists.ListDialogs
 import com.simposio.taskeer.ui.lists.TaskListsUiState
 import com.simposio.taskeer.ui.lists.TaskListsViewModel
@@ -129,6 +130,7 @@ fun HomeContent(
                 Tile(
                     label = tileLabel(summary.list.name, summary.activeCount),
                     onClick = { onOpenList(summary.list.id) },
+                    modifier = rowItemModifier(),
                 ) {
                     Text(
                         text = summary.list.name,
@@ -143,12 +145,12 @@ fun HomeContent(
                     )
                 }
             }
-            item(key = "new-list") { NewTile(stringResource(R.string.home_new_list), onNewList) }
+            item(key = "new-list") { NewTile(stringResource(R.string.home_new_list), onNewList, rowItemModifier()) }
             sectionTitle(R.string.home_shared_space)
             if (showWorkspaces) {
                 item(key = "workspaces-entry") {
                     val label = stringResource(R.string.workspaces_tile)
-                    Tile(label = label, onClick = onOpenWorkspaces) {
+                    Tile(label = label, onClick = onOpenWorkspaces, modifier = rowItemModifier()) {
                         DecorativeIcon(Icons.Filled.Groups, tint = MaterialTheme.colorScheme.primary)
                         Text(
                             text = label,
@@ -160,7 +162,7 @@ fun HomeContent(
                 }
             }
             items(boards.boards, key = { "board-${it.id}" }) { board ->
-                Tile(label = board.name, onClick = { onOpenBoard(board.id) }) {
+                Tile(label = board.name, onClick = { onOpenBoard(board.id) }, modifier = rowItemModifier()) {
                     DecorativeIcon(Icons.Filled.Dashboard, tint = MaterialTheme.colorScheme.primary)
                     Text(
                         text = board.name,
@@ -170,7 +172,7 @@ fun HomeContent(
                     )
                 }
             }
-            item(key = "new-board") { NewTile(stringResource(R.string.home_new_board), onNewBoard) }
+            item(key = "new-board") { NewTile(stringResource(R.string.home_new_board), onNewBoard, rowItemModifier()) }
         }
         HomeSectionBar(
             onOpenSection = onOpenSection,
@@ -192,10 +194,10 @@ private fun LazyGridScope.sectionTitle(@StringRes title: Int) {
 }
 
 @Composable
-private fun Tile(label: String, onClick: () -> Unit, content: @Composable () -> Unit) {
+private fun Tile(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Card(
         onClick = onClick,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .heightIn(min = Spacing.TileHeight)
             .semantics {
@@ -211,10 +213,10 @@ private fun Tile(label: String, onClick: () -> Unit, content: @Composable () -> 
 }
 
 @Composable
-private fun NewTile(label: String, onClick: () -> Unit) {
+private fun NewTile(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Card(
         onClick = onClick,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .heightIn(min = Spacing.TileHeight)
             .semantics { role = Role.Button },
