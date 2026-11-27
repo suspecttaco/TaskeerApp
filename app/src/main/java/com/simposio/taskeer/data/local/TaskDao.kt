@@ -79,12 +79,13 @@ abstract class TaskDao {
     @Query(
         "SELECT tasks.id AS id, tasks.title AS title, tasks.dueAt AS dueAt FROM tasks " +
             "WHERE tasks.dueAt IS NOT NULL AND tasks.deletedAt IS NULL " +
-            "AND tasks.completedAt IS NULL ORDER BY tasks.dueAt ASC, tasks.id ASC",
+            "AND tasks.completedAt IS NULL AND " + LIVE_LIST_OR_NONE + " ORDER BY tasks.dueAt ASC, tasks.id ASC",
     )
     abstract fun observeReminderCandidates(): Flow<List<ReminderCandidateRow>>
 
     @Query(
-        "SELECT COUNT(*) FROM tasks WHERE tasks.deletedAt IS NULL AND tasks.completedAt IS NULL",
+        "SELECT COUNT(*) FROM tasks WHERE tasks.deletedAt IS NULL AND tasks.completedAt IS NULL AND " +
+            LIVE_LIST_OR_NONE,
     )
     abstract suspend fun countActive(): Int
 
@@ -102,10 +103,15 @@ abstract class TaskDao {
         dismissRemindersOfTask(task.id, deletedAt)
     }
 
-    @Query("SELECT COUNT(*) FROM tasks WHERE completedAt IS NOT NULL AND deletedAt IS NULL")
+    @Query(
+        "SELECT COUNT(*) FROM tasks WHERE completedAt IS NOT NULL AND deletedAt IS NULL AND " + LIVE_LIST_OR_NONE,
+    )
     abstract fun observeCompletedCount(): Flow<Int>
 
-    @Query("SELECT * FROM tasks WHERE completedAt IS NOT NULL AND deletedAt IS NULL ORDER BY id ASC")
+    @Query(
+        "SELECT * FROM tasks WHERE completedAt IS NOT NULL AND deletedAt IS NULL AND " + LIVE_LIST_OR_NONE +
+            " ORDER BY id ASC",
+    )
     abstract suspend fun findCompleted(): List<TaskEntity>
 
     // Reutiliza la cascada de deleteTask (subtareas y recordatorios) para que ambos caminos no diverjan.
@@ -178,3 +184,9 @@ abstract class TaskDao {
         reminder?.let { insertReminder(it) }
     }
 }
+
+// Mismo criterio de lista que VISIBLE_ANY, pero con EXISTS porque estas consultas no unen task_lists. Una tarea huérfana
+// (lista inexistente o borrada, guardada por tolerancia de pull) no debe disparar recordatorios, contarse ni limpiarse.
+// Solo la lista: la cadena columna-tablero no la filtraban y su semántica no cambia aquí.
+internal const val LIVE_LIST_OR_NONE =
+    "(tasks.listId IS NULL OR EXISTS (SELECT 1 FROM task_lists tl WHERE tl.id = tasks.listId AND tl.deletedAt IS NULL))"

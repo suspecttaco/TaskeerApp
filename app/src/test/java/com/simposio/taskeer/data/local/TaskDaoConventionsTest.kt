@@ -401,6 +401,37 @@ class TaskDaoConventionsTest {
         assertTrue(body.contains("dismissRemindersOfTask(task.id, deletedAt)"))
     }
 
+    @Test
+    fun liveListOrNone_exigeListaVivaSoloCuandoHayListId() {
+        val predicate = liveListPredicate()
+
+        assertTrue(predicate.contains("tasks.listId IS NULL OR EXISTS"))
+        assertTrue("lista existente", predicate.contains("tl.id = tasks.listId"))
+        assertTrue("lista no borrada", predicate.contains("tl.deletedAt IS NULL"))
+    }
+
+    @Test
+    fun consultasDeRecordatorioYContadores_excluyenTareasDeListaInexistenteOBorrada() {
+        listOf("observeReminderCandidates", "countActive", "observeCompletedCount", "findCompleted").forEach { name ->
+            assertTrue("$name filtra por lista viva", querySource(name).contains("LIVE_LIST_OR_NONE"))
+        }
+    }
+
+    @Test
+    fun consultasConFiltroDeLista_conservanSusFiltrosPropios() {
+        assertTrue(querySource("observeReminderCandidates").contains("tasks.dueAt IS NOT NULL AND tasks.deletedAt IS NULL"))
+        assertTrue(querySource("countActive").contains("tasks.completedAt IS NULL"))
+        assertTrue(querySource("observeCompletedCount").contains("completedAt IS NOT NULL AND deletedAt IS NULL"))
+        assertTrue(querySource("findCompleted").contains("ORDER BY id ASC"))
+    }
+
+    private fun liveListPredicate(): String {
+        val source = taskDaoSource()
+        val start = source.indexOf("const val LIVE_LIST_OR_NONE =")
+        assertTrue("falta LIVE_LIST_OR_NONE", start >= 0)
+        return source.substring(start)
+    }
+
     private fun querySource(name: String): String {
         val source = taskDaoSource()
         val start = source.indexOf("fun $name(")
