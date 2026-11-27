@@ -125,9 +125,9 @@ class SyncEngineConflictTest {
         assertEquals(serverEdit.toEpochMilli(), dao.baseline("task", "t1")!!.serverUpdatedAt)
     }
 
-    // El mismo veredicto que el servidor da a las mismas versiones (contrato 1.0, vectores V07-V13).
+    // Mismo veredicto que el servidor para V07-V10, V12 y V13; V11 (tombstone sin resurrección) lo cubren tombstoneSobreEdicionLocal_descartaYAvisa y versionVieja_noRevivefilaBorrada.
     @Test
-    fun coincideConElServidor_vectoresV07aV13() = runTest {
+    fun coincideConElServidor_vectoresV07aV10YV12V13() = runTest {
         for (name in listOf("V07", "V08", "V09", "V10", "V12", "V13")) {
             val cases = JSONObject(requireNotNull(javaClass.getResource("/sync-contract/v1/$name.json")).readText()).getJSONArray("cases")
             for (i in 0 until cases.length()) {

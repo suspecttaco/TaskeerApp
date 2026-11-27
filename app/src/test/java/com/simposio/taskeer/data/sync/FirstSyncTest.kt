@@ -14,6 +14,7 @@ import com.simposio.taskeer.testing.syncTask
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -95,6 +96,21 @@ class FirstSyncTest {
         assertTrue(!extra.pending)
         assertNull(dao.queue().firstOrNull { it.entityId == "extra" })
         assertNotNull(dao.lists.value[derived])
+    }
+
+    @Test
+    fun idYaEnUsoEnListaNoSembrada_susTareasNoSeMuestran() = runTest {
+        seedLocal()
+        dao.put(syncList("extra", name = "Compras", position = 1))
+        dao.put(syncTask("te", listId = "extra", pending = true))
+        backend.rejectIds["extra"] = FakeSyncBackend.Rejection("ID_ALREADY_IN_USE")
+
+        cycle()
+        cycle()
+
+        val task = dao.tasks.value.getValue("te")
+        val shown = task.deletedAt == null && dao.lists.value["extra"]?.deletedAt == null
+        assertFalse(shown)
     }
 
     @Test
