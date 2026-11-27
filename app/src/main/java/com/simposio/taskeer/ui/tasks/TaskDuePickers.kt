@@ -23,7 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
+import com.simposio.taskeer.ui.theme.Elevation
 import com.simposio.taskeer.ui.theme.Spacing
 import androidx.compose.ui.window.Dialog
 import com.simposio.taskeer.R
@@ -83,7 +83,7 @@ internal fun DueTimePickerDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = MaterialTheme.shapes.extraLarge,
-            tonalElevation = 6.dp,
+            tonalElevation = Elevation.Picker,
         ) {
             Column(
                 modifier = Modifier.padding(Spacing.ScreenPadding),

@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.tooling.preview.Preview
+import com.simposio.taskeer.ui.theme.Emphasis
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 
@@ -29,7 +30,7 @@ internal fun ActionIcon(
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = if (enabled) tint else tint.copy(alpha = DISABLED_ALPHA),
+            tint = if (enabled) tint else tint.copy(alpha = Emphasis.Disabled),
             modifier = Modifier.size(Spacing.ActionIconSize),
         )
     }
@@ -53,8 +54,6 @@ internal fun TonalActionIcon(
         )
     }
 }
-
-private const val DISABLED_ALPHA = 0.38f
 
 @Preview(showBackground = true)
 @Composable

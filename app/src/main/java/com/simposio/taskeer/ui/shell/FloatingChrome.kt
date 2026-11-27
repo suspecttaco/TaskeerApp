@@ -49,6 +49,7 @@ import com.simposio.taskeer.R
 import com.simposio.taskeer.ui.components.ActionIcon
 import com.simposio.taskeer.ui.components.DecorativeIcon
 import com.simposio.taskeer.ui.components.HomeButton
+import com.simposio.taskeer.ui.components.InlineError
 import com.simposio.taskeer.ui.components.rememberAnimationsEnabled
 import com.simposio.taskeer.ui.navigation.Chrome
 import com.simposio.taskeer.ui.navigation.PillKind
@@ -59,6 +60,7 @@ import com.simposio.taskeer.ui.quickadd.QuickAddUiState
 import com.simposio.taskeer.domain.task.QuickDateChoice
 import com.simposio.taskeer.domain.task.QuickDateShortcut
 import com.simposio.taskeer.ui.tasks.DueDatePickerDialog
+import com.simposio.taskeer.ui.theme.Elevation
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 import com.simposio.taskeer.ui.upcoming.text
@@ -153,7 +155,7 @@ private fun CollapsedPill(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        shadowElevation = Spacing.FloatingElevation,
+        shadowElevation = Elevation.Floating,
         modifier = modifier
             .heightIn(min = Spacing.FloatingControlSize)
             .widthIn(min = Spacing.PillCollapsedMinWidth)
@@ -181,7 +183,7 @@ private fun ExpandedPill(
     Surface(
         shape = RectangleShape,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        shadowElevation = Spacing.FloatingElevation,
+        shadowElevation = Elevation.Floating,
         modifier = modifier.fillMaxWidth(),
     ) {
         Column(
@@ -190,10 +192,8 @@ private fun ExpandedPill(
                 .padding(horizontal = Spacing.ScreenPadding, vertical = Spacing.ItemGap),
         ) {
             state.error?.let { error ->
-                Text(
-                    text = error.message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
+                InlineError(
+                    message = error.message,
                     modifier = Modifier.padding(horizontal = Spacing.InlineGap),
                 )
             }

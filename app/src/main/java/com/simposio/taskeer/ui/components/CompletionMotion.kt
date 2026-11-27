@@ -2,18 +2,20 @@ package com.simposio.taskeer.ui.components
 
 import android.provider.Settings
 import androidx.compose.foundation.lazy.LazyItemScope
+import androidx.compose.foundation.lazy.grid.LazyGridItemScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
+import com.simposio.taskeer.ui.theme.Motion
 
 object CompletionMotion {
-    const val SettleMillis: Long = 500L
-    const val BounceScale: Float = 1.25f
-    const val BounceMillis: Int = 300
-    const val StrikeMillis: Int = 300
-    const val DimAlpha: Float = 0.6f
+    const val SettleMillis: Long = Motion.SettleMillis
+    const val BounceScale: Float = Motion.BounceScale
+    const val BounceMillis: Int = Motion.BounceMillis
+    const val StrikeMillis: Int = Motion.StrikeMillis
+    const val DimAlpha: Float = Motion.DimAlpha
 }
 
 fun animationsEnabled(scale: Float): Boolean = scale != 0f
@@ -40,3 +42,11 @@ internal fun LazyItemScope.rowItemModifier(fadeIn: Boolean = true): Modifier = w
     fadeIn -> Modifier.animateItem()
     else -> Modifier.animateItem(fadeInSpec = null)
 }
+
+@Composable
+internal fun LazyGridItemScope.rowItemModifier(): Modifier =
+    if (rememberAnimationsEnabled()) {
+        Modifier.animateItem()
+    } else {
+        Modifier.animateItem(fadeInSpec = null, placementSpec = null, fadeOutSpec = null)
+    }

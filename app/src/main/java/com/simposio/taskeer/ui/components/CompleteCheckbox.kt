@@ -19,6 +19,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import com.simposio.taskeer.R
+import com.simposio.taskeer.ui.theme.Motion
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 
 @Composable
@@ -32,7 +33,7 @@ internal fun CompleteCheckbox(
     var previouslyCompleted by remember { mutableStateOf(completed) }
     LaunchedEffect(completed) {
         if (completed && !previouslyCompleted && animate) {
-            scale.animateTo(CompletionMotion.BounceScale, tween(CompletionMotion.BounceMillis / 3))
+            scale.animateTo(CompletionMotion.BounceScale, tween(Motion.BounceInMillis))
             scale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
         }
         previouslyCompleted = completed
