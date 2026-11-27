@@ -5,8 +5,7 @@ import com.simposio.taskeer.domain.sync.SyncOp
 import java.time.Duration
 import java.time.Instant
 
-// Puerto del motor hacia el servidor, con tipos neutros: ni HTTP ni JSON. Lo implementan RemoteSyncTransport (contrato 1.0)
-// y, solo en la variante de depuración, un puente sobre las rutas REST que existan mientras llega cada hito del backend.
+// Puerto del motor hacia el servidor, con tipos neutros: ni HTTP ni JSON. Lo implementa RemoteSyncTransport (contrato 1.0).
 interface SyncTransport {
     suspend fun push(batch: List<PushMutation>): TransportResult<List<PushOutcome>>
 

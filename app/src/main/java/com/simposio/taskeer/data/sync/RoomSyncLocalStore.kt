@@ -358,7 +358,7 @@ class RoomSyncLocalStore(
         }
     }
 
-    // Un fallo de forma de la petición es un defecto del cliente o del puente, no un veredicto sobre el dato:
+    // Un fallo de forma de la petición es un defecto del cliente, no un veredicto sobre el dato:
     // la fila conserva su contenido y su pending, y el fallo cuenta hacia «atascada» (R9).
     private suspend fun keepForRetry(op: QueuedOp, code: String): OutcomeEffect {
         recordPermanentFailure(op, code)

@@ -29,61 +29,39 @@ class SyncTransportSelectorTest {
     private val all = arrayOf(SyncEntity.LIST, SyncEntity.TASK, SyncEntity.SUBTASK)
 
     @Test
-    fun h1Desplegado_usaB7NoElPuente() = runTest {
+    fun b7Completo_usaB7() = runTest {
         val contract = Stub(ok("1.0", *all))
-        val bridge = Stub(ok("bridge", *all))
 
-        val ready = SyncTransportSelector(contract, bridge).acquire() as Acquisition.Ready
+        val ready = SyncTransportSelector(contract).acquire() as Acquisition.Ready
 
         assertSame(contract, ready.transport)
-        assertEquals(0, bridge.identifyCalls)
     }
 
     @Test
-    fun rutaInexistente_debugUsaPuente() = runTest {
-        val bridge = Stub(ok("bridge", *all))
-
-        val ready = SyncTransportSelector(Stub(TransportResult.NotAvailable), bridge).acquire() as Acquisition.Ready
-
-        assertSame(bridge, ready.transport)
-    }
-
-    @Test
-    fun rutaInexistente_releaseEsServerNotReady() = runTest {
-        val result = SyncTransportSelector(Stub(TransportResult.NotAvailable), bridge = null).acquire() as Acquisition.Paused
+    fun sinPuente_rutaInexistente_serverNotReady() = runTest {
+        val result = SyncTransportSelector(Stub(TransportResult.NotAvailable)).acquire() as Acquisition.Paused
 
         assertEquals(PauseReason.SERVER_NOT_READY, result.reason)
     }
 
     @Test
     fun supportedEntitiesVacio_comoInexistente() = runTest {
-        val result = SyncTransportSelector(Stub(ok("1.0")), bridge = null).acquire() as Acquisition.Paused
+        val result = SyncTransportSelector(Stub(ok("1.0"))).acquire() as Acquisition.Paused
 
         assertEquals(PauseReason.SERVER_NOT_READY, result.reason)
     }
 
     @Test
     fun majorDistinta_updateRequired() = runTest {
-        val result = SyncTransportSelector(Stub(TransportResult.UpdateRequired), Stub(ok("bridge", *all))).acquire() as Acquisition.Paused
+        val result = SyncTransportSelector(Stub(TransportResult.UpdateRequired)).acquire() as Acquisition.Paused
 
         assertEquals(PauseReason.UPDATE_REQUIRED, result.reason)
     }
 
     @Test
-    fun forzadoPorPropiedad_omiteSondeo() = runTest {
-        val contract = Stub(ok("1.0", *all))
-        val bridge = Stub(ok("bridge", *all))
-
-        val ready = SyncTransportSelector(contract, bridge, TransportMode.BRIDGE).acquire() as Acquisition.Ready
-
-        assertSame(bridge, ready.transport)
-        assertEquals(0, contract.identifyCalls)
-    }
-
-    @Test
     fun unTransportePorCiclo() = runTest {
         val contract = Stub(ok("1.0", *all))
-        val selector = SyncTransportSelector(contract, bridge = null)
+        val selector = SyncTransportSelector(contract)
 
         val first = selector.acquire() as Acquisition.Ready
         val second = selector.acquire() as Acquisition.Ready

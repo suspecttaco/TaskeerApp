@@ -34,7 +34,6 @@ import com.simposio.taskeer.data.sync.SyncScopeHolder
 import com.simposio.taskeer.data.sync.SyncSessionGate
 import com.simposio.taskeer.data.sync.SyncTransportSelector
 import com.simposio.taskeer.data.sync.SyncTriggers
-import com.simposio.taskeer.data.sync.TransportMode
 import com.simposio.taskeer.data.repository.BoardPermissionGate
 import com.simposio.taskeer.data.repository.BoardRepositoryImpl
 import com.simposio.taskeer.data.repository.RoleSignalSync
@@ -228,11 +227,9 @@ private fun createSync(
         pendingCount = store.observePendingCount(),
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     )
-    val mode = TransportMode.entries.firstOrNull { it.name.equals(BuildConfig.SYNC_TRANSPORT, ignoreCase = true) }
-        ?: TransportMode.AUTO
     val engine = SyncEngine(
         store = store,
-        source = SyncTransportSelector(remote.syncTransport, remote.syncBridge, mode),
+        source = SyncTransportSelector(remote.syncTransport),
         gate = SyncSessionGate(store),
         wiper = LocalDataWiper(dao),
         session = remote.auth.sessionState,
