@@ -1,0 +1,19 @@
+package com.simposio.taskeer.domain.sync
+
+// El orden de declaración es el de dependencias: un padre precede siempre a sus hijos.
+enum class SyncEntity(val wireName: String) {
+    LIST("list"),
+    BOARD("board"),
+    COLUMN("column"),
+    TASK("task"),
+    SUBTASK("subtask"),
+    MY_DAY("myDay"),
+    REMINDER("reminder"),
+    ;
+
+    companion object {
+        fun fromWire(name: String): SyncEntity? = entries.firstOrNull { it.wireName == name }
+    }
+}
+
+enum class SyncOp { UPSERT, DELETE }
