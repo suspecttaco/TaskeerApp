@@ -36,7 +36,7 @@ class AppNavHostSourceTest {
         assertTrue(source.contains("var pendingLogin by remember { mutableStateOf<LoginHandoff?>(null) }"))
         assertTrue(source.contains("LoginHandoff(it, LoginNotice.ACCOUNT_CREATED)"))
         assertFalse(source.contains("rememberSaveable"))
-        assertTrue(source.contains("popUpTo(AppDestination.SETTINGS.route)"))
+        assertTrue(source.contains("popUpTo(flowAnchor())"))
         assertTrue(source.contains("prefill = pendingLogin"))
     }
 
@@ -59,8 +59,8 @@ class AppNavHostSourceTest {
     }
 
     @Test
-    fun losAccesosAVerificarCorreoVienenDeAjustesElLoginYLasInvitaciones() {
-        assertEquals(3, Regex("navigate\\(AppDestination\\.VERIFY_EMAIL\\.route\\)").findAll(source).count())
+    fun losAccesosAVerificarCorreoVienenDelLoginYLasInvitaciones() {
+        assertEquals(2, Regex("navigate\\(AppDestination\\.VERIFY_EMAIL\\.route\\)").findAll(source).count())
     }
 
     @Test
@@ -80,7 +80,8 @@ class AppNavHostSourceTest {
         assertTrue(source.contains("RegenerateCodesScreen("))
         assertFalse(AppDestination.CHANGE_PASSWORD.route.contains("{"))
         assertFalse(AppDestination.REGENERATE_CODES.route.contains("{"))
-        assertTrue(source.contains("navigate(AppDestination.CHANGE_PASSWORD.route)"))
-        assertTrue(source.contains("navigate(AppDestination.REGENERATE_CODES.route)"))
+        val host = com.simposio.taskeer.testing.MainSources.kotlin("ui/account/AccountSheetHost.kt")
+        assertTrue(host.contains("leaveTo(AppDestination.CHANGE_PASSWORD)"))
+        assertTrue(host.contains("leaveTo(AppDestination.REGENERATE_CODES)"))
     }
 }

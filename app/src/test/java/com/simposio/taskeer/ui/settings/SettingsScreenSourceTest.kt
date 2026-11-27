@@ -1,6 +1,7 @@
 package com.simposio.taskeer.ui.settings
 
 import com.simposio.taskeer.testing.MainSources
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -18,10 +19,13 @@ class SettingsScreenSourceTest {
     }
 
     @Test
-    fun elReenvioSeCreaConSuPropioViewModel() {
+    fun noCreaViewModelDeReenvio_niNavegaASeguridad() {
         val source = MainSources.kotlin("ui/settings/SettingsScreen.kt")
 
-        assertTrue(source.contains("ResendVerificationViewModel"))
-        assertTrue(source.contains("onResendVerification = resendViewModel::resend"))
+        assertFalse(source.contains("ResendVerificationViewModel"))
+        listOf("onChangePassword", "onRegenerateCodes", "onHaveVerificationLink", "onSignOut").forEach {
+            assertFalse("sobra $it", source.contains(it))
+        }
+        assertTrue(source.contains("onOpenAccount = onOpenAccount"))
     }
 }
