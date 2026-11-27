@@ -56,9 +56,11 @@ class MyDayDaoConventionsTest {
     fun consultas_incluyenTareasSinColumnaDeCualquierLista() {
         val visible = constantSource("VISIBLE_ANY")
 
-        assertTrue("las tareas sin columna son visibles sea cual sea su lista", visible.contains("t.columnId IS NULL OR"))
-        assertFalse("la visibilidad no depende de la lista", visible.contains("listId"))
-        assertFalse(visible.contains("task_lists"))
+        assertTrue("las tareas sin columna siguen siendo visibles", visible.contains("t.columnId IS NULL OR"))
+        assertTrue(
+            "una tarea de lista solo se ve si su lista existe y está viva (R14)",
+            visible.contains("t.listId IS NULL OR (l.id IS NOT NULL AND l.deletedAt IS NULL)"),
+        )
     }
 
     @Test

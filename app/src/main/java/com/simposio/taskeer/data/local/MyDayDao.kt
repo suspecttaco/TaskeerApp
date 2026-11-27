@@ -63,10 +63,12 @@ internal const val FROM_TASKS =
     "FROM tasks t LEFT JOIN columns c ON t.columnId = c.id LEFT JOIN boards b ON c.boardId = b.id " +
         "LEFT JOIN task_lists l ON t.listId = l.id "
 
-// c.id/b.id IS NOT NULL: con LEFT JOIN, una columna inexistente pasaría el filtro de deletedAt.
+// c.id/b.id IS NOT NULL: con LEFT JOIN, una columna inexistente pasaría el filtro de deletedAt. Lo mismo para la lista:
+// una tarea traída antes que su lista (o cuya lista se descartó) no se muestra hasta que la lista exista y esté viva.
 internal const val VISIBLE_ANY =
     "t.deletedAt IS NULL AND (t.columnId IS NULL OR " +
-        "(c.id IS NOT NULL AND c.deletedAt IS NULL AND b.id IS NOT NULL AND b.deletedAt IS NULL))"
+        "(c.id IS NOT NULL AND c.deletedAt IS NULL AND b.id IS NOT NULL AND b.deletedAt IS NULL)) " +
+        "AND (t.listId IS NULL OR (l.id IS NOT NULL AND l.deletedAt IS NULL))"
 
 private const val OPEN = "t.completedAt IS NULL"
 
