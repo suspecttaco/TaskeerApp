@@ -3,6 +3,7 @@ package com.simposio.taskeer.ui.board
 import com.simposio.taskeer.domain.model.Column
 import com.simposio.taskeer.domain.model.DomainError
 import com.simposio.taskeer.domain.model.TaskPriority
+import com.simposio.taskeer.domain.workspace.WorkspaceRole
 import java.time.Instant
 import java.time.LocalDateTime
 
@@ -11,6 +12,8 @@ data class BoardUiState(
     val error: DomainError? = null,
     val newColumn: NewColumnUiState = NewColumnUiState(),
     val missing: Boolean = false,
+    val capabilities: BoardCapabilities = BoardCapabilities(),
+    val role: WorkspaceRole? = null,
 )
 
 data class NewColumnUiState(

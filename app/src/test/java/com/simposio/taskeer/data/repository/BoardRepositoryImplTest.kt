@@ -47,6 +47,28 @@ class BoardRepositoryImplTest {
     }
 
     @Test
+    fun editor_noRenombraNiBorraElTablero() = runTest {
+        val dao = FakeBoardDao()
+        val created = (repository(dao).createBoard("Compras") as DomainResult.Success).value
+        val editor = BoardPermissionGate(
+            object : BoardRoles {
+                override suspend fun roleOf(boardId: String) = com.simposio.taskeer.domain.workspace.WorkspaceRole.EDITOR
+
+                override fun observeRole(boardId: String) = kotlinx.coroutines.flow.flowOf<com.simposio.taskeer.domain.workspace.WorkspaceRole?>(null)
+            },
+        )
+        val restricted = BoardRepositoryImpl(dao, FakeColumnDao(dao), now = { now }, gate = editor)
+
+        val renamed = restricted.renameBoard(created.id, "Otro")
+        val deleted = restricted.deleteBoard(created.id)
+
+        assertTrue(renamed is DomainResult.Failure && renamed.error is DomainError.Forbidden)
+        assertTrue(deleted is DomainResult.Failure && deleted.error is DomainError.Forbidden)
+        assertEquals("Compras", dao.stored.getValue(created.id).name)
+        assertNull(dao.stored.getValue(created.id).deletedAt)
+    }
+
+    @Test
     fun createBoard_sinNombre_noEscribeEnElDao() = runTest {
         val dao = FakeBoardDao()
         val columnDao = FakeColumnDao(dao)

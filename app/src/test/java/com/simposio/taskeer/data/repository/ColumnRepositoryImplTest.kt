@@ -38,6 +38,27 @@ class ColumnRepositoryImplTest {
     }
 
     @Test
+    fun editor_noCreaNiRenombraColumnas() = runTest {
+        val boardDao = FakeBoardDao().apply { put(boardEntity()) }
+        val columnDao = FakeColumnDao().apply { put(columnEntity("c0", name = "Por hacer", position = 0)) }
+        val editor = BoardPermissionGate(
+            object : BoardRoles {
+                override suspend fun roleOf(boardId: String) = com.simposio.taskeer.domain.workspace.WorkspaceRole.EDITOR
+
+                override fun observeRole(boardId: String) = kotlinx.coroutines.flow.flowOf<com.simposio.taskeer.domain.workspace.WorkspaceRole?>(null)
+            },
+        )
+        val repository = ColumnRepositoryImpl(boardDao, columnDao, now = { now }, gate = editor)
+
+        val created = repository.createColumn(BOARD_ID, "Nueva")
+        val renamed = repository.renameColumn("c0", "Otro")
+
+        assertTrue(created is DomainResult.Failure && created.error is DomainError.Forbidden)
+        assertTrue(renamed is DomainResult.Failure && renamed.error is DomainError.Forbidden)
+        assertEquals("Por hacer", columnDao.findById("c0")?.name)
+    }
+
+    @Test
     fun createColumn_anhadeLaColumnaAlFinalYPersiste() = runTest {
         val boardDao = FakeBoardDao().apply { put(boardEntity()) }
         val columnDao = FakeColumnDao()

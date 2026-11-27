@@ -59,6 +59,7 @@ internal fun BoardColumnView(
     onEditTask: (String) -> Unit,
     onToggleMyDay: (String) -> Unit,
     onToggleCompleted: (String) -> Unit,
+    canEdit: Boolean = true,
 ) {
     DisposableEffect(column.id) { onDispose(onColumnDisposed) }
 
@@ -120,7 +121,8 @@ internal fun BoardColumnView(
                             modifier = Modifier
                                 .alpha(sourceAlpha)
                                 .onGloballyPositioned { onCardPositioned(card.id, it.boundsInRoot().toBounds()) }
-                                .pointerInput(card.id) {
+                                .pointerInput(card.id, canEdit) {
+                                    if (!canEdit) return@pointerInput
                                     detectDragGesturesAfterLongPress(
                                         onDragStart = { onDragStart(card, it) },
                                         onDrag = { change, amount ->
@@ -136,10 +138,12 @@ internal fun BoardColumnView(
                     }
                 }
             }
-            TextButton(onClick = onCreateTask) {
-                DecorativeIcon(Icons.Filled.Add)
-                Spacer(Modifier.width(Spacing.InlineGap))
-                Text(stringResource(R.string.task_add))
+            if (canEdit) {
+                TextButton(onClick = onCreateTask) {
+                    DecorativeIcon(Icons.Filled.Add)
+                    Spacer(Modifier.width(Spacing.InlineGap))
+                    Text(stringResource(R.string.task_add))
+                }
             }
         }
     }

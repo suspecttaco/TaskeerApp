@@ -64,6 +64,7 @@ class TaskRepositoryImpl(
     private val defaultListId: suspend () -> String,
     private val now: () -> Instant = Instant::now,
     private val timeZone: TimeZoneProvider = TimeZoneProvider { ZoneId.systemDefault() },
+    private val gate: BoardPermissionGate = BoardPermissionGate(),
 ) : TaskRepository {
 
     override fun observeTasks(boardId: String): Flow<List<Task>> =
@@ -91,6 +92,7 @@ class TaskRepositoryImpl(
     }
 
     override suspend fun createTask(columnId: String?, draft: TaskDraft, listId: String?): DomainResult<Task> {
+        denied(columnId)?.let { return it }
         val placement = when (val result = placementFor(columnId, listId)) {
             is DomainResult.Failure -> return result
             is DomainResult.Success -> result.value
@@ -113,6 +115,7 @@ class TaskRepositoryImpl(
         creation: TaskCreation,
         listId: String?,
     ): DomainResult<Task> {
+        denied(columnId)?.let { return it }
         val placement = when (val result = placementFor(columnId, listId)) {
             is DomainResult.Failure -> return result
             is DomainResult.Success -> result.value
@@ -143,6 +146,7 @@ class TaskRepositoryImpl(
 
     override suspend fun updateTask(id: String, draft: TaskDraft): DomainResult<Task> {
         val current = activeTask(id) ?: return taskNotFound()
+        denied(current.columnId)?.let { return it }
         return when (val result = current.updated(draft, now())) {
             is DomainResult.Failure -> result
             is DomainResult.Success -> {
@@ -158,7 +162,9 @@ class TaskRepositoryImpl(
             ?: return DomainResult.Failure(
                 DomainError.Validation(TASK_IN_INBOX, "La tarea no tiene tablero: asígnala primero"),
             )
+        denied(sourceColumnId)?.let { return it }
         val destination = activeColumn(toColumnId) ?: return columnNotFound()
+        denied(toColumnId)?.let { return it }
         // El boardId de una columna no cambia, así que sirve aunque la columna origen esté borrada.
         val sourceColumn = columnDao.findById(sourceColumnId)
         val sourceBoardId = sourceColumn?.boardId
@@ -199,6 +205,7 @@ class TaskRepositoryImpl(
 
     override suspend fun moveToList(id: String, listId: String): DomainResult<Task> {
         val current = activeTask(id) ?: return taskNotFound()
+        denied(current.columnId)?.let { return it }
         activeList(listId) ?: return listNotFound()
         return when (val result = current.movedToList(listId, dao.countInList(listId), now())) {
             is DomainResult.Failure -> result
@@ -211,7 +218,9 @@ class TaskRepositoryImpl(
 
     override suspend fun assignToColumn(id: String, columnId: String): DomainResult<Task> {
         val current = activeTask(id) ?: return taskNotFound()
+        denied(current.columnId)?.let { return it }
         val destination = activeColumn(columnId) ?: return columnNotFound()
+        denied(columnId)?.let { return it }
         val position = dao.findActiveByColumn(columnId).size
         return when (val result = current.assignedToColumn(columnId, position, now())) {
             is DomainResult.Failure -> result
@@ -238,6 +247,7 @@ class TaskRepositoryImpl(
     override suspend fun setCompleted(id: String, completed: Boolean): DomainResult<Task> {
         val current = activeTask(id) ?: return taskNotFound()
         if (current.isCompleted == completed) return DomainResult.Success(current)
+        denied(current.columnId)?.let { return it }
         val inPlace = if (completed) current.completed(now()) else current.reopened(now())
         val sourceColumn = current.columnId?.let { activeColumn(it) }
             ?: return completeInPlace(current, inPlace, completed)
@@ -324,6 +334,7 @@ class TaskRepositoryImpl(
 
     override suspend fun deleteTask(id: String): DomainResult<Unit> {
         val current = activeTask(id) ?: return taskNotFound()
+        denied(current.columnId)?.let { return it }
         val deletedAt = now()
         dao.upsertDeletedWithSubtasks(
             current.softDeleted(deletedAt).toEntity(),
@@ -332,8 +343,14 @@ class TaskRepositoryImpl(
         return DomainResult.Success(Unit)
     }
 
-    override suspend fun deleteCompleted(): DomainResult<List<String>> =
-        DomainResult.Success(dao.softDeleteCompleted(now().toEpochMilli()))
+    // El borrado en bloque es de SQL: se comprueba antes el rol de cada tablero afectado y, si alguno no permite borrar,
+    // no se borra nada (un rechazo claro en vez de un borrado parcial).
+    override suspend fun deleteCompleted(): DomainResult<List<String>> {
+        dao.findCompleted().mapNotNull { it.columnId }.distinct().forEach { columnId ->
+            denied(columnId)?.let { return it }
+        }
+        return DomainResult.Success(dao.softDeleteCompleted(now().toEpochMilli()))
+    }
 
     // Todo se valida antes de escribir: un fallo en cualquier tarea del lote no deja nada restaurado.
     override suspend fun restoreTasks(ids: List<String>): DomainResult<Unit> {
@@ -346,6 +363,7 @@ class TaskRepositoryImpl(
         val byColumn = deleted.filter { it.columnId != null }.groupBy { requireNotNull(it.columnId) }
         val restored = mutableListOf<Task>()
         for ((columnId, tasks) in byColumn) {
+            denied(columnId)?.let { return it }
             val column = activeColumn(columnId) ?: return columnNotFound()
             val occupied = dao.findActiveByColumn(columnId).map { it.position }.toMutableSet()
             checkWipLimit(column, occupied.size + tasks.size - 1)?.let { return DomainResult.Failure(it) }
@@ -380,6 +398,10 @@ class TaskRepositoryImpl(
         )
         return DomainResult.Success(Unit)
     }
+
+    // Una tarea de lista o de un tablero local propio no tiene rol: solo restringe el rol efectivo del tablero de la columna.
+    private suspend fun denied(columnId: String?): DomainResult.Failure? =
+        gate.denyTaskChange(columnId?.let { columnDao.findById(it)?.boardId })
 
     private suspend fun activeColumn(id: String): Column? =
         columnDao.findById(id)?.takeIf { it.deletedAt == null }?.toColumn()
