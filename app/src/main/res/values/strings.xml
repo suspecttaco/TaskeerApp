@@ -817,4 +817,5 @@
     <string name="regen_error_network">No hay conexión con el servidor. Revisa tu conexión e inténtalo de nuevo</string>
     <string name="regen_error_server">El servidor no está disponible. Inténtalo de nuevo más tarde</string>
     <string name="regen_error_unexpected">No se pudo completar la operación. Inténtalo de nuevo</string>
+    <string name="common_in_progress">en curso</string>
 </resources>

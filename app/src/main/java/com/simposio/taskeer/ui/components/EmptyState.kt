@@ -22,9 +22,9 @@ import com.simposio.taskeer.ui.theme.TaskeerTheme
 internal fun EmptyState(
     icon: ImageVector,
     text: String,
-    actionLabel: String,
-    onAction: () -> Unit,
     modifier: Modifier = Modifier,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
 ) {
     Column(
         modifier = modifier.padding(Spacing.ScreenPadding),
@@ -42,7 +42,9 @@ internal fun EmptyState(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
-        FilledTonalButton(onClick = onAction) { Text(actionLabel) }
+        if (actionLabel != null && onAction != null) {
+            FilledTonalButton(onClick = onAction) { Text(actionLabel) }
+        }
     }
 }
 
