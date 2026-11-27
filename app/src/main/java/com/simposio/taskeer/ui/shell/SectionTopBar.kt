@@ -30,6 +30,7 @@ class TopBarActions(
     val onSuggestions: () -> Unit,
     val onBack: () -> Unit,
     val onMenuItem: (MenuItem) -> Unit,
+    val onSync: () -> Unit,
 )
 
 // Los composables no deciden nada de negocio: la decisión (chromeFor, menú filtrado) llega ya tomada para poder probarla en JVM.
@@ -76,6 +77,7 @@ fun ShellTopBar(
                     clearEnabled = clearEnabled,
                     onItem = actions.onMenuItem,
                     calendarsEnabled = calendarsEnabled,
+                    onSync = actions.onSync,
                 )
             }
         },
@@ -134,7 +136,7 @@ private fun ShellTopBarPreview() {
             suggestionCount = 120,
             menu = OverflowMenu(emptyList(), emptyList()),
             clearEnabled = false,
-            actions = TopBarActions({}, {}, {}, {}, {}),
+            actions = TopBarActions({}, {}, {}, {}, {}, {}),
         )
     }
 }

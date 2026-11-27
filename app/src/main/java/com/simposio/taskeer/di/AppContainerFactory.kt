@@ -17,12 +17,24 @@ import com.simposio.taskeer.data.local.AppDatabase
 import com.simposio.taskeer.data.local.ColumnDao
 import com.simposio.taskeer.data.local.ReminderDao
 import com.simposio.taskeer.data.local.SubtaskDao
+import com.simposio.taskeer.data.local.SyncDao
 import com.simposio.taskeer.data.local.TaskDao
 import com.simposio.taskeer.data.local.TaskListDao
 import com.simposio.taskeer.data.reminder.AlarmReminderScheduler
 import com.simposio.taskeer.data.reminder.HistoryRecordingNotifier
 import com.simposio.taskeer.data.reminder.NotificationReminderNotifier
 import com.simposio.taskeer.data.reminder.ReminderReconciler
+import com.simposio.taskeer.data.auth.RemoteRepositories
+import com.simposio.taskeer.data.repository.SyncRepositoryImpl
+import com.simposio.taskeer.data.sync.AndroidConnectivitySource
+import com.simposio.taskeer.data.sync.LocalDataWiper
+import com.simposio.taskeer.data.sync.RoomSyncLocalStore
+import com.simposio.taskeer.data.sync.SyncEngine
+import com.simposio.taskeer.data.sync.SyncScopeHolder
+import com.simposio.taskeer.data.sync.SyncSessionGate
+import com.simposio.taskeer.data.sync.SyncTransportSelector
+import com.simposio.taskeer.data.sync.SyncTriggers
+import com.simposio.taskeer.data.sync.TransportMode
 import com.simposio.taskeer.data.repository.BoardRepositoryImpl
 import com.simposio.taskeer.data.repository.ClockDayWindowSource
 import com.simposio.taskeer.data.repository.ColumnRepositoryImpl
@@ -80,6 +92,7 @@ fun createAppContainer(context: Context): AppContainer {
     val calendarWriteGranted = { isGranted(context, Manifest.permission.WRITE_CALENDAR) }
     val googleSignInConfig = GoogleSignInConfig(BuildConfig.GOOGLE_WEB_CLIENT_ID)
     val remote = createRemoteRepositories(context, CoroutineScope(SupervisorJob() + Dispatchers.Default))
+    val sync = createSync(context, database.syncDao(), remote)
     return AppContainer(
         preferencesRepository = preferencesRepository,
         timeZoneProvider = timeZoneProvider,
@@ -137,6 +150,8 @@ fun createAppContainer(context: Context): AppContainer {
         serverBoardsRepository = remote.serverBoards,
         boardAccessRepository = remote.boardAccess,
         roleChangeSignals = LiveRoleChangeSignals(remote.inbox, remote.live),
+        syncRepository = sync,
+        runSync = sync::run,
         googleCredentialSource = createGoogleCredentialSource(googleSignInConfig),
         googleSignInConfig = googleSignInConfig,
         zoneChanges = timeZoneProvider.changes,
@@ -181,3 +196,27 @@ fun createTaskRepository(
 
 fun createTaskListRepository(taskListDao: TaskListDao, taskDao: TaskDao): TaskListRepository =
     TaskListRepositoryImpl(taskListDao, taskDao)
+
+private fun createSync(context: Context, dao: SyncDao, remote: RemoteRepositories): SyncRepositoryImpl {
+    val scopeHolder = SyncScopeHolder()
+    val store = RoomSyncLocalStore(dao, scopeHolder)
+    val triggers = SyncTriggers(
+        connectivity = AndroidConnectivitySource(context).isOnline,
+        pendingCount = store.observePendingCount(),
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    )
+    val mode = TransportMode.entries.firstOrNull { it.name.equals(BuildConfig.SYNC_TRANSPORT, ignoreCase = true) }
+        ?: TransportMode.AUTO
+    val engine = SyncEngine(
+        store = store,
+        source = SyncTransportSelector(remote.syncTransport, remote.syncBridge, mode),
+        gate = SyncSessionGate(store),
+        wiper = LocalDataWiper(dao),
+        session = remote.auth.sessionState,
+        scopeHolder = scopeHolder,
+        triggers = triggers,
+        retry = triggers,
+        clock = Instant::now,
+    )
+    return SyncRepositoryImpl(engine, triggers)
+}

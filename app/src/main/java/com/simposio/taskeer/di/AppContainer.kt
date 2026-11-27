@@ -19,6 +19,8 @@ import com.simposio.taskeer.data.repository.PreferencesRepository
 import com.simposio.taskeer.data.repository.ReminderRepository
 import com.simposio.taskeer.data.repository.RoleChangeSignals
 import com.simposio.taskeer.data.repository.SearchRepository
+import com.simposio.taskeer.data.repository.SyncRepository
+import com.simposio.taskeer.data.repository.UnavailableSyncRepository
 import com.simposio.taskeer.data.repository.ServerBoardsRepository
 import com.simposio.taskeer.data.repository.SubtaskRepository
 import com.simposio.taskeer.data.repository.TaskListRepository
@@ -60,6 +62,8 @@ class AppContainer(
     val serverBoardsRepository: ServerBoardsRepository,
     val boardAccessRepository: BoardAccessRepository,
     val roleChangeSignals: RoleChangeSignals,
+    val syncRepository: SyncRepository = UnavailableSyncRepository,
+    val runSync: suspend () -> Unit = {},
     val googleCredentialSource: GoogleCredentialSource = UnavailableGoogleCredentialSource,
     val googleSignInConfig: GoogleSignInConfig = GoogleSignInConfig(""),
     val zoneChanges: Flow<Unit> = emptyFlow(),

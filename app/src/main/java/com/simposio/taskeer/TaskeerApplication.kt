@@ -28,5 +28,6 @@ class TaskeerApplication : Application() {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         scope.launch { triggers.run() }
         scope.launch { container.authRepository.resume() }
+        scope.launch { container.runSync() }
     }
 }

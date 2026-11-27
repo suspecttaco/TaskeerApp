@@ -16,6 +16,7 @@ import com.simposio.taskeer.ui.auth.SessionViewModel
 import com.simposio.taskeer.ui.notifications.UnreadCounterViewModel
 import com.simposio.taskeer.ui.permission.NotificationPermissionGate
 import com.simposio.taskeer.ui.shell.AppShell
+import com.simposio.taskeer.ui.sync.SyncViewModel
 import com.simposio.taskeer.ui.theme.TaskeerTheme
 import kotlinx.coroutines.launch
 
@@ -33,6 +34,7 @@ fun TaskeerApp(
     val session: SessionViewModel = viewModel(factory = viewModelFactory)
     val sessionState by session.state.collectAsStateWithLifecycle()
     val signedIn = sessionState is SessionState.SignedIn
+    val sync: SyncViewModel = viewModel(factory = viewModelFactory)
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     // Cubre la apertura en frío y cada vuelta desde segundo plano; el tope de frecuencia vive en el repositorio.
     LaunchedEffect(signedIn, lifecycle) {
@@ -40,6 +42,7 @@ fun TaskeerApp(
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch { unreadCounter.keepLiveWhileForeground() }
                 unreadCounter.onAppForegrounded()
+                sync.onForeground()
             }
         }
     }

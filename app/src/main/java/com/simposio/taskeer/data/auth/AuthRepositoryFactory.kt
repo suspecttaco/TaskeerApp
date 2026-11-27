@@ -7,6 +7,8 @@ import com.simposio.taskeer.data.remote.boards.RemoteServerBoardsRepository
 import com.simposio.taskeer.data.remote.createApiClient
 import com.simposio.taskeer.data.remote.notifications.RemoteNotificationInboxRepository
 import com.simposio.taskeer.data.remote.notifications.RemoteNotificationLiveChannel
+import com.simposio.taskeer.data.remote.sync.BridgeTransportFactory
+import com.simposio.taskeer.data.remote.sync.RemoteSyncTransport
 import com.simposio.taskeer.data.remote.workspaces.RemoteMyInvitationsRepository
 import com.simposio.taskeer.data.remote.workspaces.RemoteWorkspaceInvitationsRepository
 import com.simposio.taskeer.data.remote.workspaces.RemoteWorkspaceMembersRepository
@@ -20,6 +22,7 @@ import com.simposio.taskeer.data.repository.ServerBoardsRepository
 import com.simposio.taskeer.data.repository.WorkspaceInvitationsRepository
 import com.simposio.taskeer.data.repository.WorkspaceMembersRepository
 import com.simposio.taskeer.data.repository.WorkspaceRepository
+import com.simposio.taskeer.data.sync.SyncTransport
 import kotlinx.coroutines.CoroutineScope
 
 class RemoteRepositories(
@@ -32,6 +35,8 @@ class RemoteRepositories(
     val myInvitations: MyInvitationsRepository,
     val serverBoards: ServerBoardsRepository,
     val boardAccess: BoardAccessRepository,
+    val syncTransport: SyncTransport,
+    val syncBridge: SyncTransport?,
 )
 
 // Único puente hacia data.remote: di/ compone esta función sin conocer el cliente HTTP.
@@ -49,5 +54,7 @@ fun createRemoteRepositories(context: Context, scope: CoroutineScope): RemoteRep
     val boardAccess = RemoteBoardAccessRepository(remote.client, auth.sessionState, scope)
     return RemoteRepositories(
         auth, inbox, live, workspaces, workspaceMembers, workspaceInvitations, myInvitations, serverBoards, boardAccess,
+        RemoteSyncTransport(remote.client),
+        BridgeTransportFactory.create(remote.client, remote.session::currentAccessToken),
     )
 }

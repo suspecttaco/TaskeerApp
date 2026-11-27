@@ -9,6 +9,7 @@ import com.simposio.taskeer.ui.accountsecurity.RegenerateCodesViewModel
 import com.simposio.taskeer.ui.app.AppViewModel
 import com.simposio.taskeer.ui.auth.LoginViewModel
 import com.simposio.taskeer.ui.auth.SessionViewModel
+import com.simposio.taskeer.ui.sync.SyncViewModel
 import com.simposio.taskeer.ui.components.settleMillis
 import com.simposio.taskeer.ui.board.BoardViewModel
 import com.simposio.taskeer.ui.calendar.CalendarViewModel
@@ -195,6 +196,9 @@ class AppViewModelFactory(private val container: AppContainer) : ViewModelProvid
                 container.taskRepository,
                 container.dateTimeConverter,
             ) as T
+
+        modelClass.isAssignableFrom(SyncViewModel::class.java) ->
+            SyncViewModel(container.syncRepository) as T
 
         modelClass.isAssignableFrom(SessionViewModel::class.java) ->
             SessionViewModel(container.authRepository) as T

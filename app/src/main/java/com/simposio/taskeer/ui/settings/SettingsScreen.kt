@@ -15,6 +15,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.simposio.taskeer.ui.auth.SessionViewModel
 import com.simposio.taskeer.ui.components.AppDivider
 import com.simposio.taskeer.ui.permission.NotificationPermissionNotice
+import com.simposio.taskeer.ui.sync.SyncSettingsSection
+import com.simposio.taskeer.ui.sync.SyncViewModel
 import com.simposio.taskeer.ui.theme.Spacing
 import com.simposio.taskeer.ui.verifyemail.ResendVerificationViewModel
 
@@ -32,6 +34,8 @@ fun SettingsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val sessionState by session.state.collectAsStateWithLifecycle()
     val resendViewModel: ResendVerificationViewModel = viewModel(factory = viewModelFactory)
+    val syncViewModel: SyncViewModel = viewModel(factory = viewModelFactory)
+    val syncState by syncViewModel.state.collectAsStateWithLifecycle()
     val resendState by resendViewModel.uiState.collectAsStateWithLifecycle()
 
     Column(
@@ -54,6 +58,7 @@ fun SettingsScreen(
                 onRegenerateCodes = onRegenerateCodes,
             ),
         )
+        SyncSettingsSection(state = syncState, onSync = syncViewModel::sync)
         AppDivider()
         ThemeSettingsSection(
             themeMode = state.themeMode,

@@ -38,6 +38,7 @@ fun OverflowMenuButton(
     onItem: (MenuItem) -> Unit,
     modifier: Modifier = Modifier,
     calendarsEnabled: Boolean = true,
+    onSync: () -> Unit = {},
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box(modifier = modifier) {
@@ -56,8 +57,11 @@ fun OverflowMenuButton(
                         ActionIcon(
                             icon = action.icon(),
                             contentDescription = stringResource(action.descriptionRes()),
-                            onClick = {},
-                            enabled = false,
+                            onClick = {
+                                expanded = false
+                                onSync()
+                            },
+                            enabled = action == MenuAction.SYNC,
                         )
                     }
                 }

@@ -37,6 +37,8 @@ import com.simposio.taskeer.R
 import com.simposio.taskeer.domain.auth.SessionState
 import com.simposio.taskeer.ui.auth.SessionMessage
 import com.simposio.taskeer.ui.auth.SessionViewModel
+import com.simposio.taskeer.ui.sync.AccountSwitchDialog
+import com.simposio.taskeer.ui.sync.SyncViewModel
 import com.simposio.taskeer.domain.myday.shouldAutoOpenSuggestions
 import com.simposio.taskeer.ui.board.BoardViewModel
 import com.simposio.taskeer.ui.calendar.CalendarViewModel
@@ -117,6 +119,8 @@ fun AppShell(
     val eventState by eventEditor.uiState.collectAsStateWithLifecycle()
     val eventAddedText = stringResource(R.string.event_added)
     val session: SessionViewModel = viewModel(factory = viewModelFactory)
+    val syncViewModel: SyncViewModel = viewModel(factory = viewModelFactory)
+    val syncState by syncViewModel.state.collectAsStateWithLifecycle()
     val sessionState by session.state.collectAsStateWithLifecycle()
     val sessionExpired = (sessionState as? SessionState.SignedOut)?.expired == true
     val sessionExpiredText = stringResource(R.string.auth_session_expired)
@@ -215,6 +219,9 @@ fun AppShell(
             }
         }
     }
+    LaunchedEffect(syncViewModel) {
+        syncViewModel.noticeMessages.collect { snackbarHost.showNotice(message = it, kind = NoticeKind.INFO) }
+    }
     LaunchedEffect(session) {
         session.messages.collect { message ->
             val text = when (message) {
@@ -298,6 +305,7 @@ fun AppShell(
                                     MenuItem.FILTER, MenuItem.SORT -> Unit
                                 }
                             },
+                            onSync = syncViewModel::sync,
                         ),
                     )
                 },
@@ -318,6 +326,9 @@ fun AppShell(
                             .imePadding(),
                     )
                 }
+            }
+            if (syncState.accountDialogOpen) {
+                AccountSwitchDialog(onConfirm = syncViewModel::confirmAccountWipe, onDismiss = syncViewModel::cancelAccountSwitch)
             }
             QuickAddScrim(visible = quickAddState.isOpen, onDismiss = quickAdd::close)
             FloatingChrome(
