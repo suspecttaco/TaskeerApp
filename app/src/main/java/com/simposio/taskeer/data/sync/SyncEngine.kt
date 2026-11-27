@@ -66,6 +66,10 @@ class SyncEngine(
 
     val notices: SharedFlow<SyncNotice> = mutableNotices.asSharedFlow()
 
+    private val mutableManualOutcomes = MutableSharedFlow<CycleOutcome>(extraBufferCapacity = 4)
+
+    val manualOutcomes: SharedFlow<CycleOutcome> = mutableManualOutcomes.asSharedFlow()
+
     // Verdadero mientras se espera la decisión del usuario sobre una cuenta distinta a la vinculada.
     val accountSwitchPrompt: StateFlow<Boolean> = accountPrompt.asStateFlow()
 
@@ -103,7 +107,8 @@ class SyncEngine(
         cycleLock.withLock {
             lastCycleStart = clock()
             try {
-                loggedCycle(manual)
+                val outcome = loggedCycle(manual)
+                if (manual) mutableManualOutcomes.tryEmit(outcome)
             } finally {
                 syncing.value = false
             }
